@@ -1,0 +1,1601 @@
+# 计算机网络
+
+[TOC]
+
+## 第一章 网络体系结构
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200519230320946.png" alt="image-20200519230320946" style="zoom:50%;" />
+
+### 概念
+
+互连的自治的集合，设备连接，软件完善。
+
+计算机网络的组成：硬件、软件、协议
+
+工作方式：1. 边缘部分：用户直接使用（P2P C/S）  2. 核心部分
+
+功能组成：1. 通信子网（数据）   2. 资源子网（资源）
+
+分布范围：WAN（广域网，交换机+路由器，点对点技术） MAN LAN（交换机，广播技术）  PAN
+
+使用者分类：公用网，专用网....
+
+### 标准化工作
+
+法定标准(OSI)和事实标准(TCP/IP)
+
+RFC标准
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617115133721.png" alt="image-20200617115133721" style="zoom: 50%;" />
+
+### 性能指标
+
+**速率**：即比特率或者数据传输率。1B = 8b
+
+**带宽**：表示的是**最高**数据率，即所支持最高网速，是发送的速率不是传输的速率。
+
+**吞吐量**：单位时间内通过某个网络的数据量。
+
+**时延**：数据从网络一段传送到另一端所需的时间，分为发送时延，传播时延，排队时延，处理时延。
+
+发送时延：主机从发送第一个比特起到最后一个比特发送完毕。（数据长度/信道宽度）
+
+传播时延：数据流在链路上传播的速度（链路长度/2*10^8）
+
+排队时延：等待输入/出链路的时间
+
+处理时延：路由器对数据进行处理比如纠错处理等
+
+**时延带宽积**：传播时延×带宽
+
+**往返时延RTT**：从发送方发送第一个bit开始，到发送方接受方的确认时总共经历的时延。
+
+**利用率**：
+
+信道利用率：有数据通过时间/总时间
+
+网络利用率：所有信道利用率加权取评价值
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200518231632729.png" alt="image-20200518231632729" style="zoom: 50%;" />
+
+### 分层结构 协议 接口 服务
+
+上层单向使用下层提供的服务
+
+协议：语义语法同步
+
+接口：上层使用下层的服务
+
+服务：下层提供上层
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200519220543115.png" alt="image-20200519220543115" style="zoom:50%;" />
+
+### OSI模型（法定标准）
+
+TCP/IP参考模型（事实标准）
+
+为了支持异构网络系统的互联互通，ISO提出了OSI参考模型
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200519221419998.png" alt="image-20200519221419998" style="zoom:25%;" />
+
+通信子网是点到点通信，上四层是端到端通信。
+
+每个上层到下层的时候都会加有数据头，其中数据链路层**不仅**加了头部还加了尾部，物理层把数据流转换成0-1比特流。
+
+应用层：面向用户的产生流量的程序
+
+表示层：两个设备之间数据传递的功能，例如格式的变换，数据的加密和解密，数据的压缩和回复。
+
+会话层：先向表示层实体建立好连接有序的传输，可以设置校验点建立同步（SYN）。
+
+传输层：负责两个进程的通信。1. 可靠不可靠通信 2. 差错控制 3. 流量控制 4.复用分用（复：多个应用同时使用一个传输层；分：一个传输层分发给多个应用：端口号）
+
+网络层：又称IP层、网际层。分组从源端到目的端。1. 路由选择 2. 流量控制 3. 差错控制 4. 拥塞控制
+
+流量控制针对发送端，拥塞控制针对全局。
+
+数据链路层：1. 封装成**帧**。定义帧的开始和结束。2. 差错控制  3. 流量控制 4. 接入控制
+
+物理层：把比特流转化为电信号。单位：比特。1. 定义传输模式：双工，半双工，全双工 2. 定义传输速率 3. 比特同步 比特编码等等 802.3
+
+### TCP/IP模型和5层模型
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200519225532605.png" alt="image-20200519225532605" style="zoom:67%;" />
+
+
+
+TCP/IP设计初考虑到了互联网异构的问题，将IP设为重要层次。
+
+TCP/IP协议网络层不需要**面向连接**，传输层可无连接。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200519230059666.png" alt="image-20200519230059666" style="zoom:67%;" />
+
+### 题目：
+
+B
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617135704362.png" alt="image-20200617135704362" style="zoom:67%;" />
+
+
+
+## 物理层
+
+接口特性：1. 机械特性（引脚数目，引线数量）  2. 电气特性（电压范围，速率，距离）  3. 功能特性（电平的涵义） 4. 规程特性（过程特性）
+
+### 通信数据模型
+
+信道：信号传输的媒介。模拟信道和数字信道，无线信道和有线信道。
+
+通信方式：
+
+从交互方式看：单工  半双工  全双工
+
+交换方式：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200619092748208.png" alt="image-20200619092748208" style="zoom: 50%;" />
+
+虚电路无需知道源地址和目的地址，两个站点之间可以有多条虚电路。
+
+传输方式：串行传输（适合远距离）和并行传输（适合近距离）
+
+同步传输（含SYN同步字）和异步传输（开头结尾有标志）。保持相同的节奏。
+
+**码元**：一个固定时长的信号波形，不同离散值的基本波形，不同状态数目交K进制码元。4进制码元可以由两个比特表示（00，01，10，11）
+
+**速率：**
+
+码元传输速率：单位时间内数字通信系统所传输的码元数量，单位**波特**（Baud）1秒传输多少码元（也称为脉冲个数或者信号变化次数）
+
+信息传输速率：1s传输多少比特。
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200520202213734.png" alt="image-20200520202213734" style="zoom:50%;" />
+
+```
+答：
+码元传输速率：8000 / 4 = 2000B  信息：2000*log2(4) = 4000 b/s
+另一个：7200 / 6 = 1200 B  信息：1200 * log2(16) = 4800 b/s
+第二个快
+```
+
+<hr/>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200619092907492.png" alt="image-20200619092907492" style="zoom:67%;" />
+
+<hr/>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200619100732496.png" alt="image-20200619100732496" style="zoom:67%;" />
+
+### ※奈氏准则 香农定理※
+
+失真：在现实中带宽、噪声干扰等使得信号变形扭曲。
+
+影响失真的因素：1. 速率 2. 传输距离 3. 噪声 4. 传输媒介质量
+
+**码间串扰**：接收端失去了码元之间清晰的界限。
+
+<font color='red'>因为是信号信道，所以两者单位是Hz</font>
+
+**奈氏准则**（限制码元传输率）：在理想低通（无噪声，带宽受限）极限码元传输速率：2W Baud  （W是信道带宽，单位Hz）
+
+理想低通信道下的极限数据传输率：2W log2(V) b/s
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200520215558223.png" alt="image-20200520215558223" style="zoom:50%;" />
+
+**香农定理**（定义了最大数据传输率）：考虑了噪声。
+
+信噪比：信号的平均功率 / 噪声的平均功率  记为S/N 信噪比=10lg(S/N) dB
+
+香农定理极限数据传输率： = W log~2~(1+S/N)  b/s
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200520220625585.png" alt="image-20200520220625585" style="zoom:43%;" />
+
+什么时候使用奈氏什么时候使用香农定理呢？
+
+如果有噪声肯定是香农，无噪声肯定是奈氏。如果既给了码元的种类数量V和信噪比，那就需要都计算一下，取两者最小值。
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200520221151711.png" alt="image-20200520221151711" style="zoom:50%;" />
+
+<hr/>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200619102136510.png" alt="image-20200619102136510" style="zoom:67%;" />
+
+### 编码与调制
+
+信号分为：基带信号（数字信道，近距离衰减小）和宽带信号（模拟信道，远距离衰减大，频率够高）
+
+基带传输（数字信号）和频带传输（模拟信号）：
+
+数据 ->  数字信号   编码手段
+
+数据 ->  模拟信号   调制手段
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200520222510296.png" alt="image-20200520222510296" style="zoom:50%;" />
+
+**数字数据 -> 数字信号**：
+
+> 曼彻斯特编码可以很好的将**时间信号和信息**信号结合在一起。
+> 10BASE-T和以太网使用曼彻斯特编码。
+
+1. 非归零编码：容易实现，但没有检错功能，无法判断开始和结束，难以同步。
+2. 曼彻斯特编码：前高后低是1，前低后高是0。**数据传输速率只有调制速率的1/2**.
+3. 差分曼彻斯特编码：“同1异0”，常用于局域网传输，可实现同步，抗干扰性强。
+4. 归零编码：在同一个码元内都要恢复成0
+5. 反向不归零编码：电平翻转表示0，信号电平不变表示1
+6. 4B/5B编码：效率80%。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200522160420858.png" alt="image-20200522160420858" style="zoom:50%;" />
+
+**数字数据 -> 模拟信号：**
+
+1. 调幅ASK 2. 调频FSK 3. 调相PSK 4. 调幅+调相QAM
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200522161056961.png" alt="image-20200522161056961" style="zoom:67%;" />
+
+**模拟数据 -> 数字信号：**
+
+**脉冲编码调制**：三步：抽样，量化，编码
+
+1. 抽样：把连续信号变为离散的信号。f~采样频率~≥2f~信号最高频率~
+2. 量化：将抽样取得的电平幅值转化为对应数字值。
+3. 编码：把量化结果转化为对于二进制编码
+
+**模拟数据 -> 模拟信号：**
+
+可以采用频分复用技术。调制到高频率的信号。
+
+### 物理层传输介质
+
+导向性传输介质：电磁波沿着固定媒介传输
+
+1. 双绞线
+
+2. 同轴电缆。抗干扰强。
+
+3. 光纤：更快传输速率
+
+   <img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200522180956117.png" alt="image-20200522180956117" style="zoom:33%;" />
+
+非导向传输介质：非固定媒介
+
+1. 无线电波：向所有方向传播
+2. 微波：超固定方向，频率较高。地面微波接力传播，卫星通信
+3. 红外线，激光：超固定方向，要转成自己的格式。
+
+### 物理层设备
+
+中继器：由于传输线路上信号功率衰减会造成信号失真导致错误。中继器对信号进行再生和还原。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200522182024590.png" alt="image-20200522182024590" style="zoom:50%;" />
+
+集线器：多端口中继器。不能分割冲突域。
+
+<font color='blue'>#题目#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200619091510607.png" alt="image-20200619091510607" style="zoom:67%;" />
+
+## 数据链路层
+
+结点：主机，路由器
+
+链路：网络中两个结点之间的物理通道
+
+数据链路：两个结点之间的逻辑通道。
+
+帧：封装网络层的数据报，链路层的协议数据单元。
+
+### 功能概述
+
+通过一条链路从一个结点到另一个链路直接相连的相邻结点传输数据报。
+
+像网络层提供服务，加强物理层传输原始比特流的功能。
+
+功能一：为网络层提供服务。无确认无连接，有确认无连接，有确认面向连接服务。
+
+功能二：链路管理，链接建立维持、释放（面向连接的服务）
+
+功能三：组帧。
+
+功能四：流量控制（限制发送方）。
+
+功能五：差错控制（帧错，位错）
+
+### 封装成帧和透明传输
+
+在数据前后部分填头填尾。包含许多控制信息：比如帧定界。
+
+**帧同步**：接收方能接收到二进制比特流中区分帧的起始和终止。
+
+![image-20200524160017497](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200524160017497.png)
+
+组帧的四种方法：
+
+1. 字符计数法  用一个技术字段来标明帧内的字符数。一个错，个个错，失去同步。
+
+2. 字符（节）填充法。SOH和EOT标志法。使用ESC转义字符来避免SOH和EOT被提前识别。
+
+3. 零比特填充法。首尾都是“01111110”。中间遇到5个1填充一个0。
+
+4. 违规编码法。由于曼彻斯特编码0，1表示只会出现高-低，低-高的信号。因此使用高-高和低低来标志起始和终止。
+
+   普遍使用3，4方法。
+
+透明传输：什么都可以传输，不去修改数据。
+
+### 差错控制
+
+> 由噪声（随机噪声和冲击噪声）干扰产生等。
+
+差错类型：1. 位错（1到0，0到1）  2. 帧错：丢失，重复，失序
+
+噪声和差错：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621224929904.png" alt="image-20200621224929904" style="zoom:67%;" />
+
+检错编码：奇偶校验码（在数据头部加“1”或者“0”，检错能力50%），CRC循环冗余码（硬件实现，异或操作，几乎可以认为无差错）。
+
+<font color='blue'>#题目：CRC冗余码#</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200524162932007.png" alt="image-20200524162932007" style="zoom:50%;" />
+
+纠错编码：**海明码**（只能发现双比特错，纠正单比特错）
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200524163403624.png" alt="image-20200524163403624" style="zoom:50%;" />
+
+海明不等式：2^r^ ≥ k + r+ 1 (k为冗余信息位，k位信息位)
+
+P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他位数上。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200524164252451.png" alt="image-20200524164252451" style="zoom:67%;" />
+
+在求各位P的时候，根据与其第K+1位相同是“1”的数据位的值进行异或操作使其为0，最后联合起来得到最终数值。
+
+检错和纠错：重新计算各个P，最后倒序取值P~4~P~3~P~2~P~1~就是出错的位置。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621225234436.png" alt="image-20200621225234436" style="zoom:67%;" />
+
+### 流量控制和可靠传输机制
+
+> 较高的发送速度和较低的接受能力不匹配。用来控制发送端的。
+
+数据链路层的流量控制是点对点的，接收方收不下就不回复确认；传输层的流量控制是端对端的，接收方会给发送端一个窗口。
+
+流量控制方法：
+
+1. 停止等待协议：低效的，发一个接一个。相当于特殊的滑动窗口，发送窗口=接受窗口=1
+
+   为什么使用：由于底层会出现丢包的情况。
+
+   A. 数据帧丢失和帧出错。使用超时计时器（比帧传输RTT要长）
+
+   发送完一个帧之后。**必须**保留副本
+
+   数据帧和确认帧必须编号。
+
+   B. ACK丢失。同A
+
+   C. ACK迟到。
+   $$
+   利用率 U = \frac{T_D}{T_D+RTT+T_a}(T_D发送时延，T_a接受时延)
+   $$
+   信道利用率（L（发送长度）/C（速率））/T
+
+   <img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621233122946.png" alt="image-20200621233122946" style="zoom:50%;" />
+
+2. 滑动窗口协议：（窗口大小是**固定值**）
+
+   A. 后退N帧协议（GBN）：发送窗口大于1，接收窗口=1
+
+   收到几个确认，发送窗口就向前移动几个窗口。
+
+   采用**累计确认**的方式，不用每个确认帧都返回。
+
+   中间有一个帧未收到，后面的帧收到也会丢弃。
+
+   如果采用n比特对帧编号，尺寸应该满足≤2^w^大小，序列号位数大于发送窗口大小。
+
+   **发送窗口+接收窗口≤帧序号**
+
+   <font color='skyblue'>缺点：重传效率低</font>
+
+   <font color='blue'>#题目：#</font>
+
+   <img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200525210509737.png" alt="image-20200525210509737" style="zoom:50%;" />
+
+   B. 选择重传协议（SR）：发送窗口＞1，接收窗口＞1。<font color='skyblue'>解决批量重传</font>
+   
+   解决方法：加大接收窗口，设置接收缓存，缓存乱序到达的帧。
+
+滑动窗口解决：
+
+​	可靠传输：发送端发什么接收端就收什么，自动重传ARQ
+
+​	流量控制：控制发送速率，是接收方有足够缓冲接受每一个帧。
+
+### 信道划分介质访问控制
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606192918890.png" alt="image-20200606192918890" style="zoom:50%;" />
+
+点对点链路：PPP协议，常用广域网。
+
+广播式链路：所有主机共享通信介质，常用局域网。
+
+访问控制就是：确认通信过程中不互相干扰。
+
+**复用：**
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606193115492.png" alt="image-20200606193115492" style="zoom:67%;" />
+
+频分复用：
+
+时分复用TDM：在一段时间占用固定占比的时隙。
+
+改进——统计时分复用STDM：
+
+假如TDM一共可发8000b/s，那4个线路每人最高2000b，而STDM可8000b/s
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606193837449.png" alt="image-20200606193837449" style="zoom:50%;" />
+
+波分多路复用WDM：根据光的频分的性质，光有不同的频带。
+
+码分多路复用CDM※：
+
+码分多址CDMA是码分复用的一种技术。
+
+CDMA：
+
+**ALOHA协议：**
+
+> 分为纯ALOHA和时隙ALOHA协议
+
+不监听信道，随机重发，想发就发。超时等待随机事件重传。
+
+时隙aloha：把时间分为若干个时间片，只能在下个时刻的时间片发送。
+
+**CSMA协议：**
+
+> Carrier Sense Multiple Access载波监听多路协议，发送前检测其他主机是否在发送数据（根据电压检测）
+
+"坚持"：如果忙，则一直监听
+
+1-坚持-CSMA思想：空闲直接传输不等待，忙则一直监听。如果冲突，等待一个随机长的事件再监听。
+
+非坚持：等待一个随机时间再去监听。
+
+p-坚持-CSMA：对于空闲的处理。以p概率直接传输，1-p概率等下一个时隙传输。（但是发送冲突之后，还会发送数据帧）
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606203332965.png" alt="image-20200606203332965" style="zoom:50%;" />
+
+**CSMA/CD协议碰撞检测：**
+
+边发送数据边检测
+
+传播时延对于载波监听的影响：监听的时候双方都以为没有冲突，双发都发送数据，就产生冲突了 。
+
+2τ时间。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606204652487.png" alt="image-20200606204652487" style="zoom:67%;" />
+
+如何确定碰撞后的重传时间？
+
+截断二进制指数规避算法：
+
+![image-20200606210019194](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606210019194.png)
+
+确定最小帧长：为了防止发送数据太短导致无法检测到是否碰撞，应该设置一个最小帧长。
+
+```
+以太网传播信号1km大约需要5μs
+以太网的争用期为51.2μs
+对于10Mbit/s的以太网，发送32bit只需要3.2μs
+```
+
+
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200606210138764.png" alt="image-20200606210138764" style="zoom:33%;" />
+
+**CSMA/CA协议：**
+
+> CA，collision avoidance碰撞避免
+
+CA协议用于无线局域网中，无线360度无法全面检测。
+
+先检测空闲再发送，空闲则发出RTS信号（Request to send），接收端收到RTS后发送CTS（clear to send）.发送数据并且预约信道，正确响应ACK帧。若没有收到ACK使用二进制指数退避算法。
+
+**MAC协议：**
+
+基于多路复用计数划分资源。
+
+在网络负载重的情况下，共享信道效率高且公平。
+
+随机访问MAC协议：网络负载重的情况瞎会尝试冲突开销，
+
+轮询访问协议MAC：主节点轮流"邀请"从属节点发送数据。既不产生冲突，发送时可占用全部带宽。存在等待延迟，轮询开销。
+
+<font color='red'>令牌传递协议</font>：
+
+在一个令牌环网内，令牌一直”转圈“询问主机是否需要发送数据，如果一个主机需要发送数据，则主机将令牌的对应的标志位改为”忙“状态，轮流经过主机，如果到达目的主机，目的主机复制信息到自己的主机内，等到再回到发送主机的时候，重新检查数据的检验，如果无误则返回令牌，有误则重新发送数据。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609000144147.png" alt="image-20200609000144147" style="zoom:67%;" />
+
+### 局域网的基本概念和结构
+
+LAN，使用的**广播信道**
+
+数据传输速率比较高，通信延迟短，误码率低，可靠性高，延迟低。
+
+决定局域网的因素：网络拓扑，介质访问控制
+
+网路拓扑：
+
+总线拓扑最优。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609001016169.png" alt="image-20200609001016169" style="zoom:50%;" />
+
+介质访问控制：CSMA/CD（总线）、令牌总线（总线）、令牌环网（环形局域网）
+
+**局域网的分类**：
+
+![image-20200609001648410](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609001648410.png)
+
+### IEEE802标准
+
+80年2月成立，由IEEE成立，802.3 以太网（CSMA/CD）、802.5（令牌环网——单点故障）、802.8（FDDI光纤）、802.11（WLAN）
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609001923202.png" alt="image-20200609001923202" style="zoom: 50%;" />
+
+LLC子层：逻辑上的链路子层，负责识别网络层协议。
+
+MAC子层：介质访问控制子层.
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609002038375.png" alt="image-20200609002038375" style="zoom: 50%;" />
+
+### 以太网
+
+便宜，廉价
+
+提供无连接，不可靠的服务。
+
+逻辑上总线型，物理上星形。
+
+10BASE-T以太网：
+
+MAC帧：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609204857042.png" alt="image-20200609204857042" style="zoom:67%;" />
+
+高速以太网、吉比特网、10吉比特网
+
+### 无线局域网广域网
+
+PPP协议：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609212917818.png" alt="image-20200609212917818" style="zoom:50%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609212949303.png" alt="image-20200609212949303" style="zoom:50%;" />
+
+
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609213107913.png" alt="image-20200609213107913" style="zoom:67%;" />
+
+HDLC协议：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609213441189.png" alt="image-20200609213441189" style="zoom:67%;" />
+
+### 网桥和交换机
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609215437922.png" alt="image-20200609215437922" style="zoom:67%;" />
+
+透明网桥和源路由网桥：
+
+透明网桥自学习：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609222610781.png" alt="image-20200609222610781" style="zoom:67%;" />
+
+多接口网桥——交换机
+
+可以独占网速。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200609222910810.png" alt="image-20200609222910810" style="zoom:67%;" />
+
+如果有n个路由器就是n+1个广播域
+
+跟交换机连接的接口数目就是冲突域的数目
+
+## 网络层
+
+> 把分组从源端到目的端，为分组交换网上的不同主机提供通信服务。
+
+功能：路由选择和分组转发、异构网络互联、拥塞控制（全局概念，开环和闭环控制）
+
+### 路由算法和路由协议
+
+路由表转发表：
+
+| 目的IP地址 | 子网掩码 | 下一跳IP地址 | 接口 |
+| ---------- | -------- | ------------ | ---- |
+|            |          |              |      |
+|            |          |              |      |
+|            |          |              |      |
+
+**静态路由算法**：
+
+简单可靠，适用于网络变化不大的网络。
+
+**动态路由算法**（自适应）：
+
+路由器之间彼此交换信息，适用于大型网络
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613083142663.png" alt="image-20200613083142663" style="zoom:50%;" />
+
+**分层次的路由选择协议：**
+
+自治系统AS：网络规模大，不想让外界了解内部的路由选择协议
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613083627206.png" alt="image-20200613083627206" style="zoom: 50%;" />
+
+### IP数据报格式
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613083737507.png" alt="image-20200613083737507" style="zoom:50%;" />
+
+分为首部和数据报部分：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613084411646.png" alt="image-20200613084411646" style="zoom:67%;" />
+
+单位：
+
+总长度1B 首部长度 4B 片偏移：8B
+
+### IP数据报分片
+
+MTU：可封装数据的上限。以太网MTU1500字节。
+
+根据数据报中的“标识”，“标志”，“片偏移”来决定。
+
+标识：同一分片使用同一标识。
+
+标志：只有两位有意义X _ _. 中间DF（1禁止）MF（1还有分片）。DF=0，MF才有意义
+
+片偏移：13位，以8B为单位。
+
+<font color='red'>例题：</font>
+
+1400 + 1400 + 1000 + 20 + 20 + 20
+
+片偏移分别是：0，175，350
+
+### IPv4
+
+分类IP、划分子网、构造超网
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613090403268.png" alt="image-20200613090403268" style="zoom:67%;" />
+
+> 有6个网络地址
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613090517365.png" alt="image-20200613090517365" style="zoom:67%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613091257783.png" alt="image-20200613091257783" style="zoom:67%;" />
+
+#### 特殊IP地址
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613090838547.png" alt="image-20200613090838547" style="zoom:67%;" />
+
+私有IP地址：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613091030189.png" alt="image-20200613091030189" style="zoom:50%;" />
+
+路由器对目的地址是私有地址的数据报一律不转发。
+
+#### NAT
+
+至少有一个有效的外部全球IP地址
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613094223956.png" alt="image-20200613094223956" style="zoom:50%;" />
+
+#### 子网划分
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613094743110.png" alt="image-20200613094743110" style="zoom:50%;" />
+
+主机不能全0全1
+
+<font color='red'>例题：</font>
+
+![image-20200613095734410](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613095734410.png)
+
+```
+77 ->0100 1101
+252->1111 1100
+180.80.77.55 B类地址，网络号为180.80  子网号为 0100 11 由于广播地址全1，
+因此子网号+主机号为： 0100 1111 1111 1111 (79.255)
+因此选D
+```
+
+转发算法：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200613100119327.png" alt="image-20200613100119327" style="zoom:50%;" />
+
+### 无分类编制CIDR
+
+> 相当于可变长度的子网掩码
+
+消除了传统ABC类地址，可以缩短路由前缀。
+
+构成超网：将多个子网聚合成较大的子网，叫做超网，也是路由聚合。
+
+<font color='red'>题目</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615113351341.png" alt="image-20200615113351341" style="zoom:67%;" />
+
+```
+C类地址，网络号24位，子网号5位 32个子网，主机号3位，2^3-2 = 6
+```
+
+### ARP协议
+
+> IP地址和MAC地址的映射（通过高速缓存），工作在数据链路层和网络层之间。
+
+同一个网络内的主机怎么找到目的MAC地址
+
+1. 首先发送一个请求帧
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615114210455.png" alt="image-20200615114210455" style="zoom:53%;" />
+
+2. 对应主机响应
+
+不在同一个网络内的主机怎么找到目的MAC地址？首先会和自己IP相与是否在同一网络
+
+不在同一网络内的主机MAC找不到，就交给默认网关，把默认网关的MAC地址当成目的MAC地址，然后其他交给默认网关路由器来做。请求流程与上述相似。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615114746833.png" alt="image-20200615114746833" style="zoom:67%;" />
+
+在不考虑NAT的情况时候，数据传输过程中，源MAC地址和目的MAC地址都会改变。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615115557876.png" alt="image-20200615115557876" style="zoom:50%;" />
+
+<font color='red'>题目</font>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615115824649.png" alt="image-20200615115824649" style="zoom:67%;" />
+
+### DHCP协议
+
+> 应用层协议，C/S方式，通过广播方式，基于UDP
+
+可以获取IP，子网掩码，默认网关，DNS服务器、支持地址重用、支持地址续租
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200615121953926.png" alt="image-20200615121953926" style="zoom:50%;" />
+
+### ICMP协议
+
+> 用于差错报告、网络探询
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616091613060.png" alt="image-20200616091613060" style="zoom:50%;" />
+
+ICMP 5种报文格式：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616091956290.png" alt="image-20200616091956290" style="zoom:67%;" />
+
+对ICMP差错报文不发送差错报文。
+
+只对第一个数据报分片发送差错报文。
+
+对组播不发送差错报文
+
+对特殊地址（127.0.0.0）不发送差错报文.
+
+**询问报文**：Ping（询问），traceroute（时间超过差错报文，每次TTL从1开始，逐次增加）
+
+### IPv6
+
+> 从根本上解决地址耗尽，改进了首部格式，支持QoS
+
+数据报格式:
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616095216471.png" alt="image-20200616095216471" style="zoom:67%;" />
+
+从32位到128位
+
+移除首部校验
+
+扩展部分移动到数据报部分
+
+IPv6即插即用，不需要DHCP
+
+首部长度必须是8B的整数倍
+
+IPv6可以在只能在主机处分片，IPv4可以在路由器和主机分配
+
+IPv6取消了协议字段，改成了下一个首部字段
+
+**ipv4和ipv6：双栈技术 和 隧道技术**（ipv6作为ipv4的数据部分）
+
+### RIP协议——UDP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616101235479.png" alt="image-20200616101235479" style="zoom:67%;" />
+
+> 分布式的基于距离向量的路由选择协议，每个路由器维护从他自己到其他每一个目的网络的唯一最佳距离记录。
+
+只和相邻路由器交换信息，路由器交换自己的路由表。
+
+每30s交换一次路由表，若超过180s没接收到信息，则判定路由器不存在，更新路由表。
+
+**距离向量算法**：
+
+1. 将接收的X路由器表项进行修改，对距离加一，下一跳改为X
+2. 添加本路由器没有的表项
+3. 对于其他路由器发来的表项，如果对应表项存在，如果下一跳的路由器仍是X，则替换表项，如果不是X且距离比走X的距离远则更新，否则不变。
+4. 若180s内还没收到相邻路由器更新路由器，则把X设置为不可达，16
+
+<font color='red'>题目：</font>
+
+更正：R1为R6
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616110500091.png" alt="image-20200616110500091" style="zoom:50%;" />
+
+报文格式：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616111405545.png" alt="image-20200616111405545" style="zoom:67%;" />
+
+最多25个路由信息。
+
+特点：好消息传得快，坏消息传的慢
+
+![image-20200616111713474](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616111713474.png)
+
+两者来回交换，30*16 = 480s 8分钟。
+
+### OSPF协议——网络层——IP
+
+> 使用dijsktra最短路径算法。重要特征：分布式的链路状态协议
+
+对象：使用洪范法给所有路由器发送信息（广播）
+
+内容：路由器的状态（费用、距离、时延、带宽）
+
+时间：只有当链路状态变化，才发送信息。
+
+所有路由器都能建立一个最短数据库。
+
+**算法**：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616112518923.png" alt="image-20200616112518923" style="zoom:67%;" />
+
+区域：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616112539008.png" alt="image-20200616112539008" style="zoom:67%;" />
+
+### BGP协议——TCP应用层
+
+> 外部网关协议，发生变化时才传递信息
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616131410348.png" alt="image-20200616131410348" style="zoom: 50%;" />
+
+与其他AS发言人交换信息。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616131610928.png" alt="image-20200616131610928" style="zoom:67%;" />
+
+### 三种路由选择
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200616131958171.png" alt="image-20200616131958171" style="zoom:67%;" />
+
+### IP组播——UDP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617095757213.png" alt="image-20200617095757213" style="zoom:67%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617092857883.png" alt="image-20200617092857883" style="zoom:67%;" />
+
+组播IP地址：224.0.0.0~239.255.255.255
+
+**硬件组播**：
+
+01-00-5E
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617094609182.png" alt="image-20200617094609182" style="zoom:67%;" />
+
+**IGMP和组播路由选择：**
+
+IGMP：让路由器知道本局域网是否有主机	
+
+### 移动IP
+
+> 不同网段，固定IP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617102200533.png" alt="image-20200617102200533" style="zoom:67%;" />
+
+### 网络层设备——路由器
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200617102719366.png" alt="image-20200617102719366" style="zoom:67%;" />
+
+## 传输层
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624150935025.png" alt="image-20200624150935025" style="zoom:67%;" />
+
+1. 提供进程和进程之间的通信。
+2. 复用和分用
+3. 对报文进行差错检测（对数据报）。
+
+TCP和UDP区别：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624151438813.png" alt="image-20200624151438813" style="zoom:50%;" /><img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624151458423.png" alt="image-20200624151458423" style="zoom:67%;" />
+
+传输层是寻址是靠端口，端口号只有本地意义。
+
+16bit 65536
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624151759983.png" alt="image-20200624151759983" style="zoom:67%;" />
+
+常见端口：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624151835440.png" alt="image-20200624151835440" style="zoom:67%;" />
+
+### UDP
+
+> 无连接、不可靠、面向报文，适用于传输少量应用速率、无拥塞控制（实时）、首部8B
+
+首部格式
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624153905800.png" alt="image-20200624153905800" style="zoom:80%;" />
+
+源端口可不填。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624154346309.png" alt="image-20200624154346309" style="zoom:80%;" />
+
+### TCP
+
+特点：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624154718156.png" alt="image-20200624154718156" style="zoom:67%;" />
+
+首部格式：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624155054830.png" alt="image-20200624155054830" style="zoom:50%;" />
+
+TCP中的数据偏移是首部地址，单位4B，表示数据开头部分距离TCP首部的距离
+
+控制位：
+
+URG：表示发送方的紧急数据，赋予数据的优先发送权。
+
+ACK：ACK=1时确认号有效，连接建立的时候必须把所有的报文段都置为1。
+
+PSH：表示接收方的紧急数据，要求传输层必须赶紧把数据交付给应用层。
+
+RST：表示TCP连接中出现严重的数据差错，必须释放连接，然后重新建立传输连接。
+
+SYN：SYN=1时，表示一个连接请求/连接接受报文。
+
+FIN：FIN=1，表示报文已经传输完毕。
+
+窗口：表示自己的接受窗口。
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624160135767.png" alt="image-20200624160135767" style="zoom:50%;" />
+
+### TCP连接管理
+
+连接建立->数据传输->连接释放（C/S模式）
+
+连接过程（三次握手）：
+
+1. 客户端发送请求报文段，无应用层数据。
+
+   SYN=1，seq=x（随机分配）
+
+2. 服务器端收到信息，为其分配缓存和变量，并向客户端返回确认报文段，运行连接，无应用层数据。
+
+   SYN=1 ACK=1 seq=y(随机分配) ack=x+1
+
+3. 客户端为此TCP分配缓存和变量，并向服务器返回确认的确认，开始携带数据。
+
+   SYN=0	ACK=1	ack=y+1	seq =x+1
+
+连接释放过程（四次握手）：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624161737868.png" alt="image-20200624161737868" style="zoom:80%;" />
+
+SYN洪范攻击：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624161440512.png" alt="image-20200624161440512" style="zoom:67%;" />
+
+### TCP的可靠传输
+
+> 校验、序号、确认、重传
+
+1. 重传采用加权RTTS，加权重传时间。
+
+2. 冗余ACK
+
+   <img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624163706626.png" alt="image-20200624163706626" style="zoom:67%;" />
+
+### TCP的流量控制
+
+> 让发送方慢点发
+
+发送窗口的大小取决于接收窗口rwnd和拥塞窗口cwnd的最小值
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624165939225.png" alt="image-20200624165939225" style="zoom:67%;" />
+
+如何避免死锁？
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624170141676.png" alt="image-20200624170141676" style="zoom:50%;" />
+
+### TCP的拥塞控制
+
+> 防止过多数据注入到网络中。对资源需求的综合 > 可用资源
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624170710997.png" alt="image-20200624170710997" style="zoom:50%;" />
+
+四种算法：
+
+慢开始+拥塞避免
+
+ssthresh：发送门限值，慢开始的最大值
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624172012751.png" alt="image-20200624172012751" style="zoom:80%;" />
+
+快重传+快恢复
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200624172214008.png" alt="image-20200624172214008" style="zoom:80%;" />
+
+不用把cwnd降为1。
+
+计算机网路习题
+
+[TOC]
+
+## 物理层
+
+### 奈氏和香农
+
+![image-20200618171459432](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200618171459432.png)
+$$
+20000*log_216=20000*4=80000bit/s
+$$
+
+<hr/>
+
+![image-20200618172436623](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200618172436623.png)
+$$
+64000 = 3000 * log_2(1+S/N) → 10lg(S/N) = 64.5dB
+$$
+说明噪声很大
+
+<hr/>
+
+![image-20200618174040376](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200618174040376.png)
+$$
+35000 = 3100*log_2(1+S/N)
+$$
+
+$$
+35000*(1+0.6)=3100*log_2(1+[S/N]_2)
+$$
+
+$$
+\frac{[S/N]_2}{S/N}=\frac{262143}{2521}=103
+$$
+
+$$
+3100*log_2(1+2621430)=3100*4.3 =66030b/s
+$$
+
+$$
+66030-35000*1.6≈18.0\%
+$$
+
+<hr/>
+
+根据香农公式,在带宽为 6000HZ 的信道上用 2 秒钟发送 120kb 的数据块（无差错传 输），信道上的信噪比应为多少分贝？
+$$
+120000/2 = 6000 * log_2(1+S/N)\\
+S/N=1023\\
+10lg(2.35)=30.1\\
+$$
+
+<hr/>
+
+在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，每个相位具有4种振幅的QAM调制，则该通信链路的最大数据传输速率是多少？
+$$
+2Wlog_2V=2*3000*log_2(4×4)=24000b/s
+$$
+
+<hr/>
+
+CDMA 系统有 4 个站点（A、B、C、D），码片序列分别为：A：(–1 –1 –1 +1 +1 –1 +1 +1) ；B：(–1 –1 +1 –1 +1 +1 +1 –1)；C：(–1 +1 –1 +1 +1 +1 – 1 –1)； D：(–1 +1 –1 –1 –1 –1 +1 -1)。若某站收到 (–1 +1 –3 +1 –1 –3 +1 +1)，则 C、D 站发送的二进制位是？
+$$
+f(a)=\frac1m\sum_{i=1}^{m}a_ib_i\\
+f(C)=(1+1+3+1-1-3-1-1)=0\\
+f(D)=(1+1+3-1+1+3+1-1)/8=1\\
+未向C发送数据，向D发送数据为1
+$$
+
+### CDMA
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200618180034145.png" alt="image-20200618180034145" style="zoom:67%;" />
+
+根据公式：
+$$
+\frac1n\sum_{i=1}^{n}a_ib_i
+$$
+当为1时，发送的是1，-1时为-1，为0是不发送数据。
+
+A、D发送的是数据1、B发送的数据是0，C不发送数据。
+
+## 数据链路层
+
+### CRC
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200620082515252.png" alt="image-20200620082515252" style="zoom: 80%;" />
+
+```
+多项式：10011
+11010110110000/10011=……1110
+11010110101110/10011≠0	能发现
+11010110001110/10011≠0	能发现
+否
+```
+
+<hr/>
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200620085526665.png" alt="image-20200620085526665" style="zoom:80%;" />
+
+```
+101110000/1001 = 011
+```
+
+<hr/>
+
+要发送的数据为 1101011011，采用 CRC 检错技术（生成多项式为 P(x)=x4 +x3 +1） 
+
+• 求添加上冗余码后所要发送的数据帧？
+
+• 当数据帧在传输过程中出现 3 比特差错时，接受方有可能无法检验出该错误，请举例说明
+
+```
+1.0100
+2.
+```
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200319111423724.png" alt="image-20200319111423724" style="zoom:50%;" />
+
+<hr/>
+
+长度为 1km，数据传输率为 10Mbps 的 CSMA/CD 以太网，信号传播速度为 200m/us。 试求能够使该网络正常运行的最小帧长？
+$$
+\frac1{200*10^{-6}}*2*10^6=100bit
+$$
+
+### PPP
+
+![image-20200620085848063](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200620085848063.png)
+
+```
+7D 5E → 7E
+7D 5D → 7D
+7D 23 → 03
+7E FE 27 7D 7D 65 7E
+```
+
+### CSMA/CD
+
+![image-20200620091437310](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200620091437310.png)
+$$
+2\tau*V=S\\
+2*\frac1{200000}*10^9=10000bis/s
+$$
+
+
+<hr/>
+
+![image-20200620092909334](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200620092909334.png)
+$$
+以太网的争用期为51.2μs\\
+51.2*100=5.12ms\\
+5.12*100=512μs
+$$
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621233259668.png" alt="image-20200621233259668" style="zoom:50%;" />
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200622001500823.png" alt="image-20200622001500823" style="zoom:67%;" />
+
+### 以太网帧格式
+
+书P96
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621220553658.png" alt="image-20200621220553658" style="zoom:67%;" />
+
+### 其他题目
+
+![image-20200621223803606](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621223803606.png)
+
+## 网络层
+
+### 子网掩码、划分子网
+
+![image-20200623100247537](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623100247537.png)
+
+```
+(1). C类地址对应的默认子网掩码默认值。也可以是B、C类的掩码。主机号由最后8位决定。
+(2). 248->1111 1000 8-2 = 6
+(3). 子网掩码一样，子网数目不同
+(4). 2^12 - 2 = 4094
+(5). 有效，但不推荐
+(6). 194.47.20.129	C类
+(7). 有，进一步简化路由表
+```
+
+
+
+---
+
+![image-20200623105856638](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623105856638.png)
+
+
+
+BABCAC
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623110503862.png" alt="image-20200623110503862" style="zoom:80%;" />
+
+```
+0-16
+min 1 250
+```
+
+----
+
+![image-20200623115927273](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623115927273.png)
+
+```
+26 + 2 = 28
+16个(主机数和地址数)
+136.23.12.64/28	136.23.12.80/28	136.23.12.96/28	136.23.12.112/28
+0001 1110
+```
+
+### 路由表 RIP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623110022371.png" alt="image-20200623110022371" style="zoom: 80%;" />
+
+
+
+```
+m0	R2	R4	R3	R4
+```
+
+---
+
+![image-20200623130659976](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623130659976.png)
+
+```
+N1	7	A
+N2	5	C
+N3	9	C
+N6	5	CW
+N8	4	E
+N9	4	F
+```
+
+----
+
+![image-20200628072910945](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628072910945.png)
+
+```
+128.96.39.1		m0
+128.96.40.1		R3
+128.96.40.10	R2
+128.96.40.100	R5
+192.4.153.10	R5
+```
+
+----
+
+![image-20200628081514961](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628081514961.png)
+
+```
+N1	5	B
+N2	5	C	收到距离比原来远，要更新
+N3	4	C	到N3的距离要比E的近
+N4	5	D	不变
+N5	4	C	新增路由项
+```
+
+### IP分片
+
+![image-20200623111915584](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623111915584.png)
+
+3个
+
+数据字段：1480 1480 1020	sum = 3980
+
+片偏移：0	185	370
+
+MF：1	1	0
+
+---
+
+![image-20200628081022409](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628081022409.png)
+
+```
+2980
+1400	1400	180
+0		175		350
+1		1		0
+```
+
+### 路由聚合、最长匹配（地址块分配）
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623112634485.png" alt="image-20200623112634485" style="zoom: 80%;" />
+
+```
+132 -> 1000 0100
+212.56.132.0/22
+```
+
+---
+
+![image-20200623114818316](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623114818316.png)
+
+```
+LAN1	30.138.119.129
+LAN2	30.138.119.0/25
+LAN3	30.138.118.0/24
+LAN4	30.138.119.192/26
+LAN5	30.138.119.128/26
+```
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200623115710458.png" alt="image-20200623115710458" style="zoom:80%;" />
+
+### 综合题
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628084400401.png" alt="image-20200628084400401" style="zoom:80%;" />
+
+```
+(1)
+1:202.195.1.0/25		255.255.255.0
+2:202.195.1.128/26		255.255.255.128
+3:202.195.1.192/26		255.255.255.192
+(2)
+目的IP		子网掩码			下一跳IP		接口
+202.195.1.0		255.255.255.0		直接			E1
+202.195.1.128	255.255.255.128		直接			E2
+202.195.1.192	255.255.255.192		直接			E3
+0.0.0.0			0.0.0.0			202.195.3.2		 L0
+(3)
+202.195.1.0		255.255.255.0		202.195.2.1		 L0
+202.195.3.2		255.255.255.255		直接		       E0
+0.0.0.0			0.0.0.0			61.167.60.23		L1
+(4)
+1400	600
+175		75
+1		0
+(5)
+1000	400		600
+0		125		175
+1		1		0
+```
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628093328942.png" alt="image-20200628093328942" style="zoom:80%;" />
+
+```
+(1)
+172.18.145.0/25		255.255.255.0
+172.18.145.1/25		255.255.255.128
+(2)
+(3)
+TTL	源地址	首部校验
+(4)源端口NAPT	校验和
+```
+
+
+
+## 传输层
+
+### UDP
+
+![image-20200627235109392](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235109392.png)
+
+```
+源端口：1586	目的端口：69	长度：28字节	校验和：57879
+客户-》服务器		TFTP
+```
+
+### 窗口以及流量控制
+
+![image-20200628000622564](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628000622564.png)
+
+![image-20200628000750886](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628000750886.png)
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628103032441.png" alt="image-20200628103032441" style="zoom:80%;" />
+
+```
+100		300		200		
+```
+
+
+
+### 利用率 吞吐量
+
+![image-20200628000911609](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628000911609.png)
+
+```
+发送时延=65535*8/(10^9)=0.52428ms
+往返时延=2*10=20ms
+总时延=20.52428ms
+每秒可以产生的窗口：1000/20.52428
+最大数据吞吐量：65535*8*(1000/20.52428)=25544769bit/s
+利用率=25.5Mb/s÷1000Mb/s≈2.55%
+```
+
+---
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628104953523.png" alt="image-20200628104953523" style="zoom:80%;" />
+
+```
+WT:发送窗口
+实际数据率：(2000*7)/(2000/1E6+0.25*2)=27.89kb/s
+信道利用率：(2000*7/1E6)/(2000/1E6+0.25*2)=2.789%
+```
+
+
+
+### 拥塞控制
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628001932678.png" alt="image-20200628001932678" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628002637736.png" alt="image-20200628002637736" style="zoom: 67%;" />
+
+```
+(2)	1-6	23-26
+(3)	6-16	17-22
+(4)	16-17收到三个重复确认	22-23是超时检测到
+(5)	1->32	18->21=42/2(减半)		24-> 26/2=13
+(6)	1+2+4+8+16+32=63	因此是在第七轮
+(7)	cwnd和ssthresh应该设置为8的一半，即4
+```
+
+### 连接建立和释放
+
+![image-20200628004050622](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628004050622.png)
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628004039499.png" alt="image-20200628004039499" style="zoom:80%;" />
+
+----
+
+
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628110341280.png" alt="image-20200628110341280" style="zoom:80%;" />
+
+### 综合
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628112110530.png" alt="image-20200628112110530" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628112209708.png" alt="image-20200628112209708" style="zoom:80%;" />
+
+### 报文捕获
+
+![image-20200628112346544](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628112346544.png)
+
+
+
+## 结合
+
+### 可靠性
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200621222017398.png" alt="image-20200621222017398" style="zoom: 50%;" />
+
+### 考研题
+
+#### 2019
+
+![image-20200625095702544](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200625095702544.png)
+
+```
+(1).
+192.168.1.2/26	192.168.1.3/26	前缀均为192.168.1.0
+192.168.1.66/26	192.168.1.67/26	前缀均为192.168.1.64/26
+所以设备1是路由器，设备2，3是交换机
+(2).
+设备1：IF1 192.168.1.254	IF2：192.168.1.1	IF3：192.168.1.65
+(3).
+NAT服务
+(4).
+全1表示本网络，只有H4接收
+```
+
+#### 2018
+
+![image-20200625115819312](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200625115819312.png)
+
+```
+(1).
+广播：	 192.168.1.127			192.168.1.255
+被均分：192.168.1.0/25(销售部)	192.168.1.128/25(技术部)
+	   128-2-20=106			128-2-80=46		46-1=45(减去路由器)
+(2).
+1480 780 + 700  780%8=4
+780-> 776   700->704
+0    776/8=97
+```
+
+#### 2016
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628114548873.png" alt="image-20200628114548873" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628114605674.png" alt="image-20200628114605674" style="zoom:67%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628114524901.png" alt="image-20200628114524901" style="zoom:80%;" />
+
+### 各种首部格式
+
+#### IP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235412703.png" alt="image-20200627235412703" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235500934.png" alt="image-20200627235500934" style="zoom:80%;" />
+
+#### ICMP
+
+![image-20200627235556092](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235556092.png)
+
+![image-20200627235620564](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235620564.png)
+
+#### UDP
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235248438.png" alt="image-20200627235248438" style="zoom:67%;" />
+
+#### TCP首部格式
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200627235347612.png" alt="image-20200627235347612" style="zoom:67%;" />
+
+#### 应用层
+
+DNS——UDP
+
+FTP——TCP	TFTP——UDP
+
+TELNET——TCP
+
+SMTP——POP3——TCP
+
+DHCP——UDP
+
+常见端口：
+
+![image-20200628000433417](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628000433417.png)
+
+常见协议：
+
+![image-20200628000444537](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628000444537.png)
+
+### 报文
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628112944944.png" alt="image-20200628112944944" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628113022575.png" alt="image-20200628113022575" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628113048877.png" alt="image-20200628113048877" style="zoom:80%;" />
+
+---
+
+SYN报文：
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628113312732.png" alt="image-20200628113312732" style="zoom:80%;" />
+
+<img src="C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20200628113349055.png" alt="image-20200628113349055" style="zoom:80%;" />
