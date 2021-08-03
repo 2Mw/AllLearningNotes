@@ -671,8 +671,6 @@ docker build -t <name> .
    docker login -u <account>
    ```
 
-   
-
 2. Push
 
    ```sh
@@ -688,3 +686,124 @@ docker build -t <name> .
 2. 创建容器镜像
 
 ## Docker网络
+
+### docker0地址
+
+![image-20210803094916078](https://i.loli.net/2021/08/03/Bs5Z82JKuCqSxoa.png)
+
+查看内部容器ip地址：
+
+```sh
+docker exec -it nginx01 ip addr
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+2: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN group default qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+7: eth0@if8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+
+查看Docker网络信息：
+
+```sh
+docker network ls
+docker network inspect 9eb8509e1d11
+```
+
+```json
+{
+    "Name": "bridge",
+    "Id": "9eb8509e1d11e0ff5a52cf9cf5b758cbf1f3017a4aaecd0332e3a98385b71eb8",
+    "Created": "2021-08-03T01:50:17.5758794Z",
+    "Scope": "local",
+    "Driver": "bridge",
+    "EnableIPv6": false,
+    "IPAM": {
+        "Driver": "default",
+        "Options": null,
+        "Config": [
+            {
+                "Subnet": "172.17.0.0/16",
+                "Gateway": "172.17.0.1"
+            }
+        ]
+    },
+    "Internal": false,
+    "Attachable": false,
+    "Ingress": false,
+    "ConfigFrom": {
+        "Network": ""
+    },
+    "ConfigOnly": false,
+    "Containers": {
+        "07386948c83e25b6ec5a984781f02c70e9bbfcc102afb5fbeda7fa0300364ce2": {
+            "Name": "nginx02",
+            "EndpointID": "c7ba5f239d7502b348cfb1077f1b0bb05b9c99cc56e8ba7a2095593093cbb6f2",
+            "MacAddress": "02:42:ac:11:00:03",
+            "IPv4Address": "172.17.0.3/16",
+            "IPv6Address": ""
+        },
+        "10b13848801668474ab7e708a2a29bb675c121b48b095ec8b47b5e004e845ea9": {
+            "Name": "nginx01",
+            "EndpointID": "76fbe2e051c604f1233c912428a007a205f8574dfd9146de29ac02ac8e7c08bf",
+            "MacAddress": "02:42:ac:11:00:02",
+            "IPv4Address": "172.17.0.2/16",
+            "IPv6Address": ""
+        }
+    },
+    "Options": {
+        "com.docker.network.bridge.default_bridge": "true",
+        "com.docker.network.bridge.enable_icc": "true",
+        "com.docker.network.bridge.enable_ip_masquerade": "true",
+        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+        "com.docker.network.bridge.name": "docker0",
+        "com.docker.network.driver.mtu": "1500"
+    },
+    "Labels": {}
+}
+```
+
+### --link
+
+> 不推荐使用
+
+实现两个主机ping互通
+
+```sh
+docker run -d -P --name nginx01 nginx
+docker run -d -P --name nginx02 --link nginx01 nginx
+docker exec -it nginx02 ping nginx01  # 可以ping通
+#docker exec -it nginx01 ping nginx02  # 不可以ping通，因为没有配置
+```
+
+原理是将nginx01的ip放到其`/etc/hosts`文件中
+
+### 自定义网络
+
+如果直接启动一个镜像会带一个默认参数：
+
+```sh
+docker run -d -P --name nginx01 --net bridge nginx  # 默认带 --net bridge
+```
+
+创建网络：
+
+```sh
+docker network create --driver bridge --subnet 192.168.0.0/16 --gateway 192.168.0.1 <net-name>
+# --driver bridge 为指定默认桥接模式，可以忽略
+```
+
+* 自定义网络可以使用`--link`后的效果。
+
+将不同子网的主机之间相互连通：
+
+```sh
+docker network connect <net-name> <con-name>
+```
+
+相当于将此容器加入到这个网络中

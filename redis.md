@@ -12,7 +12,7 @@ Redis(==Re==mote ==Di==ctionary ==S==erver)远程服务字典
 
 4. 安装会默认安装再`/usr/local/bin`目录下
 
-   ![image-20210407202614681](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20210407202614681.png)
+   ![image-20210407202614681](https://i.loli.net/2021/08/03/sDixr3OPJ5T4omu.png)
 
 5. 将`redis.conf`复制到`/usr/local/bin`目录下，并且修改`deamonize yes`
 6. 通过指定配置文件启动redis服务。`redis-server redis.conf`

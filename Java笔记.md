@@ -2017,7 +2017,7 @@ Maven-archetype-quickstart
 
 3. 将maven编译源和目标版本改为1.8
 
-   ![image-20210328153158525](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20210328153158525.png)
+   ![image-20210328153158525](https://i.loli.net/2021/08/03/POAx9aUWuyBDLjd.png)
 
 4. 删除`<build>`标签内容
 
