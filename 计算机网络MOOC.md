@@ -4,7 +4,7 @@
 
 ## 第一章 网络体系结构
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200519230320946.png" alt="image-20200519230320946" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200519230320946.png" alt="image-20200519230320946" style="zoom:50%;" />
 
 ### 概念
 
@@ -26,7 +26,7 @@
 
 RFC标准
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617115133721.png" alt="image-20200617115133721" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617115133721.png" alt="image-20200617115133721" style="zoom: 50%;" />
 
 ### 性能指标
 
@@ -56,7 +56,7 @@ RFC标准
 
 网络利用率：所有信道利用率加权取评价值
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200518231632729.png" alt="image-20200518231632729" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200518231632729.png" alt="image-20200518231632729" style="zoom: 50%;" />
 
 ### 分层结构 协议 接口 服务
 
@@ -68,7 +68,7 @@ RFC标准
 
 服务：下层提供上层
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200519220543115.png" alt="image-20200519220543115" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200519220543115.png" alt="image-20200519220543115" style="zoom:50%;" />
 
 ### OSI模型（法定标准）
 
@@ -76,7 +76,7 @@ TCP/IP参考模型（事实标准）
 
 为了支持异构网络系统的互联互通，ISO提出了OSI参考模型
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200519221419998.png" alt="image-20200519221419998" style="zoom:25%;" />
+<img src=".\计算机网络MOOC.assets\image-20200519221419998.png" alt="image-20200519221419998" style="zoom:25%;" />
 
 通信子网是点到点通信，上四层是端到端通信。
 
@@ -100,7 +100,7 @@ TCP/IP参考模型（事实标准）
 
 ### TCP/IP模型和5层模型
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200519225532605.png" alt="image-20200519225532605" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200519225532605.png" alt="image-20200519225532605" style="zoom:67%;" />
 
 
 
@@ -108,13 +108,13 @@ TCP/IP设计初考虑到了互联网异构的问题，将IP设为重要层次。
 
 TCP/IP协议网络层不需要**面向连接**，传输层可无连接。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200519230059666.png" alt="image-20200519230059666" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200519230059666.png" alt="image-20200519230059666" style="zoom:67%;" />
 
 ### 题目：
 
 B
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617135704362.png" alt="image-20200617135704362" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617135704362.png" alt="image-20200617135704362" style="zoom:67%;" />
 
 
 
@@ -132,7 +132,7 @@ B
 
 交换方式：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200619092748208-1627968979533.png" alt="image-20200619092748208" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200619092748208-1627968979533.png" alt="image-20200619092748208" style="zoom: 50%;" />
 
 虚电路无需知道源地址和目的地址，两个站点之间可以有多条虚电路。
 
@@ -150,7 +150,7 @@ B
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200520202213734.png" alt="image-20200520202213734" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200520202213734.png" alt="image-20200520202213734" style="zoom:50%;" />
 
 ```
 答：
@@ -161,11 +161,11 @@ B
 
 <hr/>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200619092907492.png" alt="image-20200619092907492" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200619092907492.png" alt="image-20200619092907492" style="zoom:67%;" />
 
 <hr/>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200619100732496.png" alt="image-20200619100732496" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200619100732496.png" alt="image-20200619100732496" style="zoom:67%;" />
 
 ### ※奈氏准则 香农定理※
 
@@ -183,7 +183,7 @@ B
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200520215558223.png" alt="image-20200520215558223" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200520215558223.png" alt="image-20200520215558223" style="zoom:50%;" />
 
 **香农定理**（定义了最大数据传输率）：考虑了噪声。
 
@@ -193,7 +193,7 @@ B
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200520220625585.png" alt="image-20200520220625585" style="zoom:43%;" />
+<img src=".\计算机网络MOOC.assets\image-20200520220625585.png" alt="image-20200520220625585" style="zoom:43%;" />
 
 什么时候使用奈氏什么时候使用香农定理呢？
 
@@ -201,11 +201,11 @@ B
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200520221151711.png" alt="image-20200520221151711" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200520221151711.png" alt="image-20200520221151711" style="zoom:50%;" />
 
 <hr/>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200619102136510.png" alt="image-20200619102136510" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200619102136510.png" alt="image-20200619102136510" style="zoom:67%;" />
 
 ### 编码与调制
 
@@ -217,7 +217,7 @@ B
 
 数据 ->  模拟信号   调制手段
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200520222510296.png" alt="image-20200520222510296" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200520222510296.png" alt="image-20200520222510296" style="zoom:50%;" />
 
 **数字数据 -> 数字信号**：
 
@@ -231,7 +231,7 @@ B
 5. 反向不归零编码：电平翻转表示0，信号电平不变表示1
 6. 4B/5B编码：效率80%。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200522160420858.png" alt="image-20200522160420858" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200522160420858.png" alt="image-20200522160420858" style="zoom:50%;" />
 
 **数字数据 -> 模拟信号：**
 
@@ -239,7 +239,7 @@ B
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200522161056961.png" alt="image-20200522161056961" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200522161056961.png" alt="image-20200522161056961" style="zoom:67%;" />
 
 **模拟数据 -> 数字信号：**
 
@@ -263,7 +263,7 @@ B
 
 3. 光纤：更快传输速率
 
-   <img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200522180956117.png" alt="image-20200522180956117" style="zoom:33%;" />
+   <img src=".\计算机网络MOOC.assets\image-20200522180956117.png" alt="image-20200522180956117" style="zoom:33%;" />
 
 非导向传输介质：非固定媒介
 
@@ -275,13 +275,13 @@ B
 
 中继器：由于传输线路上信号功率衰减会造成信号失真导致错误。中继器对信号进行再生和还原。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200522182024590.png" alt="image-20200522182024590" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200522182024590.png" alt="image-20200522182024590" style="zoom:50%;" />
 
 集线器：多端口中继器。不能分割冲突域。
 
 <font color='blue'>#题目#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200619091510607.png" alt="image-20200619091510607" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200619091510607.png" alt="image-20200619091510607" style="zoom:67%;" />
 
 ## 数据链路层
 
@@ -315,7 +315,7 @@ B
 
 **帧同步**：接收方能接收到二进制比特流中区分帧的起始和终止。
 
-![image-20200524160017497](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200524160017497.png)
+![image-20200524160017497](.\计算机网络MOOC.assets\image-20200524160017497.png)
 
 组帧的四种方法：
 
@@ -339,29 +339,29 @@ B
 
 噪声和差错：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621224929904.png" alt="image-20200621224929904" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200621224929904.png" alt="image-20200621224929904" style="zoom:67%;" />
 
 检错编码：奇偶校验码（在数据头部加“1”或者“0”，检错能力50%），CRC循环冗余码（硬件实现，异或操作，几乎可以认为无差错）。
 
 <font color='blue'>#题目：CRC冗余码#</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200524162932007.png" alt="image-20200524162932007" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200524162932007.png" alt="image-20200524162932007" style="zoom:50%;" />
 
 纠错编码：**海明码**（只能发现双比特错，纠正单比特错）
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200524163403624.png" alt="image-20200524163403624" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200524163403624.png" alt="image-20200524163403624" style="zoom:50%;" />
 
 海明不等式：2^r^ ≥ k + r+ 1 (k为冗余信息位，k位信息位)
 
 P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他位数上。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200524164252451.png" alt="image-20200524164252451" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200524164252451.png" alt="image-20200524164252451" style="zoom:67%;" />
 
 在求各位P的时候，根据与其第K+1位相同是“1”的数据位的值进行异或操作使其为0，最后联合起来得到最终数值。
 
 检错和纠错：重新计算各个P，最后倒序取值P~4~P~3~P~2~P~1~就是出错的位置。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621225234436.png" alt="image-20200621225234436" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200621225234436.png" alt="image-20200621225234436" style="zoom:67%;" />
 
 ### 流量控制和可靠传输机制
 
@@ -389,7 +389,7 @@ P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他�
    $$
    信道利用率（L（发送长度）/C（速率））/T
 
-   <img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621233122946.png" alt="image-20200621233122946" style="zoom:50%;" />
+   <img src=".\计算机网络MOOC.assets\image-20200621233122946.png" alt="image-20200621233122946" style="zoom:50%;" />
 
 2. 滑动窗口协议：（窗口大小是**固定值**）
 
@@ -409,7 +409,7 @@ P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他�
 
    <font color='blue'>#题目：#</font>
 
-   <img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200525210509737.png" alt="image-20200525210509737" style="zoom:50%;" />
+   <img src=".\计算机网络MOOC.assets\image-20200525210509737.png" alt="image-20200525210509737" style="zoom:50%;" />
 
    B. 选择重传协议（SR）：发送窗口＞1，接收窗口＞1。<font color='skyblue'>解决批量重传</font>
    
@@ -423,7 +423,7 @@ P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他�
 
 ### 信道划分介质访问控制
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606192918890.png" alt="image-20200606192918890" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606192918890.png" alt="image-20200606192918890" style="zoom:50%;" />
 
 点对点链路：PPP协议，常用广域网。
 
@@ -433,7 +433,7 @@ P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他�
 
 **复用：**
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606193115492.png" alt="image-20200606193115492" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606193115492.png" alt="image-20200606193115492" style="zoom:67%;" />
 
 频分复用：
 
@@ -443,7 +443,7 @@ P为校验位，放置在2^k^的位置上，D为信息位，依次放在其他�
 
 假如TDM一共可发8000b/s，那4个线路每人最高2000b，而STDM可8000b/s
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606193837449.png" alt="image-20200606193837449" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606193837449.png" alt="image-20200606193837449" style="zoom:50%;" />
 
 波分多路复用WDM：根据光的频分的性质，光有不同的频带。
 
@@ -473,7 +473,7 @@ CDMA：
 
 p-坚持-CSMA：对于空闲的处理。以p概率直接传输，1-p概率等下一个时隙传输。（但是发送冲突之后，还会发送数据帧）
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606203332965.png" alt="image-20200606203332965" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606203332965.png" alt="image-20200606203332965" style="zoom:50%;" />
 
 **CSMA/CD协议碰撞检测：**
 
@@ -483,13 +483,13 @@ p-坚持-CSMA：对于空闲的处理。以p概率直接传输，1-p概率等下
 
 2τ时间。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606204652487.png" alt="image-20200606204652487" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606204652487.png" alt="image-20200606204652487" style="zoom:67%;" />
 
 如何确定碰撞后的重传时间？
 
 截断二进制指数规避算法：
 
-![image-20200606210019194](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606210019194.png)
+![image-20200606210019194](.\计算机网络MOOC.assets\image-20200606210019194.png)
 
 确定最小帧长：为了防止发送数据太短导致无法检测到是否碰撞，应该设置一个最小帧长。
 
@@ -501,7 +501,7 @@ p-坚持-CSMA：对于空闲的处理。以p概率直接传输，1-p概率等下
 
 
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200606210138764.png" alt="image-20200606210138764" style="zoom:33%;" />
+<img src=".\计算机网络MOOC.assets\image-20200606210138764.png" alt="image-20200606210138764" style="zoom:33%;" />
 
 **CSMA/CA协议：**
 
@@ -525,7 +525,7 @@ CA协议用于无线局域网中，无线360度无法全面检测。
 
 在一个令牌环网内，令牌一直”转圈“询问主机是否需要发送数据，如果一个主机需要发送数据，则主机将令牌的对应的标志位改为”忙“状态，轮流经过主机，如果到达目的主机，目的主机复制信息到自己的主机内，等到再回到发送主机的时候，重新检查数据的检验，如果无误则返回令牌，有误则重新发送数据。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609000144147.png" alt="image-20200609000144147" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609000144147.png" alt="image-20200609000144147" style="zoom:67%;" />
 
 ### 局域网的基本概念和结构
 
@@ -539,25 +539,25 @@ LAN，使用的**广播信道**
 
 总线拓扑最优。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609001016169.png" alt="image-20200609001016169" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609001016169.png" alt="image-20200609001016169" style="zoom:50%;" />
 
 介质访问控制：CSMA/CD（总线）、令牌总线（总线）、令牌环网（环形局域网）
 
 **局域网的分类**：
 
-![image-20200609001648410](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609001648410.png)
+![image-20200609001648410](.\计算机网络MOOC.assets\image-20200609001648410.png)
 
 ### IEEE802标准
 
 80年2月成立，由IEEE成立，802.3 以太网（CSMA/CD）、802.5（令牌环网——单点故障）、802.8（FDDI光纤）、802.11（WLAN）
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609001923202.png" alt="image-20200609001923202" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609001923202.png" alt="image-20200609001923202" style="zoom: 50%;" />
 
 LLC子层：逻辑上的链路子层，负责识别网络层协议。
 
 MAC子层：介质访问控制子层.
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609002038375.png" alt="image-20200609002038375" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609002038375.png" alt="image-20200609002038375" style="zoom: 50%;" />
 
 ### 以太网
 
@@ -571,7 +571,7 @@ MAC子层：介质访问控制子层.
 
 MAC帧：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609204857042.png" alt="image-20200609204857042" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609204857042.png" alt="image-20200609204857042" style="zoom:67%;" />
 
 高速以太网、吉比特网、10吉比特网
 
@@ -579,33 +579,33 @@ MAC帧：
 
 PPP协议：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609212917818.png" alt="image-20200609212917818" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609212917818.png" alt="image-20200609212917818" style="zoom:50%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609212949303.png" alt="image-20200609212949303" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609212949303.png" alt="image-20200609212949303" style="zoom:50%;" />
 
 
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609213107913.png" alt="image-20200609213107913" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609213107913.png" alt="image-20200609213107913" style="zoom:67%;" />
 
 HDLC协议：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609213441189.png" alt="image-20200609213441189" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609213441189.png" alt="image-20200609213441189" style="zoom:67%;" />
 
 ### 网桥和交换机
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609215437922.png" alt="image-20200609215437922" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609215437922.png" alt="image-20200609215437922" style="zoom:67%;" />
 
 透明网桥和源路由网桥：
 
 透明网桥自学习：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609222610781.png" alt="image-20200609222610781" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609222610781.png" alt="image-20200609222610781" style="zoom:67%;" />
 
 多接口网桥——交换机
 
 可以独占网速。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200609222910810.png" alt="image-20200609222910810" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200609222910810.png" alt="image-20200609222910810" style="zoom:67%;" />
 
 如果有n个路由器就是n+1个广播域
 
@@ -635,21 +635,21 @@ HDLC协议：
 
 路由器之间彼此交换信息，适用于大型网络
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613083142663.png" alt="image-20200613083142663" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613083142663.png" alt="image-20200613083142663" style="zoom:50%;" />
 
 **分层次的路由选择协议：**
 
 自治系统AS：网络规模大，不想让外界了解内部的路由选择协议
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613083627206.png" alt="image-20200613083627206" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613083627206.png" alt="image-20200613083627206" style="zoom: 50%;" />
 
 ### IP数据报格式
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613083737507.png" alt="image-20200613083737507" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613083737507.png" alt="image-20200613083737507" style="zoom:50%;" />
 
 分为首部和数据报部分：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613084411646.png" alt="image-20200613084411646" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613084411646.png" alt="image-20200613084411646" style="zoom:67%;" />
 
 单位：
 
@@ -677,21 +677,21 @@ MTU：可封装数据的上限。以太网MTU1500字节。
 
 分类IP、划分子网、构造超网
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613090403268.png" alt="image-20200613090403268" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613090403268.png" alt="image-20200613090403268" style="zoom:67%;" />
 
 > 有6个网络地址
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613090517365.png" alt="image-20200613090517365" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613090517365.png" alt="image-20200613090517365" style="zoom:67%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613091257783.png" alt="image-20200613091257783" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613091257783.png" alt="image-20200613091257783" style="zoom:67%;" />
 
 #### 特殊IP地址
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613090838547.png" alt="image-20200613090838547" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613090838547.png" alt="image-20200613090838547" style="zoom:67%;" />
 
 私有IP地址：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613091030189.png" alt="image-20200613091030189" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613091030189.png" alt="image-20200613091030189" style="zoom:50%;" />
 
 路由器对目的地址是私有地址的数据报一律不转发。
 
@@ -699,17 +699,17 @@ MTU：可封装数据的上限。以太网MTU1500字节。
 
 至少有一个有效的外部全球IP地址
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613094223956.png" alt="image-20200613094223956" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613094223956.png" alt="image-20200613094223956" style="zoom:50%;" />
 
 #### 子网划分
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613094743110.png" alt="image-20200613094743110" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613094743110.png" alt="image-20200613094743110" style="zoom:50%;" />
 
 主机不能全0全1
 
 <font color='red'>例题：</font>
 
-![image-20200613095734410](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613095734410.png)
+![image-20200613095734410](.\计算机网络MOOC.assets\image-20200613095734410.png)
 
 ```
 77 ->0100 1101
@@ -721,7 +721,7 @@ MTU：可封装数据的上限。以太网MTU1500字节。
 
 转发算法：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200613100119327.png" alt="image-20200613100119327" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200613100119327.png" alt="image-20200613100119327" style="zoom:50%;" />
 
 ### 无分类编制CIDR
 
@@ -733,7 +733,7 @@ MTU：可封装数据的上限。以太网MTU1500字节。
 
 <font color='red'>题目</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615113351341.png" alt="image-20200615113351341" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615113351341.png" alt="image-20200615113351341" style="zoom:67%;" />
 
 ```
 C类地址，网络号24位，子网号5位 32个子网，主机号3位，2^3-2 = 6
@@ -747,7 +747,7 @@ C类地址，网络号24位，子网号5位 32个子网，主机号3位，2^3-2 
 
 1. 首先发送一个请求帧
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615114210455.png" alt="image-20200615114210455" style="zoom:53%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615114210455.png" alt="image-20200615114210455" style="zoom:53%;" />
 
 2. 对应主机响应
 
@@ -755,15 +755,15 @@ C类地址，网络号24位，子网号5位 32个子网，主机号3位，2^3-2 
 
 不在同一网络内的主机MAC找不到，就交给默认网关，把默认网关的MAC地址当成目的MAC地址，然后其他交给默认网关路由器来做。请求流程与上述相似。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615114746833.png" alt="image-20200615114746833" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615114746833.png" alt="image-20200615114746833" style="zoom:67%;" />
 
 在不考虑NAT的情况时候，数据传输过程中，源MAC地址和目的MAC地址都会改变。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615115557876.png" alt="image-20200615115557876" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615115557876.png" alt="image-20200615115557876" style="zoom:50%;" />
 
 <font color='red'>题目</font>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615115824649.png" alt="image-20200615115824649" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615115824649.png" alt="image-20200615115824649" style="zoom:67%;" />
 
 ### DHCP协议
 
@@ -771,17 +771,17 @@ C类地址，网络号24位，子网号5位 32个子网，主机号3位，2^3-2 
 
 可以获取IP，子网掩码，默认网关，DNS服务器、支持地址重用、支持地址续租
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200615121953926.png" alt="image-20200615121953926" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200615121953926.png" alt="image-20200615121953926" style="zoom:50%;" />
 
 ### ICMP协议
 
 > 用于差错报告、网络探询
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616091613060.png" alt="image-20200616091613060" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616091613060.png" alt="image-20200616091613060" style="zoom:50%;" />
 
 ICMP 5种报文格式：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616091956290.png" alt="image-20200616091956290" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616091956290.png" alt="image-20200616091956290" style="zoom:67%;" />
 
 对ICMP差错报文不发送差错报文。
 
@@ -799,7 +799,7 @@ ICMP 5种报文格式：
 
 数据报格式:
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616095216471.png" alt="image-20200616095216471" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616095216471.png" alt="image-20200616095216471" style="zoom:67%;" />
 
 从32位到128位
 
@@ -819,7 +819,7 @@ IPv6取消了协议字段，改成了下一个首部字段
 
 ### RIP协议——UDP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616101235479.png" alt="image-20200616101235479" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616101235479.png" alt="image-20200616101235479" style="zoom:67%;" />
 
 > 分布式的基于距离向量的路由选择协议，每个路由器维护从他自己到其他每一个目的网络的唯一最佳距离记录。
 
@@ -838,17 +838,17 @@ IPv6取消了协议字段，改成了下一个首部字段
 
 更正：R1为R6
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616110500091.png" alt="image-20200616110500091" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616110500091.png" alt="image-20200616110500091" style="zoom:50%;" />
 
 报文格式：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616111405545.png" alt="image-20200616111405545" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616111405545.png" alt="image-20200616111405545" style="zoom:67%;" />
 
 最多25个路由信息。
 
 特点：好消息传得快，坏消息传的慢
 
-![image-20200616111713474](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616111713474.png)
+![image-20200616111713474](.\计算机网络MOOC.assets\image-20200616111713474.png)
 
 两者来回交换，30*16 = 480s 8分钟。
 
@@ -866,31 +866,31 @@ IPv6取消了协议字段，改成了下一个首部字段
 
 **算法**：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616112518923.png" alt="image-20200616112518923" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616112518923.png" alt="image-20200616112518923" style="zoom:67%;" />
 
 区域：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616112539008.png" alt="image-20200616112539008" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616112539008.png" alt="image-20200616112539008" style="zoom:67%;" />
 
 ### BGP协议——TCP应用层
 
 > 外部网关协议，发生变化时才传递信息
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616131410348.png" alt="image-20200616131410348" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616131410348.png" alt="image-20200616131410348" style="zoom: 50%;" />
 
 与其他AS发言人交换信息。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616131610928.png" alt="image-20200616131610928" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616131610928.png" alt="image-20200616131610928" style="zoom:67%;" />
 
 ### 三种路由选择
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200616131958171.png" alt="image-20200616131958171" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200616131958171.png" alt="image-20200616131958171" style="zoom:67%;" />
 
 ### IP组播——UDP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617095757213.png" alt="image-20200617095757213" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617095757213.png" alt="image-20200617095757213" style="zoom:67%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617092857883.png" alt="image-20200617092857883" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617092857883.png" alt="image-20200617092857883" style="zoom:67%;" />
 
 组播IP地址：224.0.0.0~239.255.255.255
 
@@ -898,7 +898,7 @@ IPv6取消了协议字段，改成了下一个首部字段
 
 01-00-5E
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617094609182.png" alt="image-20200617094609182" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617094609182.png" alt="image-20200617094609182" style="zoom:67%;" />
 
 **IGMP和组播路由选择：**
 
@@ -908,15 +908,15 @@ IGMP：让路由器知道本局域网是否有主机
 
 > 不同网段，固定IP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617102200533.png" alt="image-20200617102200533" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617102200533.png" alt="image-20200617102200533" style="zoom:67%;" />
 
 ### 网络层设备——路由器
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200617102719366.png" alt="image-20200617102719366" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200617102719366.png" alt="image-20200617102719366" style="zoom:67%;" />
 
 ## 传输层
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624150935025.png" alt="image-20200624150935025" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624150935025.png" alt="image-20200624150935025" style="zoom:67%;" />
 
 1. 提供进程和进程之间的通信。
 2. 复用和分用
@@ -924,17 +924,17 @@ IGMP：让路由器知道本局域网是否有主机
 
 TCP和UDP区别：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624151438813.png" alt="image-20200624151438813" style="zoom:50%;" /><img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624151458423.png" alt="image-20200624151458423" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624151438813.png" alt="image-20200624151438813" style="zoom:50%;" /><img src=".\计算机网络MOOC.assets\image-20200624151458423.png" alt="image-20200624151458423" style="zoom:67%;" />
 
 传输层是寻址是靠端口，端口号只有本地意义。
 
 16bit 65536
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624151759983.png" alt="image-20200624151759983" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624151759983.png" alt="image-20200624151759983" style="zoom:67%;" />
 
 常见端口：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624151835440.png" alt="image-20200624151835440" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624151835440.png" alt="image-20200624151835440" style="zoom:67%;" />
 
 ### UDP
 
@@ -942,21 +942,21 @@ TCP和UDP区别：
 
 首部格式
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624153905800.png" alt="image-20200624153905800" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624153905800.png" alt="image-20200624153905800" style="zoom:80%;" />
 
 源端口可不填。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624154346309.png" alt="image-20200624154346309" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624154346309.png" alt="image-20200624154346309" style="zoom:80%;" />
 
 ### TCP
 
 特点：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624154718156.png" alt="image-20200624154718156" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624154718156.png" alt="image-20200624154718156" style="zoom:67%;" />
 
 首部格式：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624155054830.png" alt="image-20200624155054830" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624155054830.png" alt="image-20200624155054830" style="zoom:50%;" />
 
 TCP中的数据偏移是首部地址，单位4B，表示数据开头部分距离TCP首部的距离
 
@@ -976,7 +976,7 @@ FIN：FIN=1，表示报文已经传输完毕。
 
 窗口：表示自己的接受窗口。
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624160135767.png" alt="image-20200624160135767" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624160135767.png" alt="image-20200624160135767" style="zoom:50%;" />
 
 ### TCP连接管理
 
@@ -998,11 +998,11 @@ FIN：FIN=1，表示报文已经传输完毕。
 
 连接释放过程（四次握手）：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624161737868.png" alt="image-20200624161737868" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624161737868.png" alt="image-20200624161737868" style="zoom:80%;" />
 
 SYN洪范攻击：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624161440512.png" alt="image-20200624161440512" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624161440512.png" alt="image-20200624161440512" style="zoom:67%;" />
 
 ### TCP的可靠传输
 
@@ -1012,7 +1012,7 @@ SYN洪范攻击：
 
 2. 冗余ACK
 
-   <img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624163706626.png" alt="image-20200624163706626" style="zoom:67%;" />
+   <img src=".\计算机网络MOOC.assets\image-20200624163706626.png" alt="image-20200624163706626" style="zoom:67%;" />
 
 ### TCP的流量控制
 
@@ -1020,17 +1020,17 @@ SYN洪范攻击：
 
 发送窗口的大小取决于接收窗口rwnd和拥塞窗口cwnd的最小值
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624165939225.png" alt="image-20200624165939225" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624165939225.png" alt="image-20200624165939225" style="zoom:67%;" />
 
 如何避免死锁？
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624170141676.png" alt="image-20200624170141676" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624170141676.png" alt="image-20200624170141676" style="zoom:50%;" />
 
 ### TCP的拥塞控制
 
 > 防止过多数据注入到网络中。对资源需求的综合 > 可用资源
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624170710997.png" alt="image-20200624170710997" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624170710997.png" alt="image-20200624170710997" style="zoom:50%;" />
 
 四种算法：
 
@@ -1038,11 +1038,11 @@ SYN洪范攻击：
 
 ssthresh：发送门限值，慢开始的最大值
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624172012751.png" alt="image-20200624172012751" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624172012751.png" alt="image-20200624172012751" style="zoom:80%;" />
 
 快重传+快恢复
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200624172214008.png" alt="image-20200624172214008" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200624172214008.png" alt="image-20200624172214008" style="zoom:80%;" />
 
 不用把cwnd降为1。
 
@@ -1054,14 +1054,14 @@ ssthresh：发送门限值，慢开始的最大值
 
 ### 奈氏和香农
 
-![image-20200618171459432](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200618171459432.png)
+![image-20200618171459432](.\计算机网络MOOC.assets\image-20200618171459432.png)
 $$
 20000*log_216=20000*4=80000bit/s
 $$
 
 <hr/>
 
-![image-20200618172436623](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200618172436623.png)
+![image-20200618172436623](.\计算机网络MOOC.assets\image-20200618172436623.png)
 $$
 64000 = 3000 * log_2(1+S/N) → 10lg(S/N) = 64.5dB
 $$
@@ -1069,7 +1069,7 @@ $$
 
 <hr/>
 
-![image-20200618174040376](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200618174040376.png)
+![image-20200618174040376](.\计算机网络MOOC.assets\image-20200618174040376.png)
 $$
 35000 = 3100*log_2(1+S/N)
 $$
@@ -1118,7 +1118,7 @@ $$
 
 ### CDMA
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200618180034145.png" alt="image-20200618180034145" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200618180034145.png" alt="image-20200618180034145" style="zoom:67%;" />
 
 根据公式：
 $$
@@ -1132,7 +1132,7 @@ A、D发送的是数据1、B发送的数据是0，C不发送数据。
 
 ### CRC
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200620082515252.png" alt="image-20200620082515252" style="zoom: 80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200620082515252.png" alt="image-20200620082515252" style="zoom: 80%;" />
 
 ```
 多项式：10011
@@ -1144,7 +1144,7 @@ A、D发送的是数据1、B发送的数据是0，C不发送数据。
 
 <hr/>
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200620085526665.png" alt="image-20200620085526665" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200620085526665.png" alt="image-20200620085526665" style="zoom:80%;" />
 
 ```
 101110000/1001 = 011
@@ -1163,7 +1163,7 @@ A、D发送的是数据1、B发送的数据是0，C不发送数据。
 2.
 ```
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200319111423724.png" alt="image-20200319111423724" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200319111423724.png" alt="image-20200319111423724" style="zoom:50%;" />
 
 <hr/>
 
@@ -1174,7 +1174,7 @@ $$
 
 ### PPP
 
-![image-20200620085848063](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200620085848063.png)
+![image-20200620085848063](.\计算机网络MOOC.assets\image-20200620085848063.png)
 
 ```
 7D 5E → 7E
@@ -1185,7 +1185,7 @@ $$
 
 ### CSMA/CD
 
-![image-20200620091437310](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200620091437310.png)
+![image-20200620091437310](.\计算机网络MOOC.assets\image-20200620091437310.png)
 $$
 2\tau*V=S\\
 2*\frac1{200000}*10^9=10000bis/s
@@ -1194,7 +1194,7 @@ $$
 
 <hr/>
 
-![image-20200620092909334](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200620092909334.png)
+![image-20200620092909334](.\计算机网络MOOC.assets\image-20200620092909334.png)
 $$
 以太网的争用期为51.2μs\\
 51.2*100=5.12ms\\
@@ -1203,27 +1203,27 @@ $$
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621233259668.png" alt="image-20200621233259668" style="zoom:50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200621233259668.png" alt="image-20200621233259668" style="zoom:50%;" />
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200622001500823.png" alt="image-20200622001500823" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200622001500823.png" alt="image-20200622001500823" style="zoom:67%;" />
 
 ### 以太网帧格式
 
 书P96
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621220553658.png" alt="image-20200621220553658" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200621220553658.png" alt="image-20200621220553658" style="zoom:67%;" />
 
 ### 其他题目
 
-![image-20200621223803606](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621223803606.png)
+![image-20200621223803606](.\计算机网络MOOC.assets\image-20200621223803606.png)
 
 ## 网络层
 
 ### 子网掩码、划分子网
 
-![image-20200623100247537](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623100247537.png)
+![image-20200623100247537](.\计算机网络MOOC.assets\image-20200623100247537.png)
 
 ```
 (1). C类地址对应的默认子网掩码默认值。也可以是B、C类的掩码。主机号由最后8位决定。
@@ -1239,7 +1239,7 @@ $$
 
 ---
 
-![image-20200623105856638](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623105856638.png)
+![image-20200623105856638](.\计算机网络MOOC.assets\image-20200623105856638.png)
 
 
 
@@ -1247,7 +1247,7 @@ BABCAC
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623110503862.png" alt="image-20200623110503862" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200623110503862.png" alt="image-20200623110503862" style="zoom:80%;" />
 
 ```
 0-16
@@ -1256,7 +1256,7 @@ min 1 250
 
 ----
 
-![image-20200623115927273](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623115927273.png)
+![image-20200623115927273](.\计算机网络MOOC.assets\image-20200623115927273.png)
 
 ```
 26 + 2 = 28
@@ -1267,7 +1267,7 @@ min 1 250
 
 ### 路由表 RIP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623110022371.png" alt="image-20200623110022371" style="zoom: 80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200623110022371.png" alt="image-20200623110022371" style="zoom: 80%;" />
 
 
 
@@ -1277,7 +1277,7 @@ m0	R2	R4	R3	R4
 
 ---
 
-![image-20200623130659976](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623130659976.png)
+![image-20200623130659976](.\计算机网络MOOC.assets\image-20200623130659976.png)
 
 ```
 N1	7	A
@@ -1290,7 +1290,7 @@ N9	4	F
 
 ----
 
-![image-20200628072910945](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628072910945.png)
+![image-20200628072910945](.\计算机网络MOOC.assets\image-20200628072910945.png)
 
 ```
 128.96.39.1		m0
@@ -1302,7 +1302,7 @@ N9	4	F
 
 ----
 
-![image-20200628081514961](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628081514961.png)
+![image-20200628081514961](.\计算机网络MOOC.assets\image-20200628081514961.png)
 
 ```
 N1	5	B
@@ -1314,7 +1314,7 @@ N5	4	C	新增路由项
 
 ### IP分片
 
-![image-20200623111915584](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623111915584.png)
+![image-20200623111915584](.\计算机网络MOOC.assets\image-20200623111915584.png)
 
 3个
 
@@ -1326,7 +1326,7 @@ MF：1	1	0
 
 ---
 
-![image-20200628081022409](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628081022409.png)
+![image-20200628081022409](.\计算机网络MOOC.assets\image-20200628081022409.png)
 
 ```
 2980
@@ -1337,7 +1337,7 @@ MF：1	1	0
 
 ### 路由聚合、最长匹配（地址块分配）
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623112634485.png" alt="image-20200623112634485" style="zoom: 80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200623112634485.png" alt="image-20200623112634485" style="zoom: 80%;" />
 
 ```
 132 -> 1000 0100
@@ -1346,7 +1346,7 @@ MF：1	1	0
 
 ---
 
-![image-20200623114818316](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623114818316.png)
+![image-20200623114818316](.\计算机网络MOOC.assets\image-20200623114818316.png)
 
 ```
 LAN1	30.138.119.129
@@ -1356,11 +1356,11 @@ LAN4	30.138.119.192/26
 LAN5	30.138.119.128/26
 ```
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200623115710458.png" alt="image-20200623115710458" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200623115710458.png" alt="image-20200623115710458" style="zoom:80%;" />
 
 ### 综合题
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628084400401.png" alt="image-20200628084400401" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628084400401.png" alt="image-20200628084400401" style="zoom:80%;" />
 
 ```
 (1)
@@ -1389,7 +1389,7 @@ LAN5	30.138.119.128/26
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628093328942.png" alt="image-20200628093328942" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628093328942.png" alt="image-20200628093328942" style="zoom:80%;" />
 
 ```
 (1)
@@ -1407,7 +1407,7 @@ TTL	源地址	首部校验
 
 ### UDP
 
-![image-20200627235109392](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235109392.png)
+![image-20200627235109392](.\计算机网络MOOC.assets\image-20200627235109392.png)
 
 ```
 源端口：1586	目的端口：69	长度：28字节	校验和：57879
@@ -1416,13 +1416,13 @@ TTL	源地址	首部校验
 
 ### 窗口以及流量控制
 
-![image-20200628000622564](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628000622564.png)
+![image-20200628000622564](.\计算机网络MOOC.assets\image-20200628000622564.png)
 
-![image-20200628000750886](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628000750886.png)
+![image-20200628000750886](.\计算机网络MOOC.assets\image-20200628000750886.png)
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628103032441.png" alt="image-20200628103032441" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628103032441.png" alt="image-20200628103032441" style="zoom:80%;" />
 
 ```
 100		300		200		
@@ -1432,7 +1432,7 @@ TTL	源地址	首部校验
 
 ### 利用率 吞吐量
 
-![image-20200628000911609](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628000911609.png)
+![image-20200628000911609](.\计算机网络MOOC.assets\image-20200628000911609.png)
 
 ```
 发送时延=65535*8/(10^9)=0.52428ms
@@ -1445,7 +1445,7 @@ TTL	源地址	首部校验
 
 ---
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628104953523.png" alt="image-20200628104953523" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628104953523.png" alt="image-20200628104953523" style="zoom:80%;" />
 
 ```
 WT:发送窗口
@@ -1457,9 +1457,9 @@ WT:发送窗口
 
 ### 拥塞控制
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628001932678.png" alt="image-20200628001932678" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628001932678.png" alt="image-20200628001932678" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628002637736.png" alt="image-20200628002637736" style="zoom: 67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628002637736.png" alt="image-20200628002637736" style="zoom: 67%;" />
 
 ```
 (2)	1-6	23-26
@@ -1472,25 +1472,25 @@ WT:发送窗口
 
 ### 连接建立和释放
 
-![image-20200628004050622](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628004050622.png)
+![image-20200628004050622](.\计算机网络MOOC.assets\image-20200628004050622.png)
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628004039499.png" alt="image-20200628004039499" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628004039499.png" alt="image-20200628004039499" style="zoom:80%;" />
 
 ----
 
 
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628110341280.png" alt="image-20200628110341280" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628110341280.png" alt="image-20200628110341280" style="zoom:80%;" />
 
 ### 综合
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628112110530.png" alt="image-20200628112110530" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628112110530.png" alt="image-20200628112110530" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628112209708.png" alt="image-20200628112209708" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628112209708.png" alt="image-20200628112209708" style="zoom:80%;" />
 
 ### 报文捕获
 
-![image-20200628112346544](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628112346544.png)
+![image-20200628112346544](.\计算机网络MOOC.assets\image-20200628112346544.png)
 
 
 
@@ -1498,13 +1498,13 @@ WT:发送窗口
 
 ### 可靠性
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200621222017398.png" alt="image-20200621222017398" style="zoom: 50%;" />
+<img src=".\计算机网络MOOC.assets\image-20200621222017398.png" alt="image-20200621222017398" style="zoom: 50%;" />
 
 ### 考研题
 
 #### 2019
 
-![image-20200625095702544](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200625095702544.png)
+![image-20200625095702544](.\计算机网络MOOC.assets\image-20200625095702544.png)
 
 ```
 (1).
@@ -1521,7 +1521,7 @@ NAT服务
 
 #### 2018
 
-![image-20200625115819312](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200625115819312.png)
+![image-20200625115819312](.\计算机网络MOOC.assets\image-20200625115819312.png)
 
 ```
 (1).
@@ -1536,33 +1536,33 @@ NAT服务
 
 #### 2016
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628114548873.png" alt="image-20200628114548873" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628114548873.png" alt="image-20200628114548873" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628114605674.png" alt="image-20200628114605674" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628114605674.png" alt="image-20200628114605674" style="zoom:67%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628114524901.png" alt="image-20200628114524901" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628114524901.png" alt="image-20200628114524901" style="zoom:80%;" />
 
 ### 各种首部格式
 
 #### IP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235412703.png" alt="image-20200627235412703" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200627235412703.png" alt="image-20200627235412703" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235500934.png" alt="image-20200627235500934" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200627235500934.png" alt="image-20200627235500934" style="zoom:80%;" />
 
 #### ICMP
 
-![image-20200627235556092](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235556092.png)
+![image-20200627235556092](.\计算机网络MOOC.assets\image-20200627235556092.png)
 
-![image-20200627235620564](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235620564.png)
+![image-20200627235620564](.\计算机网络MOOC.assets\image-20200627235620564.png)
 
 #### UDP
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235248438.png" alt="image-20200627235248438" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200627235248438.png" alt="image-20200627235248438" style="zoom:67%;" />
 
 #### TCP首部格式
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200627235347612.png" alt="image-20200627235347612" style="zoom:67%;" />
+<img src=".\计算机网络MOOC.assets\image-20200627235347612.png" alt="image-20200627235347612" style="zoom:67%;" />
 
 #### 应用层
 
@@ -1578,24 +1578,24 @@ DHCP——UDP
 
 常见端口：
 
-![image-20200628000433417](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628000433417.png)
+![image-20200628000433417](.\计算机网络MOOC.assets\image-20200628000433417.png)
 
 常见协议：
 
-![image-20200628000444537](F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628000444537.png)
+![image-20200628000444537](.\计算机网络MOOC.assets\image-20200628000444537.png)
 
 ### 报文
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628112944944.png" alt="image-20200628112944944" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628112944944.png" alt="image-20200628112944944" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628113022575.png" alt="image-20200628113022575" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628113022575.png" alt="image-20200628113022575" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628113048877.png" alt="image-20200628113048877" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628113048877.png" alt="image-20200628113048877" style="zoom:80%;" />
 
 ---
 
 SYN报文：
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628113312732.png" alt="image-20200628113312732" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628113312732.png" alt="image-20200628113312732" style="zoom:80%;" />
 
-<img src="F:\课程及作业\重要的课\计算机网络\计算机网络MOOC.assets\image-20200628113349055.png" alt="image-20200628113349055" style="zoom:80%;" />
+<img src=".\计算机网络MOOC.assets\image-20200628113349055.png" alt="image-20200628113349055" style="zoom:80%;" />

@@ -3135,7 +3135,7 @@ func (s *LaptopServer) UploadImage(stream pb.LaptopService_UploadImageServer) er
 
 [golang常用的http请求操作](https://www.cnblogs.com/zhaof/p/11346412.html)
 
-<img src="E:\Notes\Go\GoNotes.assets\image-20210728195850590.png" alt="image-20210728195850590.png" style="zoom:67%;" />
+<img src=".\GoNotes.assets\image-20210728195850590.png" alt="image-20210728195850590.png" style="zoom:67%;" />
 
 ### TCP编程
 
