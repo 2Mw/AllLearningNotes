@@ -2608,6 +2608,239 @@ func (d *MemberDao) UploadUserAviator(id int64, filename string) int64 {
 
 ### GORM使用
 
+🔵安装：
+
+```sh
+go get gorm.io/gorm
+go get gorm.io/driver/mysql
+```
+
+🔵连接数据库：
+
+> gorm需要进行配置`gorm.config`：log的配置`logger2`、数据库命名的配置`NamingStrategy`、查询的配置`QueryFields`。
+
+在一般情况下，根据logger级别可以选取**默认**等级也可以自己配置（例子中是自己配置的）：
+
+* Debug模式可以选择：`logger2.Default.LogMode(logger2.Info)`
+* Release模式可以选择：`logger2.Default.LogMode(logger2.Error)`
+
+```go
+func connectDb() {
+	dsn := "root:password@tcp(localhost:3306)/demo?charset=utf8mb4"
+
+	newlogger := logger2.New(								// 自定义配置logger
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger2.Config{
+			SlowThreshold:             0,    		  // 超过某个毫秒阙值就打印SQL语句
+			Colorful:                  true, 		// 是否显示颜色
+			IgnoreRecordNotFoundError: true,
+			LogLevel:                  logger2.Info, // Info Warning Error Silent
+		},
+	)
+
+	nameStra := schema.NamingStrategy{					// 命名策略
+		TablePrefix:   "",
+		SingularTable: true, 							// 是否为单数
+	}
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger:         newlogger,
+		NamingStrategy: nameStra,
+		QueryFields:    true, 		// 查询时候显示所有字段，而不是select *
+	})
+	if err != nil {
+		log.Fatalf("Conn Error: %v\n", err)		 // 数据库连接失败，端口错误，密码错误，网络原因
+	}
+	if db != nil && db.Error != nil {
+		log.Printf("==Error==: %v\n", db.Error)
+	}
+
+	log.Println("Connect Success.")
+}
+```
+
+🔵模型构建
+
+参考模型关键字：[模型定义 | GORM](https://gorm.io/zh_CN/docs/models.html)
+
+* 定义的方式要使用`gorm:""`包围
+* 对于可能为零值（`0`, `false`, `''`）需要使用指针的形式进行存储。
+* 对于外键，需要在结构体内嵌套对应表，字段名为`外键表名+对应字段名`。如`CustomerID`。
+
+```go
+type Merchant struct {
+   // 主键 自增，这里设置ID为int类型，gorm会自动转为bigint类型
+	ID			int		`gorm:"type:int;primaryKey;autoIncrement"`
+   // 设置索引
+	Name		string	`gorm:"type:varchar(126);not null;index"`
+   // 设置check约束
+	Age			byte	`gorm:"type:tinyint;not null;check:age > 12"`
+	Address		string	`gorm:"type:varchar(255)"`
+   // 设置默认值，可能为零值，只用指针存储
+	IsCredit	*bool	`gorm:"type:bool;default:true;not null"`
+   // 使用autoCreateTime，在插入记录的时候，gorm会自动补全时间戳
+	RegisterTime int64	`gorm:"autoCreateTime;not null"`
+}
+
+type Customer struct {
+	ID			int     `gorm:"type:int;primaryKey;autoIncrement"`
+	Nickname	string  `gorm:"type:varchar(255);not null;index"`
+	Age			byte    `gorm:"type:tinyint;not null;check:age> 12"`
+	RecvAddress	string  `gorm:"type:varchar(255)"`
+	Credit	float64 `gorm:"type:float(3);not null; default:0; check credit > 0"`
+	RegisterTime int64   `gorm:"autoCreateTime;not null"`
+}
+
+type Order struct {
+   // 设置备注
+	ID		int      `gorm:"type:int;primaryKey;autoIncrement;comment:order id"`
+	MerchantID  int      `gorm:"not null"`
+	CustomerID  int      `gorm:"not null"`
+	ProductName string   `gorm:"type:varchar(255);not null;"`
+   // 定义外键
+	Customer    Customer `gorm:"constraint"`
+	Merchant    Merchant `gorm:"constraint"`
+}
+```
+
+🔵自动迁移表：
+
+> 相当于xorm中的`sync2()`
+
+```go
+func TestCreateTable(t *testing.T) {
+	connectDb()
+   // 使用上面的结构体
+	err := Orm.DB.AutoMigrate(&model.Merchant{}, &model.Customer{}, &model.Order{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Auto migrate successfully.")
+}
+```
+
+🔵增（insert）
+
+> 支持插入单条记录和多条记录
+
+```go
+func TestInsert(t *testing.T) {
+	connectDb()
+	b := t == nil
+	user := model.Merchant{
+		Name:     "ganster",
+		Age:      18,
+		Address:  "Beijing",
+		IsCredit:  &b,
+	}
+   // INSERT INTO `merchant` (`name`,...,`register_time`) VALUES ('ganster',...,1628161718)
+	re := Orm.DB.Create(&user)
+	if re.Error != nil {
+		log.Fatal(re.Error)
+	}
+	fmt.Println(user.ID, re.RowsAffected)
+}
+
+func TestInsertBatches(t *testing.T) {
+	connectDb()
+	var grp []model.Merchant
+   /* 
+   INSERT INTO `merchant` (`name`,...,`register_time`) VALUES ('ganster',...,1628161718),
+   ('ganster2',...,1628161718),('ganster3',...,1628161718),('ganster4',...,1628161718);
+   */
+	for i := 0; i < 10; i++ {
+		b := i%2==0
+		mer := model.Merchant{
+			Name:     fmt.Sprintf("test_%c", 'A'+i),
+			Age:      byte(i + 20),
+			Address:  fmt.Sprintf("Addr_%c", 'a'+i),
+			IsCredit: &b,
+		}
+		grp = append(grp, mer)
+	}
+	re := Orm.DB.CreateInBatches(grp, len(grp))
+	log.Printf("%v\n", re.RowsAffected)
+}
+```
+
+🔵删(delete)
+
+```go
+func TestDel(t *testing.T) {
+	connectDb()
+   // DELETE FROM `merchant` WHERE name = 'john'
+	re := Orm.DB.Delete(&model.Merchant{}, "name = ?", "john")
+	log.Printf("Rows: %v\n", re.RowsAffected)
+}
+```
+
+🔵改（update）
+
+`Update()`更新单列，`Updates()`更新多列
+
+```go
+func TestUpdate(t *testing.T) {
+	connectDb()
+	b := false
+	u := model.Merchant{
+		Name:     "john",
+		IsCredit:  &b,
+	}
+	// 更新单列
+	re := Orm.DB.Model(&u).Where("name = ?", "john").Update("name", u.Name)
+	log.Printf("Rows:%v, Error:%v\n", re.RowsAffected, re.Error)
+
+	// 更新多列
+	re = Orm.DB.Model(&u).Where("name = ?", "johny").Updates(&u)
+	log.Printf("2nd: Rows:%v, Error:%v\n", re.RowsAffected, re.Error)
+
+	// 选取字段更新，只更新name字段
+	Orm.DB.Model(&u).Select("name").Where("name = ?", "johny").Updates(&u)
+}
+```
+
+🔵查：
+
+`First()` `Last()` 根据主键排序后取第一个或者最后一个记录。
+
+`Take()` 取出一个记录
+
+`Find()` 找到所有的记录
+
+```go
+func TestQuery(t *testing.T) {
+	connectDb()
+	// 查询单条记录
+	var u model.Merchant
+	type APIUser struct {
+		Name string
+		Age  int
+	}
+	re := Orm.DB.First(&u, "name = ?", "ganster")
+	log.Printf("Get one: %v\n", u)
+	log.Printf("%v\n", re.RowsAffected)
+	// 查询多条记录
+	var us []model.Merchant
+	// SELECT name, age FROM `merchant` WHERE name regexp 'jo+'
+	re = Orm.DB.Select("name, age").Find(&us, "name regexp ?", "jo+")
+	log.Printf("Get all %v\n", us)
+	log.Printf("%v\n", re.RowsAffected)
+	// 另一种
+	var uas []APIUser
+	re2 := Orm.DB.Model(&model.Merchant{}).Find(&uas, "name regexp ?", "jo+")
+	log.Printf("Get all 2:%v\n", uas)
+	log.Printf("%v\n", re2.RowsAffected)
+}
+```
+
+🔵错误处理：
+
+```go
+if err := db.Where("name = ?", "jinzhu").First(&user).Error; err != nil {
+  // 处理错误...
+}
+```
+
 ## 分布式文件系统FastDFS
 
 FastDFS分为三个角色：跟踪服务器(Tracker Server)，存储服务器(Storage Server)和客户端(Client)
@@ -3135,7 +3368,7 @@ func (s *LaptopServer) UploadImage(stream pb.LaptopService_UploadImageServer) er
 
 [golang常用的http请求操作](https://www.cnblogs.com/zhaof/p/11346412.html)
 
-<img src=".\GoNotes.assets\image-20210728195850590.png" alt="image-20210728195850590.png" style="zoom:67%;" />
+<img src="E:\Notes\Go\GoNotes.assets\image-20210728195850590.png" alt="image-20210728195850590.png" style="zoom:67%;" />
 
 ### TCP编程
 

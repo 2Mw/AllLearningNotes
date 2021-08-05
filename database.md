@@ -229,7 +229,7 @@ truncate t1;			-- 清空；实际上是删除表再重新创建一个表
 创建：
 
 ```sql
-create table t1 if not exists(
+create table if not exists t1(
     id int not null auto_increment,									-- 设置自增
     name varchar(255) not null,
     age int not null check (age > 0),								-- 设置check语句
@@ -258,7 +258,7 @@ alter table t1 drop primary key;								-- 删除主键
 alter table t1 add index(name), unique(card_id);				-- 添加普通索引和唯一索引
 alter table t1 drop index name									-- 删除索引;
 -- 添加外键
-alter table t1 add constraint vid_fk foreign key(vid) references vendor(id);
+alter table t1 add constraint vid_fk foreign key(vid) references vendor(id) on delete [options];
 alter table t1 drop constraint vid_fk;							-- 删除外键
 ```
 
@@ -273,6 +273,31 @@ drop table t1;
 ```sql
 rename table t1 to t2;
 ```
+
+### 约束
+
+🔵check子句：
+
+```sql
+create table if not exists t1(
+    id int not null auto_increment,									-- 设置自增
+    name varchar(255) not null,
+    age int not null check (age > 0)								-- 设置check语句
+)engine=innodb charset=utf8mb4;		
+```
+
+🔵外键约束：
+
+```sql
+alter table t1 add constraint vid_fk foreign key(vid) references vendor(id) on delete [options];
+```
+
+这里的options包含：（MySQL默认为`restrict`或者`no action`）
+
+* `cascade`：父表update/delete记录时，同步update/delete掉子表的匹配记录 
+* `set null`：父表update/delete记录时，将子表上匹配记录的列设为null (子表外键列不为not null)  
+* `no action`：如果子表中有匹配的记录，停止对父表对应候选键进行update/delete操作 
+* `restrict`：同no action, 都是立即检查外键约束
 
 ### 视图
 
@@ -347,21 +372,21 @@ select @@transaction_isolation;				-- 查看数据库当前隔离级别
 
 ### 账户安全管理
 
-查看当前数据库的所有用户：
+🔵查看当前数据库的所有用户：
 
 ```sql
 use mysql;
 select user from user;
 ```
 
-操作用户：
+🔵操作用户：
 
 ```sql
 create user 'jack'@'host' identified by 'passwd';		-- 创建用户, % 表示可以任意主机
 drop user jack;										   -- 删除用户
 ```
 
-授权：
+🔵授权：
 
 ```sql
 show grants for root;							-- 查看授权给root的信息
@@ -374,13 +399,13 @@ SET PASSWORD FOR 'username'@'host' = PASSWORD('newpassword');	-- 更改用户密
 
 ### 导入与导出
 
-导入sql文件：
+🔵导入sql文件：
 
 ```sql
 mysql -uroot -p -D customer < userinfo.sql		-- 向customer数据库导入表名为userinfo的数据
 ```
 
-导入csv：
+🔵导入csv：
 
 ```sql
 load data infile '/usr/local/user.csv' 	-- CSV文件存放路径
@@ -515,23 +540,19 @@ set autocommit = 0;		-- 0表示off，1表示on
 
 可参考：[深入学习MySQL事务：ACID特性的实现原理](https://www.cnblogs.com/kismetv/p/10331633.html)
 
-原子性（Atomic）：由undolog实现
+🔵原子性（Atomic）：由undolog实现
 
-一致性（Consistency）：由其他三个特性共同实现，是最**根本**的。
+🔵一致性（Consistency）：由其他三个特性共同实现，是最**根本**的。
 
-隔离性（Isolation）：由MVCC实现
+🔵隔离性（Isolation）：由MVCC实现
 
-持久性（Durability）：由redolog实现，二阶段提交，WAL(write ahead log)，先写日志，再写数据。
+🔵持久性（Durability）：由redolog实现，二阶段提交，WAL(write ahead log)，先写日志，再写数据。
 
 ### 锁：
 
 ```sql
 show engine innodb status;	-- 可以查看锁的状态
 ```
-
-
-
-
 
 ### MVCC
 
