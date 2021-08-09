@@ -1502,6 +1502,25 @@ for v := intChan{
 
 如果管道未关闭，则会报deadlock。
 
+只读channel类型：
+
+```go
+func channelF1Reader(mes <-chan string) {
+	msg := <-mes
+	fmt.Println(msg)
+}
+```
+
+只写channel类型：
+
+```go
+func channelF2Writer(mes chan<- string) {
+	mes <- "www.ydook.com"
+}
+```
+
+
+
 ### channel与goroutine的结合：
 
 ```go
@@ -2923,7 +2942,7 @@ gRPC使用http2的优点：
 
 ### gRPC的四种数据类型
 
-* unary：客户端发送一个请求，服务器端回复一个请求。类似普通的HTTP API
+* unary：客户端发送一个请求，服务器端+回复一个请求。类似普通的HTTP API
 * client streaming：客户端发送多个信息流，服务器值返回一个回复。
 * server streaming：客户端发送一个请求，服务器值返回多个信息流。
 * bidirectional streaming：双方无阻塞的互相发送信息流。
@@ -3088,7 +3107,7 @@ service CreateLaptopService{
 type LaptopServer struct {
 	pb.UnimplementedCreateLaptopServiceServer	// 由于兼容性，必须要包含
 	// 其他自定义
-    Store LaptopStore
+   Store LaptopStore
 }
 
 // 实现接口一
@@ -3117,7 +3136,7 @@ func NewLaptopServer(store LaptopStore) *LaptopServer {
 }
 ```
 
-开启客户端：
+开启服务端：
 
 ```go
 func main() {

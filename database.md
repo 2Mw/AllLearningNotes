@@ -443,7 +443,7 @@ id, select_type, `table`, partitions, type,  possible_keys, `key`, key_len, ref,
 
 索引和实际的数据都是存储在磁盘中，在进行数据读取的时候会优先将索引读取到内存当中。
 
-导入数据的时候不应该使用索引，应用所有数据索引的总时间 < 导入每行数据分别进行索引总时间
+导入数据的时候不应该使用索引，应用所有数据索引的总时间 < 导入每行数据分别进行添加索引总时间
 
 ### 数据结构
 
@@ -472,6 +472,9 @@ MySQL中的B+树索引：
 
 ### 聚簇索引和非聚簇索引
 
+- 聚簇索引：将数据存储与索引放到了一块，找到索引也就找到了数据
+- 非聚簇索引：将数据存储于索引分开结构，索引结构的叶子节点指向了数据的对应行，myisam通过key_buffer把索引先缓存到内存中，当需要访问数据时（通过索引访问数据），在内存中直接搜索索引，然后通过索引找到磁盘相应数据，这也就是为什么索引不在key buffer命中时，速度慢的原因
+
 <img src="https://i.loli.net/2021/08/02/nZDXrkofUjGv2I5.png" alt="image-20210802223248752" style="zoom:67%;" />
 
 <img src="https://i.loli.net/2021/08/02/Q2D8VXN3qAgkMwG.png" alt="image-20210802223441721" style="zoom:67%;" />
@@ -480,9 +483,9 @@ MySQL中的B+树索引：
 
 * **回表**：
 
-  id, name, age, gender. id为自增主键索引，name为普通索引。
+  id, name, age, gender. 其中id为自增主键索引，name为普通索引。
 
-  `select * from user where name = "john"`。这个表有两个B+树。首先根据name查其B+树得到对应的id值，在根据id值查询id对应的B+树来检索对应的数据记录，这个过程叫做回表。**尽可能避免回表操作**。
+  `select * from user where name = "john"`。这个表有两个B+树。首先根据name查其B+树得到对应的id值，在根据id值查询id对应的B+树来检索对应的数据记录，这个过程叫做回表。**尽可能避免回表操作**。`select id from user where name = "john"`，无需回表。
 
 * **索引覆盖**：
 
@@ -548,10 +551,113 @@ set autocommit = 0;		-- 0表示off，1表示on
 
 🔵持久性（Durability）：由redolog实现，二阶段提交，WAL(write ahead log)，先写日志，再写数据。
 
+### 并发事务的四个问题：
+
+[并发事务带来的问题](https://www.cnblogs.com/xzsj/p/xzsj-database-transaction.html)
+
+* 丢失数据（Lost to modify）
+
+  指在一个事务读取一个数据时，另外一个事务也访问了该数据，那么在第一个事务中修改了这个数据后，第二个事务也修改了这个数据。这样第一个事务内的修改结果就被丢失，因此称为丢失修改。 例如：事务1读取某表中的数据A=20，事务2也读取A=20，事务1修改A=A-1，事务2也修改A=A-1，最终结果A=19，事务1的修改被丢失。
+
+* 脏读（dirty read）
+
+  当一个事务正在访问数据并且对数据进行了修改，而这种修改还没有提交到数据库中，这时另外一个事务也访问了这个数据，然后使用了这个数据。因为这个数据是还没有提交的数据，那么另外一个事务读到的这个数据是“脏数据”，依据“脏数据”所做的操作可能是不正确的。
+
+  |                    Session-1(RU)                     |              Session-2(RR)              |
+  | :--------------------------------------------------: | :-------------------------------------: |
+  | begin;<br/>select salary from t1 where id = 1;(5000) |                                         |
+  |                                                      | update t1 set salary=4500 where id = 1; |
+  |      ❌select salary from t1 where id = 1;(4500)      |                                         |
+  |                                                      |                rollback;                |
+  |      select salary from t1 where id = 1;(5000)       |                                         |
+
+  处于Read-Uncommited模式下的会话一会出现脏读的情况。
+
+* 不可重复读（unrepeatable read）
+
+  指在一个事务内多次读同一数据。在这个事务还没有结束时，另一个事务也访问该数据。那么，在第一个事务中的两次读数据之间，由于第二个事务的修改导致第一个事务两次读取的数据可能不太一样。**这就发生了在一个事务内两次读到的数据是不一样的情况**，因此称为不可重复读。
+
+  在RC隔离机制下，每次在进行快照读(select)的时候每次都会生成新的readview，在RR隔离机制下，只有第一次读的时候才会生成新的readview，来避免不可重复读的问题。
+
+  |                    Session-1(RC)                     |              Session-2(RR)              |
+  | :--------------------------------------------------: | :-------------------------------------: |
+  | begin;<br/>select salary from t1 where id = 1;(5000) |                                         |
+  |                                                      | update t1 set salary=4500 where id = 1; |
+  |      select salary from t1 where id = 1;(5000)       |                                         |
+  |                                                      |                 commit;                 |
+  |      ❌select salary from t1 where id = 1;(4500)      |                                         |
+  |                       commit;                        |                                         |
+
+* 幻读（phantom read）
+
+  幻读与不可重复读类似。它发生在一个事务（T1）读取了几行数据，接着另一个并发事务（T2）插入了一些数据时。在随后的查询中，可能使用到了`insert` `delete` `update`语句更新了readview，第一个事务（T1）就会发现多了一些原本不存在的记录，就好像发生了幻觉一样，所以称为幻读。
+
+  解决方法：添加表锁。
+
+总结：
+
+|     隔离级别     | 脏读 | 不可重复读 | 幻读 |
+| :--------------: | :--: | :--------: | :--: |
+| READ-UNCOMMITTED |  √   |     √      |  √   |
+|  READ-COMMITTED  |  ×   |     √      |  √   |
+| REPEATABLE-READ  |  ×   |     ×      |  √   |
+|   SERIALIZABLE   |  ×   |     ×      |  ×   |
+
 ### 锁：
 
 ```sql
 show engine innodb status;	-- 可以查看锁的状态
+```
+
+分类：从对数据操作粒度上可分为表锁和行锁，从操作类型上可分为读锁（共享锁）和写锁（排他锁）。
+
+🔵InnoDB行锁
+
+对于update，delete，insert语句，innoDB会自动添加排他锁，普通select语句不会，可以使用以下语句加锁。
+
+```sql
+-- 共享锁
+select * from t1 where col = 'condition' lock in share mode;
+-- 排他锁
+select * from t1 where col = 'condition' for update;
+```
+
+🔵行锁升级为表锁
+
+```sql
+-- 假定name为varchar类型，但是这里的1996为数字类型，会导致索引失效，行锁升级为表锁。
+update t1 set age = 20 where name = 1996;
+```
+
+🔵间隙锁的影响
+
+当使用范围条件查询而不是相等条件进行查询的时候，在请求共享或排他锁同时，innoDB会对符合条件的数据进行加锁，对于键值在条件范围内但不存在的记录，叫做“间隙”，InnoDB也会对这个间隙加锁，即间隙锁（next-key锁）
+
+|              session-1               |                  session-2                  |
+| :----------------------------------: | :-----------------------------------------: |
+|          set autocommit=0;           |              set autocommit=0;              |
+| update t1 set name="Q" where id < 4; |                                             |
+|                                      | insert into t1 (id, name)values(2, "ring"); |
+|               commit;                |                                             |
+
+对于session-2中的`insert`语句中，其id<4，满足session1中间隙的条件，因此会阻塞直至session-1提交。
+
+🔵查看InnoDB行锁的争用情况
+
+`show status like 'innodb_row_lock%'`
+
+```sh
+mysql> show status like "innodb_row_lock%";
++-------------------------------+-------+
+| Variable_name             | Value |
++-------------------------------+-------+
+| Innodb_row_lock_current_waits | 0		|		# 当前为等待行锁的数量
+| Innodb_row_lock_time			| 0		|		# 总锁定时长
+| Innodb_row_lock_time_avg		| 0		|		# 每次等待平均时长
+| Innodb_row_lock_time_max		| 0		|
+| Innodb_row_lock_waits			| 0		|		# 系统启动后一共等待的次数
++-------------------------------+-------+
+5 rows in set (0.00 sec)
 ```
 
 ### MVCC
@@ -666,12 +772,15 @@ MySQL默认的事务隔离级别是RR可重复读。
 
 查看MySQL的事务级别：`select @@transaction_isolation;`
 
+* READ-UNCOMMITTED(读取未提交)： 最低的隔离级别，允许读取尚未提交的数据变更，可能会导致脏读、幻读或不可重复读。
+* READ-COMMITTED(读取已提交)： 允许读取并发事务已经提交的数据，可以阻止脏读，但是幻读或不可重复读仍有可能发生。
+* REPEATABLE-READ(可重复读)： 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，可以阻止脏读和不可重复读，但幻读仍有可能发生。
+* SERIALIZABLE(可串行化)： 最高的隔离级别，完全服从ACID的隔离级别。所有的事务依次逐个执行，这样事务之间就完全不可能产生干扰，也就是说，该级别可以防止脏读、不可重复读以及幻读。
+
 ## 其他
 
 ### 面试问题：
 
 [面试官:讲讲mysql表设计要注意啥? - 知乎](https://zhuanlan.zhihu.com/p/73260510)
 
-
-
-P11
+[MySQL 面试题](https://www.jishuchi.com/read/mysql-interview/2791)
