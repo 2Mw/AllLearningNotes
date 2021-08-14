@@ -94,7 +94,7 @@ JDK内置的注解：
 
 `@Target`用于标注注解出现在哪个位置。 `@Target(ElementType.METHOD)`
 
-`@Retention` 用于被标注的注解最终保存在哪个位置。`@Retention(RetentionPolicy.SOURCE)` 保留在java源文件中`@Retention(RetentionPolicy.CLASS)` 保存在class文件中 `@Retention(RetentionPolicy.RUNTIME)` 保存在class文件中，并且可以被反射机制读取。
+`@Retention` 用于被标注的注解最终保存在哪个位置。`@Retention(RetentionPolicy.SOURCE)` 保留在java源文件中；`@Retention(RetentionPolicy.CLASS)` 保存在class文件中； `@Retention(RetentionPolicy.RUNTIME)` 保存在class文件中，并且可以被反射机制读取。
 
 ### equals和==
 
@@ -146,7 +146,7 @@ public class ContainsDemo {
         ArrayList a = new ArrayList();
         a.add(u1);
         User u2 = new User("A");
-        System.out.println(a.contains(u2));     // false 因为没有重写equals方法
+        System.out.println(a.contains(u2));     // true
     }
 }
 
@@ -289,8 +289,6 @@ public class Collection01 {
 LinkedList：采用双向链表
 
 Vector：底层采用数组结构（线程安全 所有方法含synchronized，但是效率较低使用少）
-
-
 
 **Set**
 
@@ -665,7 +663,7 @@ public class CodeBlock {
 //普通块
 ```
 
-执行顺序：静态块 =》 构造块 =》 普通块
+执行顺序：静态块 -> 构造块 -> 普通块
 
 静态块：只在类加载的时候执行一次。一般用于创建工厂、数据库的初始化信息。
 
@@ -1845,13 +1843,61 @@ class MakeUp implements Runnable{
 
 ## Maven
 
+学习视频：[BV1Ah411S7ZE](https://www.bilibili.com/video/BV1Ah411S7ZE)
+
+### 概述
+
+maven是一个项目管理工具，将项目开发和管理过程抽象出一个项目对象模型（POM, project object model）
+
+<img src="https://i.loli.net/2021/08/10/R52yFofbxn819Nr.png" alt="image-20210810043856968" style="zoom:67%;" />
+
+仓库：用于存储jar包
+
+<img src="https://i.loli.net/2021/08/10/rCAQea5EuzOMlU3.png" alt="image-20210810044657523" style="zoom:50%;" />
+
+坐标：用于定位资源的信息
+
+* groupId：所属组织名称（比如：org.apache）
+* artifactId：项目名称（SMS，Login）
+* version：定义当前的版本号
+* packaging：发布的类型`jar`
+
 ### 安装和配置环境变量
 
-https://maven.apache.org/download
+[Maven下载链接](https://maven.apache.org/download.cgi)
 
-配置环境变量 MAVEN_HOME
+配置环境变量 MAVEN_HOME，并且加入到path中。
 
-maven的目录结构：
+🔵Maven仓库配置：
+
+**在其settings标签下进行设置默认下载位置：**
+
+在maven根目录下的`conf/settings.xml`文件中进行配置
+
+```xml
+<!-- localRepository
+   | The path to the local repository maven will use to store artifacts.
+   |
+   | Default: ${user.home}/.m2/repository
+  <localRepository>/path/to/local/repo</localRepository>
+-->
+<localRepository>E:/Notes/Java/.m2/repository</localRepository>
+```
+
+**修改maven仓库镜像地址：**
+
+* 同样在`settings.xml`文件内，在`<mirrors></mirrors>`内添加一下配置
+
+  ```xml
+  <mirror>
+    <id>aliyunmaven</id>
+    <mirrorOf>*</mirrorOf>
+    <name>aliyun</name>
+    <url>https://maven.aliyun.com/repository/public</url>
+  </mirror>
+  ```
+
+### maven的目录结构：
 
 
 
@@ -1884,41 +1930,126 @@ C:.
         \---resources
 ```
 
-**更改仓库文件依赖文件存放地址：**
+### maven命令
 
-* 找到maven目录，找到conf -> settings.xml
-* 找到`<localRepository>/path/to/local/repo</localRepository>`，并且更改里面的地址e.g.`<localRepository>C:/Apps/maven/repo</localRepository>` (改为反斜杠)
-
-**修改maven仓库镜像地址：**
-
-* 同样在`settings.xml`文件内，在`<mirrors></mirrors>`内添加一下配置
-
-  ```xml
-  <mirror>
-    <id>aliyunmaven</id>
-    <mirrorOf>*</mirrorOf>
-    <name>aliyun</name>
-    <url>https://maven.aliyun.com/repository/public</url>
-  </mirror>
-  ```
+* mvn -version
+* mvn compile  编译src/main/目录下的java文件
+* mvn clean  将编译后的文件删除
+* mvn test  运行test目录下的文件
+* mvn package  打包源代码文件
+* mvn install  将自己的项目安装到本地仓库中
+* -D 指定属性  -P 指定profile，设置运行环境
 
 **编译运行**
 
 * 在项目目录下输入指令`mvn compile`，第一次等下文件下载完毕。
 * 运行java文件：`mvn exec:java -Dexec.mainClass="com.yz.App"`(不带“.java”后缀名)
 
-### maven命令
+### maven依赖管理
 
-* maven -version
-* maven clean
-* maven compile  编译src/main/目录下的java文件
-* -D 指定属性  -P 指定profile，设置运行环境
+🔵依赖配置：
+
+```xml
+<dependencies>
+    <!-- https://mvnrepository.com/artifact/junit/junit -->
+    <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>4.12</version>
+    </dependency>
+
+</dependencies>
+```
+
+🔵依赖传递：
+
+分为直接依赖和间接依赖。
+
+对于依赖之间的间接依赖可能使用到同一个包的不同版本，会有依赖冲突问题。
+
+有三个原则：
+
+* 路径优先：依赖中出现相同资源的时候，层级越深，优先级越低。
+
+  <img src="https://i.loli.net/2021/08/10/XcqM5W2EZS3BePx.png" alt="image-20210810060316103" style="zoom: 67%;" />
+
+  比如1度使用到了junit为1.0版本，2度中使用到了junit为2.0版本，则优先使用1.0版本的junit。
+
+* 声明优先：多个同级依赖使用到相同的间接依赖的时候，先声明的覆盖靠后的。
+
+* 特殊优先：同级依赖使用相同包的不同版本时候，后面覆盖前面
+
+🔵可选依赖
+
+配置`<option>true</option>`，不想让别人看到我的依赖（不透明）
+
+```xml
+ <dependency>
+     <groupId>junit</groupId>
+     <artifactId>junit</artifactId>
+     <version>4.12</version>
+     <option>true</option>
+</dependency>
+```
+
+🔵排除依赖
+
+主动断开依赖的依赖（不需要）
+
+```xml
+ <dependency>
+     <groupId>junit</groupId>
+     <artifactId>junit</artifactId>
+     <version>4.12</version>
+     <exclusions>
+     	<exclusion>
+          <groupId>log4j</groupId>
+     		<artifactId>log4j</artifactId>
+       </exclusion>
+     </exclusions>
+</dependency>
+```
+
+🔵依赖范围
+
+`<scope></scope>`用于指定依赖jar包的作用范围，默认为`compile`
+
+| scope  | 主代码 | 测试代码 | 打包     |
+| :------: | :--: | :------: | :------: |
+| compile | Y  | Y      | Y |
+| test        |    | Y       |     |
+| provided  | Y | Y |  |
+| runtime    |    |        | Y  |
+
+<h4 id="ylfb"></h4>
+
+🔵将源代码中的资源文件也发布到release中，如`mybatisMapper.xml`文件等。
+
+```xml
+<build>
+    <!--将源代码目录下的其他资源文件也编译到输出文件中-->
+    <resources>
+        <resource>
+            <directory>src/main/java</directory>
+            <includes>
+                <include>**/*.properties</include>
+                <include>**/*.xml</include>
+            </includes>
+            <filtering>false</filtering>
+        </resource>
+    </resources>
+</build>
+```
+
+### 生命周期和插件
+
+<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210810083851187.png" alt="image-20210810083851187" style="zoom:67%;" />
 
 ## Spring
 
 > Spring框架分为四部分
 
-[BV1wy4y1D7JT](https://www.bilibili.com/video/BV1nz4y1d7uy)
+视频：[BV1wy4y1D7JT ](https://www.bilibili.com/video/BV1nz4y1d7uy)
 
 ### IoC控制反转
 
@@ -2007,19 +2138,6 @@ Maven-archetype-quickstart
    }
    ```
 
-   
-
-**初始化项目后操作**：
-
-1. 进入pom.xml文件
-
-2. 删除`<name>` 和 `<url>`标签
-
-3. 将maven编译源和目标版本改为1.8
-
-   ![image-20210328153158525](https://i.loli.net/2021/08/03/POAx9aUWuyBDLjd.png)
-
-4. 删除`<build>`标签内容
 
 ### Junit单元测试
 
@@ -2084,7 +2202,7 @@ public void Test04() {
 
 ### DI(基于XML的依赖注入)
 
-> DI：表示创建对象，给对象属性赋值
+> DI：表示创建对象，给对象属性赋值，dependency injection
 
 1. 基于XML的DI：在spring的配置文件中使用标签和属性进行完成
 2. 基于注解的DI：在spring中注解完成属性赋值
@@ -2162,13 +2280,22 @@ public class Student {
 <!-- 也可以省略index属性 -->
 ```
 
-**自动注入：**
+**自动注入（autowire）：**
 
-1. 引用类型自动注入：
+1. 引用类型自动注入-Byname：
 
-
-
-
+   ```xml
+   <bean id="MyStu" class="com.yz.spring01.ba03.Student" autowire="byName">
+       <property name="age" value="19"/>
+       <property name="name" value="萌萌子"/>
+   </bean>
+   
+   <!-- byName 类型需与引用类型的id一致-->
+   
+   <bean id="school" class="com.yz.spring01.ba03.School">
+       <property name="name" value="SZU[JNU]"/>
+   </bean>
+   ```
 
 2. 自动注入-ByType（按类型注入）：
 
@@ -2209,18 +2336,1521 @@ student和schoold的xml文件只保存自己的bean，类似上述的配置。
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
-        <!--   classpath需要在target目录下的classes进行寻找 -->
+    <!--   classpath需要在target目录下的classes进行寻找 -->
 
     <import resource="classpath:ba04/spring-student.xml"/>
     <import resource="classpath:ba04/spring-school.xml"/>
     
     <!-- 可以进行包含关系进行通配符匹配 -->
+    <!-- 但是主配置文件不能与这个文件名匹配，比如不可以是spring-total.xml  -->
     <import resource="classpath:ba04/spring-*.xml"/>
-    <!-- 但是主配置文件不能与这个文件名匹配  -->
 </beans>
 ```
 
 ### DI(基于注解的依赖注入)
+
+1. 在maven中加入依赖spring-context，间接加入spring-aop的依赖
+2. 在类中加入spring注解
+3. 在spring配置文件中，加入组件扫描器的标签，说明注解在项目中的位置。
+
+🔵注解的种类：
+
+* `@Component`  `@Component(value="name")` `@Component("name")`，用在普通类的上面
+* `@Repository`（用在持久层类上），放在dao层实现类上，表示创建dao对象
+* `@Service`，放在service的实现类上，创建service对象
+* `@Controller`，放在控制器的上面
+
+后三种与`@Component`语法一样，但后三个还有额外的功能，用于给项目对象进行分层。
+
+* `@Value`，用在简单类型的属性名或者是set方法上
+
+* `@Autowired`，用在引用类型的属性上，默认为ByType方式，ByName方式需要配合`@Qualify("beanid")`
+
+  默认`@Autowired(required=true)`，如果赋值失败会报错，如果为false，会将引用类型赋值为null。
+
+* `@Resource`，用在引用类型的属性上，默认为ByName方式，无name会自动使用ByType
+
+🔵添加注解：
+
+```java
+/**
+ * @Component: 创建对象，相当于<bean></bean>
+ * value是bean的id
+ */
+//@Component(value = "myStu")
+//@Component      // id为类名的首字母小写
+@Component("myStu")
+public class Student {
+
+    @Value("萌萌")
+    private String name;
+    private int age;
+    @Autowired
+    private School school;
+
+    @Value("18")
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    @Override
+    public String toString() {
+        return "Student{" + "name='" + name + '\'' + ", age=" + age + ", school=" + school + '}';
+    }
+}
+
+@Component("school")
+class School {
+    @Value("苏州大学")
+    private String name;
+    @Value("江苏苏州")
+    private String region;
+
+    @Override
+    public String toString() {
+        return "School{" + "name='" + name + '\'' + ", region='" + region + '\'' + '}';
+    }
+}
+```
+
+🔵设置XML扫描器：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--找到包和子包中所有的注解，按照注解创建对象，给属性赋值-->
+    <context:component-scan base-package="com.yz.ba01"/>
+    <!--导入多个包，用;或者,来分割多个包名-->
+    <context:component-scan base-package="com.yz.ba02;com.yz.ba03,com.yz.ba04"/>
+    <!--直接指定父包名，会扫描子包-->
+    <context:component-scan base-package="com.yz"/>
+
+</beans>
+```
+
+### XML和注解的对比
+
+经常改变的使用XML，不经常该表的使用注解的方式。
+
+注解的形式也可以使用动态修改的方法：
+
+* 创建properties文件
+
+  ```properties
+  myname=mengmeng
+  myage=18
+  ```
+
+* 在spring的配置xml文件下进行绑定
+
+  ```xml
+  <context:property-placeholder location="classpath:test.properties"/>
+  ```
+
+* 在文件中添加注解：
+
+  使用`${myname}`的形式，可以达到xml的效果
+
+  ```java
+  @Component("myStu")
+  public class Student {
+  
+      @Value("${myname}")
+      private String name;
+      private int age;
+      @Autowired
+      private School school;
+  
+      @Value("18")
+      public void setAge(int age) {
+          this.age = age;
+      }
+  
+      @Override
+      public String toString() {
+          return "Student{" + "name='" + name + '\'' + ", age=" + age + ", school=" + school + '}';
+      }
+  }
+  ```
+
+### AOP面向切面编程
+
+> aspect-oriented programming
+
+增加功能就是切面，一般都是非业务功能。
+
+🔵动态代理：
+
+> 在不修改原有代码的基础上，增加功能，减少重复代码，专注于业务逻辑。
+
+在程序执行的过程中，创建代理对象，通过代理对象的执行方法，给目标类的方法增加功能。
+
+分为JDK动态代理和CGLIB动态代理。
+
+AOP让开发人员使用一种统一的方法来进行动态代理。
+
+🔵AOP的实现框架
+
+1. spring框架中的aop，主要在事务中使用，开发中很少使用spring的aop实现，比较笨重
+2. aspenctJ：一个开源做AOP的框架，spring中集成了aspectJ框架。实现方式有两种方法：XML的配置文件和使用注解的方式来进行AOP，aspectJ有5种注解。
+
+### JDK动态代理
+
+1. 创建目标类，比如someServiceImpl中的DoSome和DoOther添加功能
+2. 创建`InvocationHandler`接口的实现类，在这个类中给目标方法添加功能
+3. 使用JDK中的proxy类，创建代理对象，实现创建对象的能力。
+
+有这样一个需求，需要在`SomeServiceImpl`中每个方法的业务上，执行之前打印运行时间，执行之后开启事务。如果在`SomeServiceImpl`中每个方法都加上这两个业务，就会显得十分冗余和麻烦。我们要使用解耦合的方法，减少开发量，达到高效开发的目的。
+
+```java
+public interface SomeService {
+    void DoSome();
+    void DoOther();
+}
+
+class SomeServiceImpl implements SomeService {
+    @Override
+    public void DoSome() {
+        System.out.println("Dome service impl");
+    }
+
+    @Override
+    public void DoOther() {
+        System.out.println("Do other service impl");
+    }
+    
+    // ....
+}
+
+```
+
+这里借助proxy来完成此功能。
+
+实现`InvocationHandler`的类：
+
+```java
+public class MyInvocationHandler implements InvocationHandler {
+
+    private Object target;  // SomeServiceImpl类
+
+    public MyInvocationHandler(Object target) {	// 使用构造方法来接受对应的类
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        // 通过代理对象执行方法的时候，会调用这个invoke
+        Object res = null;
+        // 在目标方法执行前的动作
+        System.out.println("Time:" + new Date());
+        // 执行目标类的方法，通过这个method实现
+        method.invoke(target, args);
+        // 在目标方法执行后的动作
+        System.out.println("Status: OK.");
+        // 返回目标方法的执行结果
+        System.out.println(method.getName());
+        return res;
+    }
+}
+```
+
+在执行的时候借助proxy创建实例并且执行方法`Proxy.newProxyInstance`即可：
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        // 创建目标
+        SomeService target = new SomeServiceImpl();
+        // 创建InvovationHandler对象
+        InvocationHandler handler = new MyInvocationHandler(target);
+        // 重新生成SomeService对象，proxy创建代理
+        SomeService proxy = (SomeService) Proxy.newProxyInstance(target.getClass().getClassLoader(),
+                target.getClass().getInterfaces(), handler);
+        // 执行方法
+        proxy.DoOther();
+    }
+}
+```
+
+新需求：如果只需要给`DoSome()`方法添加上面两个业务，其他的方法不需要添加。
+
+只需要在`invoke`函数中添加一个判断方法名的语句即可：
+
+```java
+@Override
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    // 通过代理对象执行方法的时候，会调用这个invoke
+    Object res = null;
+    String methodName = method.getName();
+    if ("DoSome".equals(methodName)){
+        // 在目标方法执行前的动作
+        System.out.println("Time:" + new Date());
+        // 执行目标类的方法，通过这个method实现
+        method.invoke(target, args);
+        // 在目标方法执行后的动作
+        System.out.println("Status: OK.");
+        // 返回目标方法的执行结果
+    }
+    return res;
+}
+```
+
+### aspectJ的使用：
+
+aspectJ实现aop有两种方式：
+
+* XML文件配置：用来配置全局事务
+* 使用注解，一般情况下都使用注解
+
+🔵aspectj的执行时间（也叫做`advice`）：
+
+* `@Before`
+* `@AfterReturning`
+* `Around`
+* `AfterThrowing`
+* `After`
+
+🔵切面的执行位置，使用切入点表达式
+
+```java
+execution(modifiers? ret-type declaring-type?name(param) throws?)
+// execution(访问权限， 方法返回值， 方法声明（参数） 异常类型)
+```
+
+* modifiers表示访问权限类型
+* **ret-type **表示返回值类型，必需
+* declaring-type 表示包名和类名
+* **name(param)** 表示函数名（参数类型和个数），必需
+* throws 表示抛出异常的类型
+* ?表示可选部分
+
+`*`表示通配符，`..`表示函数任意多个参数或者表示当前包和子包，`+`表示当前类接口和子类
+
+比如：
+
+* `execution(public * *(..))`表示任意公共方法
+* `execution(* set*(..))` 表示任意一set开头的方法
+
+🔵加入依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>5.3.5</version>
+</dependency>
+
+<!--        aspectj依赖-->
+<!-- https://mvnrepository.com/artifact/org.springframework/spring-aspects -->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-aspects</artifactId>
+    <version>5.3.9</version>
+</dependency>
+```
+
+🔵`@Before`的使用
+
+方法中有`JointPoint`参数：作用是可以在通知方法中获取方法执行中的信息，例如方法名称，方法实参
+
+```java
+public interface SomeService {
+    void DoSome(String name, int age);
+    void DoOther();
+}
+
+class SomeServiceImpl implements SomeService {
+    @Override
+    public void DoSome(String name, int age) {
+        System.out.println(age + "=======DoSome========" + name);
+    }
+
+    @Override
+    public void DoOther() {
+        System.out.println("=========DoOther========");
+    }
+}
+
+```
+
+创建切面类：
+
+> 切面类的方法要求：1.必须是公共方法 2. 没有返回值 3. 方法可以有参数，也可以无参数
+
+`@Aspect`用来声明这个类是切面类。
+
+`@Before(value)`中的value使用切入点表达式，来匹配对应包下的方法。
+
+```java
+@Aspect     // 表明是切面类
+public class MyAspect {
+    @Before("execution(public void com.yz.service.impl.SomeServiceImpl.DoSome(..))")
+    public void myBefore(){
+        System.out.println("Before Methods");
+    }
+    
+    @Before("execution(* com.yz.*..DoSome(..))")
+    public void myBefore2(JoinPoint jp){
+        //类别：class com.yz.service.impl.SomeServiceImpl
+        System.out.println("类别："+jp.getTarget().getClass());  // 获取目标的类
+        // 参数：[NIHA, 20]
+        System.out.println("参数："+Arrays.toString(jp.getArgs()));
+        //签名：void com.yz.service.SomeService.DoSome(String,int)
+        System.out.println("签名："+ jp.getSignature());
+        System.out.println("Before Methods2");
+    }
+}
+```
+
+在Spring的配置文件中声明这两个Bean，Spring会将所有的对象加载到内存中，通过切入点表达式来匹配切面类对应的方法，实现proxy代理。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop https://www.springframework.org/schema/aop/spring-aop.xsd">
+
+    <bean id="SomeService" class="com.yz.service.impl.SomeServiceImpl"/>
+    <bean id="MyAspect" class="com.yz.service.MyAspect"/>
+    <aop:aspectj-autoproxy/>
+</beans>
+```
+
+测试：
+
+```java
+public class test {
+    @Test
+    public void test01(){
+        String config = "ac.xml";
+        ApplicationContext ac = new ClassPathXmlApplicationContext(config);
+        // 自动创建为proxy类
+        SomeService proxy = (SomeService) ac.getBean("SomeService");
+        proxy.DoSome("NIHA", 20);
+        proxy.DoOther();
+        System.out.println(proxy.getClass().getName()); //com.sun.proxy.$Proxy8
+    }
+}
+```
+
+🔵`@AfterReturning(value, retValue)`的使用
+
+`retValue`必须和通知方法的形参名相同，能够获取到目标方法的返回值。
+
+```java
+public class User {
+    private String name;
+    private Integer age;
+    // Get Set toString Constructor omit..
+}
+
+public interface SomeService {
+    User DoAfReturning();
+}
+
+public class SomeServiceImpl implements SomeService {
+    @Override
+    public User DoAfReturning() {
+        System.out.println("=========DoAfterReturning========");
+        return new User("MM", 17);
+    }
+}
+```
+
+Spring指定AOP：
+
+```xml
+<bean id="SomeService" class="com.yz.service.impl.SomeServiceImpl"/>
+<bean id="MyAspect" class="com.yz.service.MyAspect"/>
+<aop:aspectj-autoproxy/>
+```
+
+添加切面类：
+
+这里划线处的名称必须一致。
+
+![image-20210811185448571](https://i.loli.net/2021/08/11/knojdHGuF9EfvZA.png)
+
+如果AfterReturning返回的结果是**引用类型**，则中途改变参数的属性值，会影响测试输出结果。
+
+> 如果想使用JoinPoint，可以改为`public void myAfterReturning(JoinPoint jp, Object pointcut)`，其中`JoinPoint`必须为参数的第一位。
+
+```java
+@Aspect     // 表明是切面类
+public class MyAspect {
+    @AfterReturning(value = "execution(* com.yz.service.*..DoAfReturning())", returning = "res")
+    public void myAfterReturning(Object res){
+        System.out.println("得到目标方法返回值" + res);
+        User u = (User) res;
+        u.setAge(20);
+    }
+}
+```
+
+测试：
+
+```java
+@Test
+public void test02(){
+    String config = "ac.xml";
+    ApplicationContext ac = new ClassPathXmlApplicationContext(config);
+    SomeService proxy = (SomeService) ac.getBean("SomeService");
+    User u = proxy.DoAfReturning();
+    // 这里相当于运行的myAfterReturning(u);
+    System.out.println("得到返回值"+u);
+}
+=========DoAfterReturning========
+得到目标方法返回值User{name='MM', age=17}
+得到返回值User{name='MM', age=20}  17 变 20岁了。
+```
+
+🔵`@Around(value)`环绕通知的使用
+
+> 可以在目标方法前和后面都可以使用，能够修改目标方法的执行结果。相当于JDK动态代理
+>
+> 参数：ProceedingJoinPoint，父类是JoinPoint。等同于JDK动态代理的Method
+>
+> 功能强大，不只能修改引用类型，还能改数值类型。
+
+```java
+@Around("execution(* com.yz.service.*..DoAround())")
+public Object myAround(ProceedingJoinPoint pjp) throws Throwable {
+
+    Object o = null;
+    System.out.println("Before");
+    o = pjp.proceed();  // 相当 method.invoke();，并且用o接受目标方法的返回值
+    System.out.println("After");
+    return 11;	// 返回11
+}
+
+// Do Around 的值，返回值为0
+@Override
+public int DoAround() {
+    System.out.println("=========DoAround========");
+    return 0;
+}
+```
+
+test:
+
+```java
+@Test
+public void test03(){
+    String config = "ac.xml";
+    ApplicationContext ac = new ClassPathXmlApplicationContext(config);
+    SomeService proxy = (SomeService) ac.getBean("SomeService");
+    Object u = proxy.DoAround();
+    System.out.println("得到返回值"+u);	// 将目标方法的返回值改为 11
+}
+/*
+Before
+=========DoAround========
+After
+得到返回值11
+*/
+```
+
+🔵`@AfterThrowing(value, throwing)`异常通知的使用
+
+> 参数有切入点表达式和throwing自定义的变量，在抛出异常和调用
+>
+> 方法参数有`JoinPoint` `Exception`
+
+```java
+@AfterThrowing(value = "execution(* com.yz.service.*..DoAround())", throwing = "ex")
+public void myAfterThrowing(Exception ex){
+    System.out.println("发生异常，发送邮件");
+}
+```
+
+🔵`@After(value, throwing)`最终通知的使用
+
+> 一般是做资源清除的工作，这个代码无论目标方法发生异常或者其他总会被执行，相当于`finally`。
+
+```java
+@Override
+public void DoAfter() {
+    System.out.println("Do After");
+}
+```
+
+🔵`@Pointcut`切入点表达式：
+
+> 项目中如果有多个相同的切入点表达式，增加复用使用此标签
+
+使用`@Pointcut`定义在一个方法上面，此时这个方法就是切入点表达式的别名。
+
+```java
+@Pointcut("execution(* com.yz.service.*..DoAfter())")
+public void mypt(){
+    //无需代码
+}
+
+@After("mypt()")
+public void myAfter(){
+    System.out.println("Job clear.");
+}
+```
+
+### 使用cgLib进行动态代理：
+
+> 不需要编写接口类，cglib效率较高
+
+直接对可继承的类进行代理。[CGLIB](https://www.bilibili.com/video/BV1nz4y1d7uy?p=66)
+
+也可以在spring配置文件中直接明确指定使用CGLIB进行代理：
+
+```xml
+<aop:aspectj-autoproxy proxy-target-class="true"/>
+```
+
+## MyBatis
+
+[BV185411s7Ry](https://www.bilibili.com/video/BV185411s7Ry) P34
+
+### 安装：
+
+🔵需要安装mybatis和MySQL的驱动
+
+```xml
+<dependency>
+    <groupId>org.mybatis</groupId>
+    <artifactId>mybatis</artifactId>
+    <version>3.5.7</version>
+</dependency>
+
+<!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <version>8.0.26</version>
+</dependency>
+```
+
+### 配置和简单查询：
+
+> 坑：对于查询操作，对应的Model的构造函数必须含有空构造或者全构造函数，不然查询的时候会报错。
+
+1. 首先配置MyBatis的配置文件：
+
+   jdbc.properties配置文件：
+
+   ```properties
+   jdbc.mysql.driver=com.mysql.cj.jdbc.Driver
+   jdbc.mysql.url=jdbc:mysql://localhost:3306/demo
+   jdbc.mysql.username=root
+   jdbc.mysql.passwd=pass
+   ```
+
+   MyBatis.xml文件
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8" ?>
+   <!DOCTYPE configuration
+           PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+           "http://mybatis.org/dtd/mybatis-3-config.dtd">
+   
+   <!--读取jdbc.properties文件-->
+   <properties resource="jdbc.properties"/>
+   <configuration>
+       <environments default="development">    <!--default表示默认选取的环境-->
+           <environment id="development">   <!--环境名称-->
+               <transactionManager type="JDBC"/>   <!--JDBC-->
+               <dataSource type="POOLED">      <!--使用连接池-->
+                   <property name="driver" value="${jdbc.mysql.driver}"/>
+                   <property name="url" value="${jdbc.mysql.url}"/>
+                   <property name="username" value="${jdbc.mysql.username}"/>
+                   <property name="password" value="${jdbc.mysql.passwd}"/>
+               </dataSource>
+           </environment>
+       </environments>
+       <mappers>
+           <!-- 映射文件 -->
+           <mapper resource="com/yz/dao/MerchantDao.xml"/>
+           <!--或者使用包名，全部导入包下的XML文件-->
+           <package name="com.yz.dao"/>
+       </mappers>
+   </configuration>
+   ```
+
+   如果需要打印SQL语句，在`<configuration>`中添加：
+
+   ```xml
+   <settings>
+       <setting name="logImpl" value="STDOUT_LOGGING"/>
+   </settings>
+   ```
+
+2. 首先编写与数据库表中向对应的Java对象，并且设置get set方法，重写tostring：
+
+   > 注意！这里的数值类型最好使用`Integer`进行代替。
+
+   ```java
+   public class Merchant {
+       private long id;
+       private String name;
+       private byte age;
+       private String address;
+       private boolean is_credit;
+       private long register_time;
+       
+       // get set toString方法，此处省略
+   }
+   ```
+
+3. 编写一个简单的dao接口
+
+   ```java
+   public interface MerchantDao {
+       // Query
+       public List<Merchant> QueryMerchants();
+   }
+   ```
+
+4. 在对应的MerchantDao.java的相同目录下创建MerchantDao.xml，编写一个简单的select语句
+
+   这里的namespace是MerchantDao.java的包名类名引用路径（规范）
+
+   select的id与dao接口对应的方法名一致，返回结果为对应的模型（规范）。
+
+   注意：这里的XML文件需要配置POM文件中的将资源文件也拷贝到编译完的目录下才有效，<a href="#maven依赖管理">转到设置</a>。
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8" ?>
+   <!DOCTYPE mapper
+           PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+           "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+   <mapper namespace="com.yz.dao.MerchantDao">
+       <select id="QueryMerchants" resultType="com.yz.model.Merchant">
+           select * from merchant limit 1, 5
+       </select>
+   </mapper>
+   ```
+
+   
+
+5. 测试并且运行：
+
+   开启builder -> 创建工厂（读取配置）-> 开启会话 -> 读取数据 -> 关闭会话。
+
+   ```java
+   @Test
+   public void test02() {
+       // test mybatis
+       String config = "mybatis.xml";
+   
+       InputStream instream = null;
+       try {
+           instream = Resources.getResourceAsStream(config);
+       } catch (IOException e) {
+           e.printStackTrace();
+       }
+       SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+       SqlSessionFactory fac = builder.build(instream);
+       SqlSession session = fac.openSession();
+       List<Merchant> list = null;
+       try {
+           list = session.selectList("com.yz.dao.MerchantDao.QueryMerchants");
+       }catch (PersistenceException e){
+           System.out.println("连接数据库失败");
+           e.printStackTrace();
+           return;
+       }
+       list.forEach(i -> System.out.println(i));
+       session.close();
+   }
+   ```
+
+### 增删改
+
+> Mybatis默认**手动**提交事务为，因此需要最后进行手动`commit()`操作
+
+Insert：
+
+API:
+
+```java
+public interface MerchantDao {
+    int insertMerchant(Merchant merchant);	// int返回行数
+}
+```
+
+XML：
+
+```xml
+<insert id="InsertMerchant">
+    insert into merchant(name, age, address, is_credit, register_time) values (#{name}, #{age}, #{address}, #{is_credit}, #{register_time})
+</insert>
+```
+
+test:
+
+```java
+public void testInsert(){
+    Merchant merchant = new Merchant("Mengmeng", (byte) 17, "SZU", true,(new Date().getTime()) / 1000);
+    SqlSession session = getSession();
+    int rows = session.insert("MerchantDao.InsertMerchant", merchant);
+    System.out.println(rows);
+    session.commit();
+    session.close();
+}
+```
+
+### 主要类的介绍：
+
+1. Resources: Mybatis中的一个类，用于读取mybatis的配置文件
+
+   `instream = Resources.getResourceAsStream("mybatis.xml");`
+
+2. SqlSessionFactoryBuilder：用来创建SqlSessionFactory对象
+
+3. SqlSessionFactory为一个接口，实现类为DefaultSqlSessionFactory，用于产生一个对话
+
+   ```java
+   fac.openSession();	// 非自动提交事务
+   fac.openSession(true);	// 自动提交事务
+   ```
+
+4. SqlSession也是接口，实现类为DefaultSqlSession，定义了操作数据库的各个操作。
+
+> SqlSession不是线程安全的
+
+### DAO接口与DAO的XML文件的绑定
+
+> 在之前的介绍可以看出，持久层的增删改查和DAO接口一点联系都没有
+
+🔵方法一：
+
+即使用一个实现类DaoImpl实现上述方法，并且使用mybatis的方式来完成上述操作。
+
+```java
+public interface MerchantDaoImpl implements MerchantDao{
+    @Override
+    int insertMerchant(Merchant merchant){
+        SqlSession session = getSession();
+        int rows = session.insert("MerchantDao.InsertMerchant", merchant);
+        session.commit();
+        return rows;
+    }
+}
+```
+
+🔵方法二：
+
+使用Mybatis的动态代理机制：
+
+这里getMapper，是利用XML文件中命名空间和对应标签id来定位SQL语句。如果不对应就会报错。
+
+`MerchantDao.java`中`queryMerchants`对应类包路径是：`com.yz.dao.Merchant.queryMerchants`
+
+则对应的命名空间为`com.yz.dao.Merchant`，对应的查询id必须是`queryMerchants`。
+
+主要语句：`MerchantDao dao = session.getMapper(MerchantDao.class);`
+
+```java
+@Test
+public void test0S(){
+    SqlSession session = getSession();
+    MerchantDao dao = session.getMapper(MerchantDao.class);
+    List<Merchant> merchants = dao.queryMerchants();
+    merchants.forEach(System.out::println);
+}
+```
+
+XML：
+
+```xml
+<mapper namespace="com.yz.dao.MerchantDao">
+    <select id="queryMerchants" resultType="com.yz.model.Merchant">
+        select * from merchant
+    </select>
+</mapper>
+```
+
+### 传参
+
+`paramType`可以不写，mybatis会通过反射自动推断数据类型。
+
+🔵`$`和`#`占位符的区别
+
+`${}`可以替换列名，但是不安全
+
+`#{}`只可以替换值，不能替换列名，使用的是prepareStatement，安全。
+
+🔵简单类型传参
+
+Java基本类型和String都是简单类型
+
+单参数传递里面用什么满足都行，多参数需要使用`@Param`或者`arg0` `arg1`顺序来标志参数。
+
+API:
+
+```java
+public interface MerchantDao {
+    List<Merchant> queryMerchantsByName(String name);
+    List<Merchant> queryMerchantsByIdAndName(Integer id, String name);
+}
+```
+
+XML
+
+> 多参数顺序和个数可能由于业务的改变而改变
+
+```xml
+<select id="queryMerchantsByName" resultType="com.yz.model.Merchant">
+    select * from merchant where name = #{qweqwe}
+</select>
+
+<select id="queryMerchantsByIdAndName" resultType="com.yz.model.Merchant">
+    select * from merchant where id = #{arg0} or name like #{arg1}
+</select>
+```
+
+==推荐==：多个参数也可以使用`@Param("name")`的形式，在XML中就可以标识参数了：
+
+```java
+List<Merchant> queryMerchantsByName2(@Param("name") String name);
+```
+
+```xml
+<select id="queryMerchantsByName2" resultType="com.yz.model.Merchant">
+    select * from merchant where name = #{name}
+</select>
+```
+
+还可以使用map的key-value形式进行存储，不推荐。
+
+🔵复杂类型传参
+
+* 对象类型：
+
+  Mapper中直接使用对象的属性名即可。
+
+  ```java
+  List<Merchant> queryMerchantsByName2(Merchant m);
+  ```
+
+  ```xml
+  <select id="queryMerchantsByName2" resultType="com.yz.model.Merchant">
+      select * from merchant where id = #{id}
+  </select>
+  ```
+
+  
+
+### 输出结果
+
+🔵ResultType
+
+1. 返回对象
+
+   > 可以定义别名
+
+   ```java
+   <select id="queryMerchantsByName" resultType="com.yz.model.Merchant">
+       select * from merchant where name = #{qweqwe}
+   </select>
+   ```
+
+   如果很多返回都是`com.yz.model.Merchant`，就会很长。
+
+   这里可以在mybatis的配置文件下使用`typeAlias`来进行配置别名
+
+   mybatis.xml
+
+   ```xml
+   <typeAliases>
+       <typeAlias type="com.yz.model.Merchant" alias="m"/>
+   </typeAliases>
+   ```
+
+   mapper:
+
+   ```xml
+   <select id="queryId" resultType="m">
+       select id from merchant
+   </select>
+   ```
+
+   或者可以使用包的方式直接导入类名：
+
+   ```xml
+   <typeAliases>
+       <package name="com.yz.model"/>
+   </typeAliases>
+   ```
+
+   
+
+2. 返回基本类型
+
+   查询的结果是一列
+
+   ```java
+   <select id="queryMerchantsByName" resultType="int">
+       select id from merchant where name = #{name}
+   </select>
+   ```
+
+   
+
+3. 返回map类型
+
+   查询的结果是一行
+
+   ```java
+   <select id="queryMerchantsByName" resultType="map">
+       select * from merchant where name = #{name} limit 1
+   </select>
+   ```
+
+🔵ResultMap
+
+> 当列名和属性名不一致的时候，使用ResultMap
+
+```xml
+<resultMap id="UserMap" type="com.yz.model.User">
+    <!--        column是列名，property是java的属性名-->
+    <id column="id" property="myid"/>
+    <id column="name" property="myname"/>
+</resultMap>
+
+<select id="selectUser" resultMap="UserMap">
+    select id,name from user
+</select>
+```
+
+第二种方式
+
+```xml
+<select id="selectUser" resultType="com.yz.model.User">
+    select id myid,name myname from user
+</select>
+```
+
+### 模糊查询like
+
+`"&"`和`#{name}`中间必须要有空格.
+
+```xml
+<select id="selectUser" resultType="com.yz.model.User">
+     select id,name from user where name like "%" #{name} "%"
+</select>
+```
+
+### 动态SQL
+
+> SQL语句是变化的，根据不同的条件获取不同的SQL语句`<if> <where> <foreach>`
+
+🔵`<if>`的使用：
+
+```xml
+<select id="queryMerchantsIf" resultType="m">
+    select * from merchant where
+    <if test="name != null and name != ''">
+        name = #{name}
+    </if>
+    <if test="age > 0">
+        and age = #{age}
+    </if>
+</select>
+```
+
+会出现`select * from merchant where and age = #{age}`的情况，出现语法错误，通常在where后面加一个`1 = 1`的恒等条件，解决此问题。
+
+🔵`<where>`的使用：
+
+> 使用来解决`<if>`会出现的问题。
+
+```xml
+<select id="queryMerchantsIf" resultType="m">
+    select * from merchant
+    <where>
+        <if test="name != null and name != ''">
+            name = #{name}
+        </if>
+        <if test="age > 0">
+            and age = #{age}
+        </if>
+    </where>
+</select>
+```
+
+使用where标签，出现if中的问题时候，会自动去除or和and
+
+🔵`<foreach>`的使用：
+
+> 用于循环java中的数组和集合，主要用在in语句中
+
+当元素为简单类型时：
+
+```java
+List<Merchant> queryMerchantsFor(List<Integer> list);
+```
+
+```xml
+<select id="queryMerchantsFor" resultType="m">
+    select * from merchant where id in 
+    <foreach collection="list" item="id" open="(" close=")" separator=",">
+        #{id}
+    </foreach>
+</select>
+```
+
+当元素为对象时：
+
+直接使用`.`指定对应的属性字段
+
+```java
+List<Merchant> queryMerchantsFor(List<User> list);
+```
+
+```xml
+<select id="queryMerchantsFor" resultType="m">
+    select * from merchant where id in ()
+    <foreach collection="list" item="user" separator=",">
+        #{user.id}
+    </foreach>
+    )
+</select>
+```
+
+
+
+collection：表示数组或者集合的类型，list或者array
+
+item：表示循环变量的id，用在下面
+
+open：表示开始符号`(`
+
+close：表示结束符号`)`
+
+separator：表示分割符号：`,`
+
+🔵代码片段复用：
+
+> 增加程序的复用性
+
+```xml
+<sql id="selectMer">
+    select * from merchant
+</sql>
+
+<select id="demo" resultType="m">
+    <include refid="selectMer" /> where id = 1
+</select>
+```
+
+## Spring集成MyBatis
+
+> 集成像一个框架一样，原理ioc。会使用独立的连接池，代替mybatis的连接池。
+
+注意：这个整合包的事务是自动提交的。
+
+要让spring创建的对象：
+
+1. 独立的连接池对象，使用阿里的druid连接池。
+2. SqlSessionFactory对象
+3. 创建dao对象
+
+### 添加依赖：
+
+添加依赖：spring，mybatis，mysql，spring事务，spring+mybatis集成依赖
+
+```xml
+<dependencies>
+
+    <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>4.11</version>
+        <scope>test</scope>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>5.3.9</version>
+    </dependency>
+
+    <dependency>
+        <groupId>org.mybatis</groupId>
+        <artifactId>mybatis</artifactId>
+        <version>3.5.7</version>
+    </dependency>
+
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <version>8.0.26</version>
+    </dependency>
+
+    <!--spring事务依赖-->
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-tx</artifactId>
+        <version>5.3.9</version>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-jdbc</artifactId>
+        <version>5.3.9</version>
+    </dependency>
+
+    <!--mybatis-spring集成依赖-->
+    <dependency>
+        <groupId>org.mybatis</groupId>
+        <artifactId>mybatis-spring</artifactId>
+        <version>2.0.6</version>
+    </dependency>
+    <!--用于创建连接池-->
+    <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>druid</artifactId>
+        <version>1.2.6</version>
+    </dependency>
+</dependencies>
+
+<build>
+    <!--将源代码目录下的其他资源文件也编译到输出文件中-->
+    <resources>
+        <resource>
+            <directory>src/main/java</directory>
+            <includes>
+                <include>**/*.properties</include>
+                <include>**/*.xml</include>
+            </includes>
+            <filtering>false</filtering>
+        </resource>
+    </resources>
+</build>
+```
+
+### 创建模型实体类：
+
+```java
+public class Merchant {
+    private Integer id;
+    private String name;
+    private Integer age;
+    private String address;
+    private boolean is_credit;
+    private Integer register_time;
+    public Merchant(){}
+    // getters and setters
+}
+```
+
+### 构建mybatis配置：
+
+dao类：
+
+```java
+public interface MerchantDao {
+    int insertMerchant(Merchant m);
+    List<Merchant> queryMerchants(Merchant m);
+}
+```
+
+dao的xml文件：
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yz.dao.MerchantDao">
+    <insert id="insertMerchant">
+        insert into merchant(name, age, address, is_credit, register_time) VALUES (#{id}, #{age}, #{address}, #{is_credit}, #{register_time})
+    </insert>
+
+    <select id="queryMerchants" resultType="Merchant">
+        select * from merchant
+        <where>
+            <if test="id > 0">
+                id = ${id}
+            </if>
+            <if test="name != null and name != ''">
+                or name = #{name}
+            </if>
+        </where>
+    </select>
+</mapper>
+```
+
+mybatis配置：
+
+> mybatis中的数据源配置迁移到spring中去配置
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+
+    <settings>
+        <setting name="logImpl" value="STDOUT_LOGGING"/>
+    </settings>
+
+    <typeAliases>
+        <package name="com.yz.model"/>
+    </typeAliases>
+
+    <mappers>
+        <package name="com.yz.dao"/>
+    </mappers>
+</configuration>
+```
+
+### 创建service
+
+> 使用service也是通过spring的ioc构建，因此需要编写setters方法
+
+```java
+public interface MerchantService {
+    int addMerchant(Merchant m);
+    List<Merchant> queryMerchants(Merchant m);
+}
+
+class MerchantServiceImpl implements MerchantService {
+    private MerchantDao dao;
+
+    public void setDao(MerchantDao dao) {this.dao = dao;}
+
+    @Override
+    public int addMerchant(Merchant m) {
+        return dao.insertMerchant(m);
+    }
+
+    @Override
+    public List<Merchant> queryMerchants(Merchant m) {
+        return dao.queryMerchants(m);
+    }
+}
+```
+
+### Spring配置：
+
+properties配置
+
+```properties
+jdbc.mysql.driver=com.mysql.cj.jdbc.Driver
+jdbc.mysql.url=jdbc:mysql://localhost:49154/demo
+jdbc.mysql.username=root
+jdbc.mysql.passwd=785611814
+jdbc.mysql.maxActive=20
+```
+
+spring的配置：
+
+1. 声明properties的配置文件
+2. 声明数据源
+3. 声明创建SqlSessionFactory
+4. 声明dao对象
+5. 声明service对象
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://mybatis.org/schema/mybatis-spring http://mybatis.org/schema/mybatis-spring.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+    <!--声明数据源-->
+    <bean id="dsn" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <property name="url" value="${jdbc.mysql.url}"/>
+        <property name="username" value="${jdbc.mysql.username}"/>
+        <property name="password" value="${jdbc.mysql.passwd}"/>
+        <property name="maxActive" value="${jdbc.mysql.maxActive}"/>
+    </bean>
+
+    <!--创建SqlSessionFactory-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <!--set注入-->
+        <property name="dataSource" ref="dsn"/>
+        <!--configLocations是Resource类型，读取配置文件中的mapper-->
+        <property name="configLocation" value="classpath:mybatis.xml"/>
+    </bean>
+
+    <!--创建dao对象，使用sqlsession的getMapper，MapperScannerConfigurer在内部自动调用getMapper创建每个dao的对象-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <!--指定创建dao的sqlsession-->
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/>
+        <!--指定dao包名，每个dao类都执行getMapper方法-->
+        <!--生成的dao对象名是接口名的首字母小写UserDao.java -> userDao -->
+        <property name="basePackage" value="com.yz.dao"/>
+    </bean>
+
+    <!--声明service-->
+    <bean id="merchantService" class="com.yz.service.impl.MerchantServiceImpl">
+        <property name="dao" ref="merchantDao"/>
+    </bean>
+</beans>
+```
+
+### Spring事务处理
+
+> Spring的事务处理要放在service层，因为业务的方法会调用执行多个sql语句。
+
+Spring中有一个事务管理器`PlatformTransactionManager`，定义了commit，rollback等方法。
+
+mybatis对应的实现类为：`DataSourceTransactionManager`，Hibernate对应的是`HibernateTransactionManager`.
+
+🔵如何说明事务的类型
+
+* 隔离级别，4个值。`TransactionDefinition`中定义。
+* 事务的超时时间。超过多少时间就回滚。
+* 事务的传播行为，7种行为。`PROPAGATION_XXX`
+  * `PROPAGATION_REQUIRED`，指定方法必须在事务内执行。若当前存在事务，就加入当前事务。（默认）
+  * `PROPAGATION_SUPPORTS`，支持当前事务，如果不在事务中，也可以以非事务的方式执行。（查询语句）
+  * `PROPAGATION_REQUIRES_NEW`，总是新创建一个事务，若存在事务则挂起，等新事务完成后恢复。
+
+🔵提交事务，回滚事务的时期：
+
+* 无异常时，自动commit
+* ❗**存在**
+* **`RuntimeException`的时候，会rollback**
+
+🔵事务处理方案：
+
+* 适用于中小项目的，注解方案
+
+  spring框架使用aop来给事务增加功能，使用`@Transacational`注解增加事务，放在public的方法上面。
+
+  🟣可选属性：
+
+  * `propagation`，传播方式，默认`Propagation.REQUIRED`
+  * `isolation`，隔离级别，默认为`Isolation.DEFAULT`，枚举类型
+  * `readOnly`，是否只读（只使用查询），布尔值，默认为`false`
+  * `timeout`，超时时间，默认-1
+  * `rollbackFor`，指定需要回滚的异常类，类型`Class[]`，默认空数组，如果不是`RuntimeException`也会回滚。
+  * `rollbackForClassName`，指定需要回滚的异常类类名，类型`String[]`，默认空数组。
+  * `noRollbackFor`  `noRollbackForClassName`
+
+  🟣使用步骤：
+
+  * 声明事务管理器对象，开启事务注解驱动：
+
+    ```xml
+    <!--声明数据源-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+    <bean id="dsn" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <property name="url" value="${jdbc.mysql.url}"/>
+        <property name="username" value="${jdbc.mysql.username}"/>
+        <property name="password" value="${jdbc.mysql.passwd}"/>
+        <property name="maxActive" value="${jdbc.mysql.maxActive}"/>
+    </bean>
+    
+    <!--声明事务管理器对象 -->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <!--指定连接的数据库，数据源-->
+        <property name="dataSource" ref="dsn"/>
+    </bean>
+    
+    <!--开启事务注解驱动，设置spring使用注解管理事务-->
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+    ```
+
+  * 加入注解
+
+    ```java
+    @Transactional(
+        propagation = Propagation.REQUIRED,
+        isolation = Isolation.DEFAULT,
+        readOnly = false,
+        rollbackFor = {RuntimeException.class}
+    )
+    @Override
+    public int addMerchant(Merchant m) {
+        if(m.getId() < 0){
+            throw new RuntimeException("id < 0 exception");
+        }
+        return dao.insertMerchant(m);
+    }
+    ```
+
+    
+
+* 适合大型项目，有很多的类和方法，需要大量的配置事务，使用aspectj（==推荐==）
+
+  🟣实现步骤：在XML文件中使用。
+
+  * 加入aspectj依赖
+
+  * 声明事务管理器对象
+
+  * 声明方法需要的事务类型
+
+    ```xml
+    <tx:advice id="myAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <!--给具体的方法配置属性，name可以使用通配符-->
+            <tx:method name="addMerchant" isolation="DEFAULT" propagation="REQUIRED" rollback-for="java.lang.RuntimeException"/>
+        </tx:attributes>
+    </tx:advice>
+    
+    <aop:config>
+        <!--指定事务配置应用什么包和类中-->
+        <aop:pointcut id="pc1" expression="execution(* *..service..*.*(..))"/>
+        <!--关联point和advice-->
+        <aop:advisor advice-ref="myAdvice" pointcut-ref="pc1"/>
+    </aop:config>
+    ```
+
+    
+
+  * 配置AOP
+
+## SpringMVC
+
+[BV1Ry4y1574R](https://www.bilibili.com/video/BV1Ry4y1574R)
+
+### 配置和依赖
+
+maven依赖：
+
+```xml
+<dependencies>
+    <!--SpringMVC-->
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-webmvc</artifactId>
+        <version>5.2.16.RELEASE</version>
+    </dependency>
+
+    <!--日志-->
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.2.5</version>
+    </dependency>
+
+    <!--Servlet API-->
+    <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>3.1.0</version>
+        <scope>provided</scope>
+    </dependency>
+
+    <!--thymeleaf-->
+    <dependency>
+        <groupId>org.thymeleaf</groupId>
+        <artifactId>thymeleaf-spring5</artifactId>
+        <version>3.0.12.RELEASE</version>
+    </dependency>
+
+</dependencies>
+```
+
+### Web.xml文件配置
 
 
 
