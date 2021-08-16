@@ -3810,7 +3810,7 @@ mybatis对应的实现类为：`DataSourceTransactionManager`，Hibernate对应�
 
 ## SpringMVC
 
-[BV1Ry4y1574R](https://www.bilibili.com/video/BV1Ry4y1574R)
+[BV1Ry4y1574R](https://www.bilibili.com/video/BV1Ry4y1574R) P50
 
 ### 配置和依赖
 
@@ -3852,7 +3852,733 @@ maven依赖：
 
 ### Web.xml文件配置
 
+> web.xml文件默认在项目`webapp\WEB-INF`目录下，用于servlet配置
 
+🔵默认配置方式（==不推荐==）
+
+> 会将`xxx-servlet.xml`的配置文件放在WEB-INF目录下，而非resources目录下
+
+```xml
+<servlet>
+    <servlet-name>SpringMVC</servlet-name>
+    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>SpringMVC</servlet-name>
+    <!--设置springmvc核心控制器能处理的请求路径，不会匹配.jsp的请求-->
+    <url-pattern>/</url-pattern>
+</servlet-mapping>
+```
+
+🔵扩展配置方式（==推荐==）
+
+```xml
+<servlet>
+    <servlet-name>SpringMVC</servlet-name>
+    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+    <!--配置spring的位置和文件名-->
+    <init-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>classpath:springmvc-servlet.xml</param-value>
+    </init-param>
+    <!--将前端控制器DispatcherServlet的初始化时间提前到服务器启动时-->
+    <load-on-startup>1</load-on-startup>
+</servlet>
+<servlet-mapping>
+    <servlet-name>SpringMVC</servlet-name>
+    <!--设置springmvc核心控制器能处理的请求路径，不会匹配.jsp的请求-->
+    <url-pattern>/</url-pattern>
+</servlet-mapping>
+```
+
+### 编写简单的helloworld
+
+🔵编写controller（POJO）
+
+```java
+@Controller
+public class HelloController {
+    @RequestMapping( "/")		// 设置访问路径
+    public String index(){
+        return "index";		// 返回html除去后缀名的文件名
+    }
+}
+```
+
+🔵spring配置：
+
+> 视图模板即在`/WEB-INF/templates/`创建对应的html文件，然后根据`@RequestMapping`的目标方法返回对应的html文件名即可。
+
+```xml
+<!--配置注解扫描器-->
+<context:component-scan base-package="com.yz"/>
+
+<!--配置thymeleaf-->
+<bean id="viewResolver" class="org.thymeleaf.spring5.view.ThymeleafViewResolver">
+    <!--设置视图解析器的优先级-->
+    <property name="order" value="1"/>
+    <!--编码-->
+    <property name="characterEncoding" value="UTF-8"/>
+
+    <property name="templateEngine">
+        <bean class="org.thymeleaf.spring5.SpringTemplateEngine">
+            <property name="templateResolver">
+                <bean class="org.thymeleaf.spring5.templateresolver.SpringResourceTemplateResolver">
+                    <!--视图前缀-->
+                    <property name="prefix" value="/WEB-INF/templates/"/>
+                    <!--视图后缀-->
+                    <property name="suffix" value=".html"/>
+                    <property name="templateMode" value="HTML"/>
+                    <property name="characterEncoding" value="UTF-8"/>
+                </bean>
+            </property>
+        </bean>
+    </property>
+</bean>
+```
+
+🔵自动添加上下文路径
+
+java:
+
+```java
+@Controller
+public class HelloController {
+
+    @RequestMapping( "/")
+    public String index(){
+        return "index";
+    }
+
+    @RequestMapping( "/target")
+    public String target(){
+        return "target";
+    }
+}
+```
+
+html:
+
+目标url为`localhost:8080/Springmvc/target`
+
+```html
+<a th:href="@{/target}">Go</a>	<!--自动添加/Springmvc/-->
+```
+
+### @RequestMapping注解
+
+🔵标识类路径：
+
+```java
+@Controller
+@RequestMapping("/api")
+public class APIController {
+    //http://localhost:8080/Springmvc/api/1
+    @RequestMapping("1")
+    public String a1(){return "api1";}
+    //http://localhost:8080/Springmvc/api/2
+    @RequestMapping("2")
+    public String a2(){return "api2";}
+}
+```
+
+🔵value属性`String[]`
+
+```java
+@Controller
+public class APIController {
+    //http://localhost:8080/Springmvc/api
+    //http://localhost:8080/Springmvc/api2
+    @RequestMapping(value={"api", "api2"})
+    public String a1(){return "api";}
+}
+```
+
+🔵method属性`enum[]`
+
+> 默认情况下，get，post访问都可以，如果不匹配则返回405
+
+```java
+@Controller
+public class APIController {
+    @RequestMapping(value = "1", method = RequestMethod.GET)	//指定GET
+    public String a1() {
+        return "api1";
+    }
+	
+    @RequestMapping(value = "2", method = {RequestMethod.GET, RequestMethod.POST})
+    public String a2() {			// GET POSt都可以
+        return "api2";
+    }
+}
+```
+
+也可以指定GET方法：
+
+```java
+@GetMapping("api2")
+public String a2() {
+    return "api2";
+}
+```
+
+类似的有`@PostMapping()` `@DeleteMapping` `@PutMapping`
+
+🔵params属性`String[]`
+
+>指定参数满足四种类型`"item"`, `"!item"` `"item=a"` `"item!=b"`，不满足条件返回400，条件需同时满足。
+
+```java
+@GetMapping(value = "1", params = {"name", "!age", "dog=true", "cat!=false"})
+public String a1() {
+    return "api1";
+}
+```
+
+name项必须存在，age项必须不能存在，dog项必须为true，cat项不能为false
+
+thymeleaf的传参方式：
+
+```html
+<a th:href="@{/api(name='nick', age='15')}"></a>
+```
+
+🔵headers属性`String[]`
+
+> 不满足返回404
+
+用法类似`params`
+
+```java
+@GetMapping(value = "1", headers = {"User-Agent=Chrome"})
+public String a1() {
+    return "api1";
+}
+```
+
+🔵RESTful API形式
+
+```java
+@GetMapping("/api2/{id}/{name}")
+public String a2(@PathVariable("id") String id, @PathVariable("name") String name){
+    System.out.println(id + name);
+    return "api2";
+}
+```
+
+### 获取请求体参数
+
+🔵通过ServletAPI获取参数（==不推荐==）
+
+```java
+@GetMapping("API")
+public String a3(HttpServletRequest req){
+    String name = req.getParameter("name");
+    return "api1";
+}
+```
+
+🔵HTTP请求参数和变量名一致：
+
+```java
+@GetMapping("API")
+public String a3(String name, int[] age){	// http://host/name?=a
+    System.out.println(name);	// a
+    System.out.println(Arrays.toString(age));
+    return "api1";
+}
+```
+
+网址：`http://host/?name=a`，输出`a`
+
+网址：`http://host/?name=a&name=b&age=8&age=9`，输出`a,b  [8,9]`
+
+🔵使用`@RequestParam("name")`
+
+> 可以指定可选参数和默认参数，默认为必选参数
+
+```java
+@GetMapping("API")
+public String a3(@RequestParam("Name", defaultValue="Jack") String name, @RequestParam(required = false) int[] age){	// http://host/name?=a
+    System.out.println(name);	// a
+    System.out.println(Arrays.toString(age));
+    return "api1";
+}
+```
+
+🔵使用实体类接受参数
+
+需要请求参数名和POJO对象名一致。
+
+```java
+class User{
+    String name;
+    Integer age;
+}
+
+@GetMapping("API")
+public String a3(User u){	// http://host/name?=a
+    System.out.println(u.name);	// a
+    System.out.println(Arrays.toString(u.age));
+    return "api1";
+}
+```
+
+### 获取请求头
+
+同样拥有value，required，defaultValue三个属性
+
+`@RequestHeader`   `@CookieValue`分别用来获取请求头参数和cookie值。
+
+### 编码问题
+
+GET请求编码需要配置tomcat，`URIEncoding`属性
+
+使用javaweb的过滤器。
+
+```xml
+<filter>
+    <filter-name>characterEncodingFilter</filter-name>
+    <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+    <!--设置编码-->
+    <init-param>
+        <param-name>encoding</param-name>
+        <param-value>UTF-8</param-value>
+    </init-param>
+    <!--是否强制响应编码-->
+    <init-param>
+        <param-name>forceResponseEncoding</param-name>
+        <param-value>true</param-value>
+    </init-param>
+</filter>
+<filter-mapping>
+    <filter-name>characterEncodingFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+### 域对象共享数据
+
+🔵使用Servlet向域中传递对象
+
+```java
+@RequestMapping( "/target")
+public String target(HttpServletRequest req){
+    req.setAttribute("Name", "Jack");
+    return "target";
+}
+```
+
+html：
+
+```html
+<p th:text="${Name}"></p>
+```
+
+🔵使用ModelAndView传递对象
+
+```java
+@RequestMapping( "/target")
+public ModelAndView mav1(){
+    ModelAndView mav = new ModelAndView();
+    mav.addObject("name", "Lisa");
+    mav.setViewName("index");       // index.html
+    return mav;
+}
+```
+
+🔵使用model传递对象
+
+```java
+@RequestMapping( "/target")
+public String target(Model model){
+    model.setAttribute("Name", "Jack");
+    return "target";
+}
+```
+
+🔵使用map传递对象
+
+```java
+@RequestMapping( "/target")
+public String target(Map<String,Object> m){
+    m.setAttribute("Name", "Jack");
+    return "target";
+}
+```
+
+🔵使用ModelMap传递对象
+
+```java
+@RequestMapping( "/target")
+public String target(ModelMap m){
+    m.setAttribute("Name", "Jack");
+    return "target";
+}
+```
+
+🔵Model, ModelMap, Map的关系
+
+三者在SpringMVC请求域底层实现的类都是`BindingAwareModelMap`
+
+🔵向Session中共享数据
+
+```java
+@RequestMapping( "/target")
+public String target(HttpSession session){
+    session.setAttribute("Name", "Jack");
+    return "target";
+}
+```
+
+🔵向application中共享数据
+
+```java
+@RequestMapping( "/target")
+public String target(HttpSession session){
+    ServletContext app = session.getServletContext();
+    app.setAttribute("name", "Jack");
+    return "target";
+}
+```
+
+### SpringMVC视图
+
+分为转发视图和重定向视图
+
+🔵转发：
+
+不需要解析两次。
+
+```java
+@RequestMapping( "/a")
+public String target(){
+    return "index";
+}
+
+@RequestMapping( "/b")
+public String target(){
+    return "forward:/a";
+}
+```
+
+🔵重定向：
+
+```java
+@RequestMapping( "/a")
+public String target(){
+    return "index";
+}
+
+@RequestMapping( "/b")
+public String target(){
+    return "redirect:/a";
+}
+```
+
+🔵视图控制器：
+
+```xml
+<mvc:view-controller path="/" view-name="index"/>
+<!--开启mvc注解驱动 -->
+<mvc:annotation-driven/>
+```
+
+这句话相当于：
+
+```java
+@RequestMapping( "/")
+public String index(@RequestHeader("Host") String host){
+    return "index";
+}
+```
+
+## Springboot简介
+
+核心技术和响应式编程
+
+[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT)
+
+> 简化Spring全家桶的脚手架
+
+### 安装和配置：
+
+maven的pom配置：
+
+这里的父依赖包含了子依赖所有的信息，如果引入子依赖的时候就不需要进行指定版本号。
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.5.3</version>
+</parent>
+
+<dependencies>
+    <!--导入web开发依赖-->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+        <!--不需要指定版本号-->
+    </dependency>
+</dependencies>
+```
+
+编写主程序入口：
+
+```java
+// @SpringBootApplication 标志这是一个主程序类
+@SpringBootApplication
+public class App {
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+}
+```
+
+编写一个网页controller
+
+```java
+@RestController
+public class HelloController {
+    @GetMapping("/")
+    public String a(){
+        return "Hello SpringBoot";
+    }
+}
+```
+
+开始的时候直接运行main函数即可
+
+### 部署项目
+
+在pom下加入打包jar的依赖
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+    </plugins>
+</build>
+```
+
+### 自动扫描注解
+
+> 如果程序是在主程序同包或者子包下，就会自动扫描注解
+
+如果在包外的程序也想使用注解，必须要在主程序指定包注解解析的范围：
+
+```java
+@SpringBootApplication(scanBasePackages = "com.yz")
+public class App {
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+}
+```
+
+### 底层注解：
+
+🔵`@Configuration`注解
+
+属性：`proxyBeanMethods`，默认为true。如果是引用类型的依赖，会自动检查容器中是否存在，存在则不再创建，类似单例模式；如果为false，不会去检查，直接重新创建一个对象，加载较快。
+
+用于创建类似spring中的bean
+
+```java
+@Configuration
+public class UserConfig {	// 配置类也是组件，代理对象
+    @Bean
+    public User User01(){
+        return new User("Jack", 18);
+    }
+}
+```
+
+测试：
+
+```java
+@SpringBootApplication()
+public class App {
+    public static void main(String[] args) {
+        //返回IOC容器
+        ApplicationContext run = SpringApplication.run(App.class, args);
+        User u = (User) run.getBean("User01");
+        System.out.println(u);	// User{name='Jack', age=18}
+    }
+}
+```
+
+🔵`@Import`注解
+
+> 会自动创建对应类的对象到IOC容器中，Bean名即为包类全限定名称
+
+```java
+@Import({User.class})
+@SpringBootApplication()
+public class App {
+    public static void main(String[] args) {
+        ApplicationContext run = SpringApplication.run(App.class, args);
+        User u = (User) run.getBean("com.yz.bean.User");
+        System.out.println(u);
+    }
+}
+```
+
+🔵`@Conditional`注解
+
+> 满足条件时候，加入组件注入
+
+`@ConditionalOnBean(name="xx")`：容器中拥有xx对象的时候才引入组件
+
+<img src="https://i.loli.net/2021/08/17/XCjJLBQvHcG49un.png" alt="image-20210817022254960" style="zoom: 67%;" />
+
+ 🔵`@ImportResource`注解
+
+> 从Spring的xml文件中导入组件，适用于新旧工程迁移
+
+xml:
+
+```xml
+<bean id="user" class="com.yz.bean.User">
+    <property name="name" value="小萌"></property>
+    <property name="age" value="18"></property>
+</bean>
+```
+
+java
+
+```java
+@ImportResource("classpath:spring.xml")
+@SpringBootApplication(scanBasePackages = "com.yz")
+public class App {
+    public static void main(String[] args) {
+        ApplicationContext run = SpringApplication.run(App.class, args);
+        User u = (User) run.getBean("user");
+        System.out.println(u);
+    }
+}
+```
+
+ 🔵`@ConfigurationProperties`
+
+> 从属性文件中导入信息到IOC容器中
+
+首先需要在springboot的指定配置文件中加入信息：
+
+```properties
+user01.name=Jack
+user01.age=20
+```
+
+方法一：`@Component` + `@ConfigurationProperties`
+
+需要使用prefix指定前缀
+
+```java
+@Component
+@ConfigurationProperties(prefix = "user01")
+public class User {
+    private String name;
+    private Integer age;
+	 // getters and setter
+}
+```
+
+方法二：`@EnableConfigurationProperties` +  `@ConfigurationProperties`
+
+> 需要在配置类(`@Configuration`)文件中使用
+
+```java
+@Configuration
+@EnableConfigurationProperties({User.class})
+public class UserConfig {
+
+}
+```
+User类中：
+```java
+@ConfigurationProperties(prefix = "user01")
+public class User {
+    private String name;
+    private Integer age;
+	 // getters and setter
+}
+```
+
+使用：
+
+需要使用`@Autowired`注解
+
+```java
+@RestController
+public class HelloController {
+    @Autowired
+    User user;
+
+    @GetMapping("/user")
+    public User b(){
+        return user;
+    }
+}
+
+```
+
+### 自动配置原理
+
+🔵`@SpringBootApplication`原理
+
+```java
+@SpringBootConfiguration	// 相当于@Configuration
+@EnableAutoConfiguration
+// 扫描包
+@ComponentScan(
+    excludeFilters = {@Filter(
+    type = FilterType.CUSTOM,
+    classes = {TypeExcludeFilter.class}
+), @Filter(
+    type = FilterType.CUSTOM,
+    classes = {AutoConfigurationExcludeFilter.class}
+)}
+)
+public @interface SpringBootApplication {/*...*/}
+```
+
+1. 利用Registerar来导入组件：
+
+```java
+public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionRegistry registry) {
+    AutoConfigurationPackages.register(registry, (String[])(new AutoConfigurationPackages.PackageImports(metadata)).getPackageNames().toArray(new String[0]));
+}
+```
+
+2. 根据`META-INFO/spring.factories`来引入组件，但是其最终根据`@Conditional`来进行按需装配引入的。
+3. 用户有自己配置的话，以用户为主。
+
+可以在springboot的配置文件中加入`debug=true`来查看有哪些组件自动装配了。positive为生效，negative为不生效的。
+
+### 开发小技巧
+
+🔵Lombok
+
+> 简化JavaBean开发，toString，getters和setters
+
+倒是也没必要用
+
+🔵dev-tools
+
+倒是也没必要用
+
+🔵Spring Initializr
+
+<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
+
+## SpringBoot——Web开发
+
+[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT?p=22)
 
 ## 资料
 
