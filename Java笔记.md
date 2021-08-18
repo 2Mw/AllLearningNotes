@@ -3810,7 +3810,7 @@ mybatis对应的实现类为：`DataSourceTransactionManager`，Hibernate对应�
 
 ## SpringMVC
 
-[BV1Ry4y1574R](https://www.bilibili.com/video/BV1Ry4y1574R) P50
+[BV1Ry4y1574R](https://www.bilibili.com/video/BV1Ry4y1574R) P80
 
 ### 配置和依赖
 
@@ -4280,6 +4280,8 @@ public String target(){
 
 ```xml
 <mvc:view-controller path="/" view-name="index"/>
+<!--开启mvc解析静态资源访问 -->
+<mvc:default-servlet-handler/>
 <!--开启mvc注解驱动 -->
 <mvc:annotation-driven/>
 ```
@@ -4292,6 +4294,138 @@ public String index(@RequestHeader("Host") String host){
     return "index";
 }
 ```
+
+### RESTfulAPI
+
+🔵获取参数
+
+```java
+@GetMapping("/user/{id}")
+public String b(@PathVariable("id") String id){
+    return id;
+}
+```
+
+### 报文信息转换器——HttpMessageConverter
+
+`@RequestBody`  `@RequestEntity` `@ResponseBody` `@ResponseEntity`（后两个常用）
+
+body是请求体，Entity是整体请求报文（头+体）
+
+`@RequestBody`：获取的信息类似`name=jack&age=20`
+
+`@RequestEntity` ：类型`RequestEntity<String>`，req.getHeaders(), req.getBody()
+
+`@ResponseBody`：
+
+返回一个字符串
+
+```java
+@RequestMapping( "/a")
+@ResponseBody
+public String target(){
+    return "good, body";
+}
+```
+
+返回一个对象：
+
+> 导入jackson的json数据绑定jar包
+
+```xml
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.12.4</version>
+</dependency>
+```
+
+再加入mvc的注解驱动：`<mvc:annotation-driven/>`
+
+java
+
+```java
+@RequestMapping( "/u")
+@ResponseBody
+public User u(){
+    return new User("John", 66);
+}
+```
+
+也可以返回数组：
+
+```java
+@RequestMapping( "/u")
+@ResponseBody
+public int[] u(){
+    int [] arr = new int[]{1,1,3,5,7,9,12321,4};
+    return arr;
+}
+```
+
+`@ResponseEntity`：
+
+一般用于控制器方法的返回值类型。其返回值即是返回到浏览器的响应报文。
+
+🔵`@RestController`
+
+`@RestController = @Controller + @ResponseBody`
+
+为类中的每个方法加`@ResponseBody`注解。
+
+### 文件上传
+
+上传文件必须是POST请求，并且需要导入`commons-fileupload`依赖
+
+```xml
+<dependency>
+    <groupId>commons-fileupload</groupId>
+    <artifactId>commons-fileupload</artifactId>
+    <version>1.4</version>
+</dependency>
+```
+
+编写html上传器：
+
+```html
+<form th:href="@{/api/upload}" method="post" enctype="multipart/form-data">
+    File: <input type="file" name="file" id=""/> <br>
+    <input type="submit" value="Go">
+</form>
+```
+
+编写java代码：
+
+> SpringMVC为文件上传提供了一个`MultipartFile`用来专门解决文件的问题，但是不能直接将二进制转为Java对象，需要springmvc配置上传文件解析器
+
+```java
+@PostMapping("/upload")
+@ResponseBody
+public String upload(MultipartFile file, HttpSession session) throws IOException {
+    String filename = file.getOriginalFilename();
+    System.out.println("收到"+filename);
+    ServletContext context = session.getServletContext();
+    String realPath = context.getRealPath("img");
+    File file1 = new File(realPath);
+    if (!file1.exists()){	// 目录是否存在
+        file1.mkdir();
+    }
+    String finalPath = realPath + File.separator + UUID.randomUUID().toString();
+    file.transferTo(new File(finalPath));
+    System.out.println("上传完毕" + finalPath);
+    return "OK";
+}
+```
+
+🔵配置上传文件解析器
+
+这里的**id**必须叫`multipartResolver`
+
+```xml
+<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver"></bean>
+```
+
+
 
 ## Springboot简介
 
@@ -4576,9 +4710,348 @@ public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionR
 
 <img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
 
+
+
 ## SpringBoot——Web开发
 
-[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT?p=22)
+[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT?p=22) P69
+
+### 简单功能设置
+
+参考：[developing-web-applications](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.developing-web-applications.spring-mvc)
+
+🔵静态资源访问
+
+静态资源目录默认名`/static` (or `/public` or `/resources` or `/META-INF/resources`)
+
+访问路径为：根目录+`/`+资源名称。
+
+设置静态资源的前缀（以`/res`为前缀）：
+
+```yaml
+spring:
+  mvc:
+    static-path-pattern: /res/**	# http://localhost:8080/res/...
+  web:
+    resources:
+      static-locations: [classpath:/static/]	# 指定静态资源的目录
+```
+
+也可以使用webjars
+
+🔵欢迎页配置
+
+springboot会自动寻找`index.html`文件和`favori.ico`。
+
+但是如果配置`static-path-pattern`，会导致图标寻找自动失效。
+
+🔵请求参数处理
+
+开启浏览器的put，delete请求：
+
+```yaml
+spring:
+  mvc:
+    hiddenmethod:
+      filter:
+        enabled: true
+```
+
+获取参数的方式同SpringMVC  <a href="#获取请求体参数">Go</a>
+
+### 配置拦截器
+
+🔵首先要做一个拦截器并且继承`HandlerInterceptor`，按照需求重写其中的`preHandle` `postHandle` `afterCompletion`的方法。
+
+```java
+@Slf4j
+public class LoginInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest req, HttpServletResponse rsp, Object handler) throws Exception {
+        System.out.println("Interceptor - PreHandler");
+        return true;
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest req, HttpServletResponse rsp, Object handler, ModelAndView mav) throws Exception {
+        System.out.println("Interceptor - postHandler");
+
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest req, HttpServletResponse rsp, Object handler, Exception ex) throws Exception {
+        System.out.println("Interceptor - afterCompletion");
+    }
+}
+```
+
+🔵然后将拦截器配置对应的生效路径：
+
+> 注意这里静态资源也会拦截，前后端分离另说。
+
+```java
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new LoginInterceptor())
+                .addPathPatterns("/**")                 // 添加拦截规则
+                .excludePathPatterns("/", "/setsession");    // 放行路径
+    }
+}
+```
+
+🔵测试：
+
+```java
+@GetMapping("getsession")
+public String getSession(@CookieValue("age") String m){
+    System.out.println("Controller");
+    return m;
+}
+```
+
+输出：
+
+```
+Interceptor - PreHandler
+Controller
+Interceptor - postHandler
+Interceptor - afterCompletion
+```
+
+### 文件上传配置
+
+类似<a href="#文件上传">SpringMVC文件上传</a>
+
+单文件使用`MultipartFile`，多文件`MultipartFile[]`
+
+```properties
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=100MB
+```
+
+用于设置单个文件上传大小和请求的总共文件大小。
+
+### 异常处理
+
+处理异常的文件夹`/error`放在`resources/templates/`或者`resources/public/`目录下，SpringB会自动解析`4xx.html`和`5xx.html`
+
+### 使用原生servlet，filter
+
+> 一种是使用`@WebServlet`等注解，另一种使用`@RegistrationBean`
+
+🔵原生servlet：
+
+> 但是未经过Springboot的拦截器
+
+使用`@ServletComponentScan`指定servlet路径
+
+```java
+@ServletComponentScan(basePackages = "com.yz.servlet")
+@SpringBootApplication
+public class App {
+    public static void main(String[] args) {
+        ApplicationContext run = SpringApplication.run(App.class, args);
+    }
+}
+```
+
+编写servlet继承HttpSevlet
+
+```java
+@WebServlet(urlPatterns = "/demoS")
+public class DemoServlet extends HttpServlet {
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        resp.getWriter().write("my servlet");
+    }
+}
+```
+
+🔵原生filter：
+
+```java
+@WebFilter(urlPatterns = {"/*"})
+public class DemoFilter extends HttpFilter {
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse rsp, FilterChain chain) throws IOException, ServletException {
+        System.out.println("filter do");
+        chain.doFilter(req, rsp);
+    }
+
+    @Override
+    public void init() throws ServletException {
+        System.out.println("filter init");
+        super.init();
+    }
+
+    @Override
+    public void destroy() {
+        System.out.println("filter destroy");
+        super.destroy();
+    }
+}
+```
+
+🟣使用`RegistrationBean`：
+
+> 这样就可以忽略`@WebFilter` `@WebServlet`
+
+```java
+@Configuration
+public class FilterServletConfig {
+
+    @Bean
+    public ServletRegistrationBean myServlet(){
+        DemoServlet demoServlet = new DemoServlet();
+        return new ServletRegistrationBean(demoServlet, "/my", "/ok");
+    }
+    
+    @Bean
+    public FilterRegistrationBean myfilter(){
+        DemoFilter demoFilter = new DemoFilter();
+        FilterRegistrationBean bean = new FilterRegistrationBean(demoFilter);
+        bean.addUrlPatterns("/*");
+        return bean;
+    }
+    
+}
+```
+
+### 数据访问
+
+🔵导入依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jdbc</artifactId>
+</dependency>
+
+<!--MySQL驱动-->
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+</dependency>
+
+<!--使用druid starter-->
+<!-- https://mvnrepository.com/artifact/com.alibaba/druid-spring-boot-starter -->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid-spring-boot-starter</artifactId>
+    <version>1.2.6</version>
+</dependency>
+```
+
+🔵数据源配置：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/demo
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+```
+
+🔵Druid的配置：
+
+参考：[druid-spring-boot-starter](https://github.com/alibaba/druid/tree/master/druid-spring-boot-starter)
+
+```yaml
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:49154/demo
+    username: root
+    password: 785611814
+    druid:
+      stat-view-servlet:    # 监控页的配置
+        enabled: true
+        login-username: admin
+        login-password: asdQWE123
+        reset-enable: false
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: '*.js, *.css, *.jpg, *.gif, *.ico, /druid/*'
+      filters: 'stat,wall'    # 监控和防火墙
+      filter:
+        stat:
+          log-slow-sql: true    # 开启慢查询记录
+          slow-sql-millis: 1000 # 1秒
+          enabled: true
+        wall:
+          enabled: true
+          config:
+            drop-table-allow: false   # 禁止删除表
+```
+
+🔵整合Mybatis进行数据操控
+
+引入starter
+
+```xml
+<!-- https://mvnrepository.com/artifact/org.mybatis.spring.boot/mybatis-spring-boot-starter -->
+<dependency>
+    <groupId>org.mybatis.spring.boot</groupId>
+    <artifactId>mybatis-spring-boot-starter</artifactId>
+    <version>2.2.0</version>
+</dependency>
+```
+
+配置springboot中的mybatis配置文件：
+
+```yaml
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true		# 是否开启驼峰命名法
+  mapper-locations: classpath:mappers/*.xml		# mapper目录
+  type-aliases-package: com.yz.springdao.model	# 别名设置
+```
+
+可以创建mybatis全局文件（可选）和mapper文件（可选）
+
+创建对应接口：
+
+> 对应的接口需要使用`@Mapper`进行标注，也可以使用`@MapperScan`，简单的SQL语句可以直接使用注解的形式比如`@Select` `@Update`等，支持混合模式开发
+
+```java
+@Mapper
+public interface UserDao {
+    public User selectUserId(Integer id);
+
+    @Select("select * from merchant where name = #{name}")
+    public User selectUserName(String name);
+}
+```
+
+对应的Mapper文件：
+
+```xml
+<mapper namespace="com.yz.springdao.dao.UserDao">
+    <select id="selectUserId" resultType="User">
+        select * from merchant where id = #{id}
+    </select>
+</mapper>
+```
+
+### 整合Mybatis-plus
+
+❗需要学习一下Mybatis-plus
+
+> 可以在依赖中省略mybatis的依赖了，只需要继承BaseMapper就可以CURD了
+
+其中的mapper-locations是默认配置好的：`/mapper/**/*.xml`
+
+配置：
+
+```xml
+```
+
+
 
 ## 资料
 
