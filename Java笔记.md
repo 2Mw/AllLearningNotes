@@ -4712,9 +4712,146 @@ public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionR
 
 
 
+### 单元测试Junit5
+
+引入依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+测试：
+
+```java
+@SpringBootTest
+class SpringDaoApplicationTests {
+    @Autowired
+    StringRedisTemplate redisTemplate;
+    @Test
+    void testRedis(){
+        ValueOperations<String, String> stringValueOp = redisTemplate.opsForValue();
+        stringValueOp.set("mykey", "vlure", 30);
+    }
+
+}
+```
+
+`@Test`是junit-api中的
+
+🔵常用注解：
+
+参考：[JUnit 5 Anotation](https://junit.org/junit5/docs/current/user-guide/#writing-tests-annotations)
+
+* `@DisplayName`用于标注测试名
+
+  ```java
+  @DisplayName("Junit5 Test Class")
+  public class Junit5Test {
+  
+      @DisplayName("Junit5 Test01")
+      @Test
+      public void test01(){
+          System.out.println("test");
+      }
+  }
+  ```
+
+  
+
+* `@BeforeEach`每个测试方法前都要运行
+
+  ```java
+  @BeforeEach
+  public void before(){
+      System.out.println("Before test preparation");
+  }
+  ```
+
+  `@AfterEach`同理类似，`@BeforeAll`是在整个测试类运行之前，`@AfterAll`类似
+
+* `@Disable`，用于禁用某个测试方法
+
+* `@Timeout(value=5, unit = TimeUnit.Second)`
+
+  测试超时则抛出异常：
+
+  ```java
+  @Timeout(value = 1,  unit = TimeUnit.SECONDS)
+  @Test
+  public void aVoid() throws InterruptedException {
+      Thread.sleep(1100);
+  }
+  ```
+
+  
+
+* `@RepeatedTest(n)`，重复n次测试
+
+  ```java
+  @RepeatedTest(5)
+  @Test
+  public void c(){
+  System.out.println(6);
+  }
+  ```
+
+🔵断言机制
+
+参考：[Assertions (JUnit 5.7.2 API)](https://junit.org/junit5/docs/current/api/org.junit.jupiter.api/org/junit/jupiter/api/Assertions.html)
+
+检查业务逻辑是否正确：
+
+```java
+@Test
+public void d(){
+    int a = 2 + 3;
+    Assertions.assertEquals(a, 5);
+}
+```
+
+还有测试数组是否相等`assertArrayEquals`。
+
+```java
+@Test
+public void e(){
+    assertAll("test", ()-> assertTrue(true),
+                 ()-> assertEquals(5, 5));
+}
+```
+
+assertAll：全部成功才能成功。
+
+`fail(msg)`：直接测试失败。
+
+🔵前置机制（Assumption）
+
+类似Assertion
+
+🔵参数化测试`@ParameterizedTest`
+
+参考：[JUnit 参数化测试](https://junit.org/junit5/docs/current/user-guide/#writing-tests-parameterized-tests)
+
+轮流输入1，2，3，4，5
+
+```java
+@ParameterizedTest
+@ValueSource(ints = {1,2,3,4,5})
+public void f(int i){
+    System.out.println(i);
+}
+```
+
+### 指标监控（Actuator）
+
+
+
 ## SpringBoot——Web开发
 
-[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT?p=22) P69
+[BV19K4y1L7MT](https://www.bilibili.com/video/BV19K4y1L7MT?p=22) P77
 
 ### 简单功能设置
 
@@ -5049,6 +5186,35 @@ public interface UserDao {
 配置：
 
 ```xml
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-boot-starter</artifactId>
+    <version>3.4.3</version>
+</dependency>
+```
+
+### 整合Redis
+
+添加依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+```
+
+使用：
+
+```java
+@Autowired
+StringRedisTemplate redisTemplate;
+
+@Test
+void testRedis(){
+    ValueOperations<String, String> stringValueOp = redisTemplate.opsForValue();
+    stringValueOp.set("mykey", "vlure", 30);
+}
 ```
 
 
