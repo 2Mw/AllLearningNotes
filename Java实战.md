@@ -4,7 +4,7 @@
 
 ## 商城秒杀系统
 
-[BV1SL411H7wN](https://www.bilibili.com/video/BV1SL411H7wN)  P45
+[BV1SL411H7wN](https://www.bilibili.com/video/BV1SL411H7wN)  P52
 
 学习目标：如何实现高并发高性能的系统，满足高性能，一致性，高可用的特点。
 
@@ -312,6 +312,257 @@ public String toList(Model model, User user, HttpServletRequest request, HttpSer
 
    在用户成功下单之后，将数据加入到redis中，用户再次下单的时候检查redis中是否存在数据即可。
 
+### RabbitMQ
+
+添加Springboot依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-amqp</artifactId>
+</dependency>
+```
+
+yml配置：
+
+```yaml
+spring:
+  rabbitmq:
+    host: localhost
+    username: admin
+    password: 123456
+    virtual-host: /
+    port: 5672
+    listener:
+      simple:
+        concurrency: 10     # 消费者最小并发数量
+        max-concurrency: 10
+        prefetch: 1           # 限制消费这每次只能处理一个消息
+        auto-startup: true
+        default-requeue-rejected: true    # 被拒绝是否重新进入队列
+```
+
+声明交换机、队列和绑定：
+
+```java
+@Configuration
+public class RabbitMQConfig {
+
+    public static final String EXCHANGE_FANOUT = "fanoutEx01";
+    @Bean
+    public Queue queue01(){ return new Queue("queue01", true); }
+
+    @Bean
+    public Queue queue02(){ return new Queue("queue02", true); }
+
+    @Bean
+    public Queue queue03(){ return new Queue("queue03", true); }
+
+    @Bean
+    public FanoutExchange fanoutExchange01(){
+        return new FanoutExchange(EXCHANGE_FANOUT);
+    }
+
+    @Bean
+    public DirectExchange directExchange01(){
+        return new DirectExchange("Direct01");
+    }
+    
+    // Fanout 绑定
+
+    @Bean
+    public Binding binding01(){
+        return BindingBuilder.bind(queue01()).to(fanoutExchange01());
+    }
+
+    @Bean
+    public Binding binding02(){
+        return BindingBuilder.bind(queue02()).to(fanoutExchange01()).;
+    }
+
+	// 绑定routingKey
+    @Bean
+    public Binding binding03(){
+        return BindingBuilder.bind(queue03()).to(directExchange01()).with("routingKey");
+    }
+}
+```
+
+配置RabbitMQ生产者：
+
+```java
+@Service
+@Slf4j
+public class MQSender {
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    public void send(Object msg){
+        log.info("发送消息:{}", msg);
+        rabbitTemplate.convertAndSend(msg);
+    }
+}
+```
+
+配置消费者：
+
+```java
+@Service
+@Slf4j
+public class MQReceiver {
+    @RabbitListener(queues = {"queue"})
+    public void recv(Object msg){
+        log.info("Recv Msg: {}", msg);
+
+    }
+}
+```
+
 ### 接口优化
 
 在redis中预减库存减少数据库的访问；通过内存标记等方法优化接口减少redis的访问；请求进入通过消息队列进行异步下单。
+
+🔵预减库存+内存标记：
+
+让对应的Controller实现`InitializingBean`类，并且实现`afterPropertiesSet()`方法，这个方法是在所有类加载完成后进行的初始化操作，即将数据库中的库存数量加载到redis中。每当一个秒杀请求进入的时候就使用redis的`decr`或者`incr`的原子操作进行库存-1。
+
+当一个秒杀商品的库存变为0的时候，为了减少对访问redis，使用内存标记法来标记某个库存是否已经使用完毕，可以使用HashMap来进行标记。
+
+```java
+private Map<Long, Boolean> emptyStockMap = new HashMap<>();
+
+@RequestMapping("/doSecKill")
+public String doSecKill(Model model, User user, Long goodsId) throws JsonProcessingException {
+    if (user == null) return "login";
+    model.addAttribute("user", user);
+
+    // 方案2：使用redis进行库存预减
+    ValueOperations<String, Object> ops = redisTemplate.opsForValue();
+    SeckillOrder seckillOrder = (SeckillOrder) ops.get("user:" + user.getId() + ":" + goodsId);
+    if (seckillOrder != null) {
+        model.addAttribute("error", RespBeanEnum.REPEAT_ERROR.getMsg());
+        return "secKillFail";
+    }
+
+    // 内存标记，防止大量访问redis
+    if (emptyStockMap.get(goodsId)){
+        model.addAttribute("error", RespBeanEnum.EMPTY_STOCK.getMsg());
+        return "secKillFail";
+    }
+
+    Long stock = ops.decrement("SecKillGoodsStockCount:" + goodsId);
+    if (stock < 0) {
+        emptyStockMap.put(goodsId, true);
+        ops.increment("SecKillGoodsStockCount:" + goodsId);
+        model.addAttribute("error", RespBeanEnum.EMPTY_STOCK.getMsg());
+        return "secKillFail";
+    }
+
+	// 发布消息队列
+    SeckillMessage seckillMessage = new SeckillMessage(user, goodsId);
+    mqSender.sendSeckillMessage(seckillMessage);
+
+    //        model.addAttribute("order", order);
+    //        model.addAttribute("goods", goods);
+    model.addAttribute("status", 0);
+    return "orderDetail";
+}
+
+/**
+* 系统初始化，将数据库库存加载到redis
+*/
+@Override
+public void afterPropertiesSet() throws Exception {
+    List<GoodsVo> list = goodsService.findGoodsVo();
+    if (CollectionUtils.isEmpty(list)) return;
+    list.forEach(vo -> {
+        redisTemplate.opsForValue().set("SecKillGoodsStockCount:" + vo.getId(), vo.getStockCount());
+        emptyStockMap.put(vo.getId(), false);
+    });
+}
+```
+
+🔵使用消息队列处理事件：
+
+构建一个Topic类型的交换机，队列并且绑定
+
+```java
+@Configuration
+public class RMQTopicConf {
+    public static final String QUEUE = "seckillQueue";
+    public static final String EXCHANGE = "sckillExchange";
+
+
+    @Bean
+    public Queue queue(){
+        return new Queue(QUEUE);
+    }
+
+    @Bean
+    public TopicExchange topicExchange(){
+        return new TopicExchange(EXCHANGE);
+    }
+
+    @Bean
+    public Binding binding(){
+        return BindingBuilder.bind(queue()).to(topicExchange()).with("seckill.#");
+    }
+}
+```
+
+进行消息发送：
+
+> RabbitMQ中存储的类型只能是`String`, `byte[]`以及序列化后的信息，不能直接传入对象，可以使用jackson来进行pojo和string类型的互相转换。
+
+```java
+@Service
+@Slf4j
+public class MQSender {
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    public void sendSeckillMessage(Object msg) throws JsonProcessingException {
+        log.info("发送消息：{}", msg);
+        String s = JSONUtils.Pojo2String(msg);
+        rabbitTemplate.convertAndSend(RMQTopicConf.EXCHANGE, "seckill.message", s);
+    }
+}
+```
+
+进行消息接受：
+
+```java
+@Service
+@Slf4j
+public class MQReceiver {
+    @Autowired
+    private IGoodsService goodsService;
+    @Autowired
+    private RedisTemplate<String,Object> redisTemplate;
+    @Autowired
+    private IOrderService orderService;
+
+    @RabbitListener(queues = {RMQTopicConf.QUEUE})
+    public void recvSeckillMessage(String s) throws JsonProcessingException {
+        log.info("收到消息{}", s);
+        SeckillMessage msg = JSONUtils.String2Pojo(s, SeckillMessage.class);
+        Long goodsId = msg.getGoodsId();
+        User user = msg.getUser();
+        GoodsVo goodsVo = goodsService.findGoodsVoById(goodsId);
+        if (goodsVo.getStockCount() < 1)return;
+        // 参考订单，判断是否重复抢购
+        ValueOperations<String, Object> ops = redisTemplate.opsForValue();
+        SeckillOrder seckillOrder = (SeckillOrder) ops.get("user:" + user.getId() + ":" + goodsId);
+        if (seckillOrder != null)return;
+        orderService.seckill(user,goodsVo);
+    }
+}
+```
+
+### Redis实现分布式锁
+
+使用`setIfAbsent()`和lua脚本。。
+
+### 安全优化
+
+不直接显示抢购的URL，比如每个用户使用特定的URL，使用redis可以实现。
