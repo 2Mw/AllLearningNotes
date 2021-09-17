@@ -2,7 +2,9 @@
 
 [TOC]
 
-[BV1Zy4y1K7SH](https://www.bilibili.com/video/BV1Zy4y1K7SH) P105
+[BV1Zy4y1K7SH](https://www.bilibili.com/video/BV1Zy4y1K7SH) P136
+
+Vue2 完毕
 
 ## 初步使用
 
@@ -909,3 +911,502 @@ Dog.vue
 ```
 
 ## Vuex
+
+vue集中式状态数据管理插件，也是组件间通信的发送，适用于任意组件。
+
+<img src="https://vuex.vuejs.org/vuex.png" alt="vuex" style="zoom: 80%;" />
+
+### 初步准备
+
+安装：`npm i vuex`
+
+工程目录下创建：`store/index.js`文件。
+
+```js
+import Vue from 'vue'
+import Vuex from 'vuex'
+const actions = {
+    add(context, value){
+        console.log('Actions Request Backend Data...')
+        context.commit('ADD', value)	// Context commit的事件要一般大写
+    }
+}
+const mutations = {
+    ADD(state, value){
+        console.log("Mutation recv Actions Data..")
+        state.sum += value
+    }
+}
+const state = {
+    sum: 0
+}
+Vue.use(Vuex)
+export default new Vuex.Store({
+    actions, mutations, state
+})
+
+```
+
+需要在index.js中提前使用插件`Vue.use(vuex)`
+
+在Vue实例中添加store字段
+
+```js
+const vm = new Vue({
+  render: h => h(App),
+  store,
+}).$mount('#app')
+```
+
+使用vuex的store，用`dispatch`函数来进行分发行为
+
+```vue
+<template>
+  <div>
+    <p>{{$store.state.sum}}</p>
+    <button @click="add">Send to Student</button>
+  </div>
+</template>
+
+<script>
+export default {
+  name: "School",
+  methods:{
+    add(){
+      this.$store.dispatch('add', 1)
+    }
+  }
+}
+</script>
+```
+
+> 如果在无需请求后端的情况下，可以直接从vc到mutation。`this.$store.commit('ADD', 1)`
+
+### getters配置
+
+类似computed属性
+
+```js
+const state = {
+    sum: 0
+}
+
+const getters = {
+    aSum(state) {
+        return state.sum * 10 - 1
+    }
+}
+Vue.use(Vuex)
+export default new Vuex.Store({
+    actions, mutations, state, getters
+})
+```
+
+### MapState和MapGetters
+
+在模板中通常要使用`this.$store.state.xxx`或者`this.$store.getters.xxx`，前缀很长。
+
+解决方法：
+
+引入：`import {mapState, mapGetters} from 'vuex'`
+
+```vue
+<template>
+  <div>
+    <h2>{{msg}}</h2>
+    <p>{{sum}}</p>
+    <p>{{aSum}}</p>
+    <button @click="add">Send to Student</button>
+  </div>
+</template>
+
+<script>
+import {mapState, mapGetters} from 'vuex'
+export default {
+  name: "School",
+  data(){
+    return{
+      msg: 'School msg'
+    }
+  },
+  methods:{
+    add(){
+      this.$store.dispatch('add', 1)
+    }
+  },
+  computed:{
+    ...mapState({'sum':'sum'}),	// 对象写法
+    // 可以简写为
+    ...mapState(['sum']),		// 数组写法
+    ...mapGetters({'aSum':'aSum'})
+  }
+}
+</script>
+```
+
+### MapActions和MapMutations
+
+同上在代码中通常要使用`this.$store.commit`或者`this.$store.dispatch`，前缀很长。
+
+引入：`import {mapActions, mapMutations} from 'vuex'`
+
+```js
+methods:{
+    ...mapMutations({'sum':'sum'}),	// 对象写法,m默认对应生成的函数第一个参数为用户传入的值
+    ...mapMutations(['sum', 'sub']),
+}
+```
+
+类似生成的sum函数：
+
+```js
+function sum(value){
+    // ...
+}
+```
+
+需要用户在模板上进行自动加参数：
+
+```html
+<button @click="sum(12)">OK</button>
+```
+
+### vuex模块化开发
+
+```js
+const orderOptions = {
+    namespaced:true,
+    actions:{},
+    mutations:{},
+    state:{},
+    getters:{}
+}
+
+const userOptions = {
+    namespaced:true,
+    actions:{},
+    mutations:{},
+    state:{
+        age: 20,
+        name:'Johb'
+    },
+    getters:{}
+}
+
+export default new Vuex.Store({
+    modules:{
+        user: userOptions,
+        order: orderOptions
+    }
+})
+```
+
+不是用mapState：
+
+```js
+this.$store.commit('user/Add', params)
+```
+
+
+
+对于mapState：
+
+```js
+...mapState(['user', 'order']),		// 数组写法
+//或者是
+...mapState('user', ['name', 'age']) // 可以直接使用name，不用user.name
+```
+
+## Vue-router路由
+
+### 初步
+
+安装：`npm i vue-router`
+
+创建router专用文件夹`router/index.js`，一般将路由组件`xxx.vue`放到`pages`文件夹中
+
+```js
+import VueRouter from 'vue-router'
+import Home from "@/components/Home";
+import About from "@/components/About";
+
+export default new VueRouter({
+    routes:[
+        {path: '/home', component: Home},
+        {path: '/about', component: About},
+    ]
+})
+```
+
+使用route：
+
+```js
+import Vue from 'vue'
+import App from './App.vue'
+
+import VueRouter from 'vue-router'
+import router from './router'
+
+Vue.config.productionTip = false
+Vue.use(VueRouter)
+
+new Vue({
+    render: h => h(App),
+    router:router
+}).$mount('#app')
+```
+
+在对应的页面展示中使用`router-link`来实现路由的跳转，使用`router-view`来展示路由件的位置。
+
+```html
+<router-link class="list-group-item" active-class="active" to="/about">About</router-link>
+<router-link class="list-group-item" active-class="active" to="/home">Home</router-link>
+
+<router-view/>
+```
+
+`router-link`标签的`replace`属性设置可以阻止浏览器的后退行为，替换当前的link。
+
+### 嵌套路由
+
+```js
+import VueRouter from 'vue-router'
+import Home from "@/components/Home";
+import About from "@/components/About";
+import News from "@/components/News";
+import Message from "@/components/Message";
+
+export default new VueRouter({
+    routes: [
+        {
+            path: '/home',
+            component: Home,
+            children: [
+                {
+                    path: 'news',
+                    component: News
+                },
+                {
+                    path: 'message',
+                    component: Message
+                }
+            ]
+        },
+        {path: '/about', component: About},
+    ]
+})
+```
+
+html
+
+```html
+<router-link class="list-group-item" active-class="active" to="/home/news">news</router-link>
+
+<router-view/>
+```
+
+### 路由传参
+
+类似于GET请求的参数解析
+
+html：
+
+```html
+ <router-link :to="`/details?id=${m.id}&title=${m.msg}`">{{m.title}}</router-link>
+```
+
+解析:
+
+```html
+<ul>
+    <li>Code: {{$route.query.id}}</li>
+    <li>Title:{{$route.query.title}} </li>
+</ul>
+```
+
+### 命名路由
+
+```js
+export default new VueRouter({
+    routes: [
+        {
+            path: '/home',
+            component: Home,
+            children: [
+                {
+                    path: 'news',
+                    component: News
+                },
+                {
+                    path: 'message',
+                    component: Message,
+                    children: [
+                        {
+                            name: 'msgDetail',
+                            path: 'details',
+                            component: Details
+                        }
+                    ]
+                }
+            ]
+        },
+        {path: '/about', component: About},
+    ]
+})
+```
+
+比如这里的details路由，一般的`to`需要写`/home/message/details`，添加name属性之后，直接可以使用
+
+```html
+ <router-link :to="{name:'msgDetail'}">{{m.title}}</router-link>
+```
+
+### RESTful风格($route.params参数)
+
+使用`/:id`的类似形式获取
+
+```js
+export default new VueRouter({
+    routes: [
+        {
+            path: '/home/:id',
+            component: Home,
+        },
+    ]
+})
+```
+
+获取参数：
+
+```js
+this.$route.params.id
+```
+
+### 编程式路由跳转
+
+使用js控制路由跳转
+
+```js
+goA(){
+    this.$router.push({
+        path: '/home'
+    })
+},
+goH(){
+   this.$router.replace('/about')
+},
+this.$router.back()		// 前进
+this.$router.forward()	// 后退
+```
+
+### 缓存路由
+
+在进行路由切换的时候会导致原先组件中的数据清除，因此需要缓存路由。使用`<keep-alive>`标签让view中的组件保持存活。
+
+```html
+<keep-alive>
+  <router-view/>
+</keep-alive>
+```
+
+也可以使用`include`填写**组件名**，让某个组件一直保持挂载
+
+```html
+单个
+<keep-alive include="news"></keep-alive>
+多个
+<keep-alive :include="['news','Msg']"></keep-alive>
+```
+
+### 路由组件的生命钩子
+
+两个函数：激活时调用`activated`，销毁后调用`deactivated`
+
+```js
+export default {
+  name: "Home",
+  activated() {
+    console.log('Activated')
+  },
+  deactivated() {
+    console.log("died")
+  }
+}
+```
+
+另外两个，通过路由规则进入的时候调用，也相当于<a href="#路由守卫（权限）">守卫</a>：
+
+```vue
+<script>
+export default {
+  name: "About",
+  beforeRouteEnter(to, from, next){
+    console.log(to, from)
+    // next()
+    next()
+  },
+  beforeRouteLeave(to, from, next){
+    console.log('leave')
+    next()
+  }
+}
+</script>
+```
+
+### 路由守卫（权限）
+
+一些路由和链接必须满足某种条件才可以进入。
+
+🔵全局前置路由守卫：
+
+```js
+router.beforeEach((to, from, next)=>{
+    console.log(to, from)   // to： 目标路由；form：来源路由
+    // 其他逻辑
+    next()              //放行
+})
+```
+
+如果鉴权信息需要配置可以放在路由信息的`meta`属性中：
+
+```js
+routes: [
+    {
+        path: '/home',
+        component: Home,
+        meta: {isAuth: true}
+    }]
+```
+
+🔵全局后置路由守卫：
+
+用的比较少，可以用于修改网页标题
+
+```js
+router.afterEach((to, from)=>{
+    console.log("latter",to ,from)
+})
+```
+
+🔵独享守卫前置（无后置）
+
+`beforeEnter`
+
+```js
+routes: [
+    {
+        path: '/home',
+        component: Home,
+        meta: {isAuth: true},
+        beforeEnter: (to, from, next)=>{
+            console.log('Home Enter')
+            next()
+        },
+        }]
+```
+
+## UI组件库
+
+移动端：Vant，Cube UI，Mint UI
+
+PC端：element UI，IView UI，Antd

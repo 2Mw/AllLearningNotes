@@ -30,7 +30,7 @@
 </dependency>
 ```
 
-### MyBatis-Plus代码生成
+### MyBatis-Plus使用以及代码生成
 
 > 可以快速生成Model，mapper，controller，service等java代码
 
@@ -39,10 +39,17 @@
 ```xml
 <dependency>
     <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-boot-starter</artifactId>
+    <version>3.4.3</version>
+</dependency>
+
+<dependency>
+    <groupId>com.baomidou</groupId>
     <artifactId>mybatis-plus-generator</artifactId>
     <version>3.4.1</version>
 </dependency>
 
+<!--HTML模板引擎-->
 <dependency>
     <groupId>org.freemarker</groupId>
     <artifactId>freemarker</artifactId>
@@ -57,6 +64,18 @@
 添加代码：[代码生成器](https://baomidou.com/guide/generator.html#代码生成器)
 
 修改其中的部分代码配置（比如dsn，包名），运行，找到对应的表生成代码。
+
+配置yaml：
+
+```yaml
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*Mapper.xml
+  type-aliases-package: com.xx.xxx.model
+```
+
+
+
+
 
 ### 分布式Session
 

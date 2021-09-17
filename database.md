@@ -240,7 +240,7 @@ create table if not exists t1(
    	primary key(id),												-- 设置主键
    	constraint vid_fk foreign key (vendor_id) references t2(id)		 -- 设置外键
    	index(name)														-- 设置索引
-)engine=innodb charset=utf8mb4;										 -- 设置引擎和字符编码
+)engine=innodb charset=utf8mb4 comment 't1 commment';				 -- 设置引擎和字符编码
 ```
 
 更改表结构：
@@ -255,7 +255,7 @@ alter table t1 drop column name;								-- 删除一列
 alter table t1 modify name varchar(128), change age years int; 	-- 更改列类型
 alter table t1 add primary key (id);							-- 添加主键
 alter table t1 drop primary key;								-- 删除主键
-alter table t1 add index(name), unique(card_id);				-- 添加普通索引和唯一索引
+alter table t1 add index(name),add unique(card_id);				-- 添加普通索引和唯一索引
 alter table t1 drop index name									-- 删除索引;
 -- 添加外键
 alter table t1 add constraint vid_fk foreign key(vid) references vendor(id) on delete [options];

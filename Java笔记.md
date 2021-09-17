@@ -370,6 +370,12 @@ public static void main(String[] args) {
 
 钻石表达式（JDK8）：`ArrayList<User> uList = new ArrayList<>();`	后面的“User”可以不用写。
 
+### 枚举
+
+
+
+
+
 ### 反射
 
 > java.lang.reflect.* 。可以通过java的反射机制操作（读和修改）字节码文件
@@ -5181,6 +5187,18 @@ public interface UserDao {
 
 > 可以在依赖中省略mybatis的依赖了，只需要继承BaseMapper就可以CURD了
 
+需要在Springboot应用上添加注解`MapperScan`，扫描mapper的路径：
+
+```java
+@SpringBootApplication
+@MapperScan("asia.qaqaqqa.blogbackend.mapper")
+public class BlogBackendApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(BlogBackendApplication.class, args);
+    }
+}
+```
+
 其中的mapper-locations是默认配置好的：`/mapper/**/*.xml`
 
 配置：
@@ -5191,6 +5209,14 @@ public interface UserDao {
     <artifactId>mybatis-plus-boot-starter</artifactId>
     <version>3.4.3</version>
 </dependency>
+```
+
+配置yml：
+
+```yaml
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: asia.qaqaqqa.blogbackend.model
 ```
 
 ### 整合Redis
