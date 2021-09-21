@@ -1109,12 +1109,14 @@ this.$store.commit('user/Add', params)
 
 
 
-对于mapState：
+对于mapState，mapGetters：
 
 ```js
 ...mapState(['user', 'order']),		// 数组写法
 //或者是
 ...mapState('user', ['name', 'age']) // 可以直接使用name，不用user.name
+
+...mapGetters('global',['basicURL']), // Getters最好这样用，直接用不用加global.xxx
 ```
 
 ## Vue-router路由
@@ -1161,7 +1163,6 @@ new Vue({
 ```html
 <router-link class="list-group-item" active-class="active" to="/about">About</router-link>
 <router-link class="list-group-item" active-class="active" to="/home">Home</router-link>
-
 <router-view/>
 ```
 
@@ -1309,7 +1310,7 @@ this.$router.forward()	// 后退
 </keep-alive>
 ```
 
-也可以使用`include`填写**组件名**，让某个组件一直保持挂载
+也可以使用`include`填写**组件名**，指定某个组件一直保持挂载
 
 ```html
 单个
@@ -1410,3 +1411,16 @@ routes: [
 移动端：Vant，Cube UI，Mint UI
 
 PC端：element UI，IView UI，Antd
+
+## 其他
+
+### Less的使用
+
+在vue工程中使用less语法需要使用到`less`以及`less-loader`，现在(2021-09-16)最好不要使用两者的最新版本，否则会出现莫名的bug，将两者分别降级到`less@2.7.3`和`less-loader@5.0.0`
+
+`npm i less@2.7.3 less-loader@5.0.0`
+
+### 多页面开发
+
+[vue多页面开发配置](https://gitsifu.github.io/guide/vue多页面开发配置/)
+

@@ -125,7 +125,7 @@ Redis可以用作数据库、缓存和消息中间件。
 
 `LREM list count value` 删除list中指定个数的值
 
-`LTRIM list start end` 截取原来数组指定index的元素
+`LTRIM list start end` 截取原来数组指定index的元素，`[start end]`闭区间
 
 `RPOPLPUSH old new` 从原来列表中移除最后一个元素并放入新的列表中
 
@@ -512,7 +512,7 @@ redis-sentinel sentinel.conf
 
 ### 缓存击穿
 
->某个key为热点，不停扛着高并发，在key失效瞬间，会击穿缓存，之间访问数据库。
+>某个key为热点，不停扛着高并发，在key失效瞬间，会击穿缓存，直接访问数据库。
 
 Redis无大量的key过期，服务器平稳运行，数据库崩溃。redis某个key过期，而对于此key的访问激增，Redis数据库均未命中。相当于对某个点集中打击。
 
