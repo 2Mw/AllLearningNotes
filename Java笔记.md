@@ -4136,6 +4136,15 @@ public String a3(User u){	// http://host/name?=a
 
 `@RequestHeader`   `@CookieValue`分别用来获取请求头参数和cookie值。
 
+```java
+1 @RequestMapping("/testCookie")
+2 public String testCookie(@CookieValue(value="name",required=false) String name,
+3         @CookieValue(value="age",required=false) Integer age){
+4     System.out.println(name+","+age);
+5     return "hello";
+6 }
+```
+
 ### 编码问题
 
 GET请求编码需要配置tomcat，`URIEncoding`属性

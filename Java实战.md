@@ -941,3 +941,38 @@ public class WebsocketConf {
     }
 }
 ```
+
+### Mybatis-plus分页插件
+
+参考：[分页插件](https://baomidou.com/guide/page.html)
+
+添加MP配置：
+
+```java
+@Configuration
+public class MybatisPlusConf {
+    // 最新版
+    @Bean
+    public MybatisPlusInterceptor mybatisPlusInterceptor() {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.H2));
+        return interceptor;
+    }
+}
+```
+
+在Mapper中添加对应接口，添加变量`Page<?>`类型的分页配置变量。
+
+```java
+public interface TimeCapsulesMapper extends BaseMapper<User> {
+    Page<User> selectDynamicsByPage(Page<?> pageConf, Long userId);
+}
+```
+
+查询数据：
+
+```java
+Page<User> pageConf = new Page<>(1, 5);	// 查询第一页，每页5个数据
+Page<User> capsulesPage = tcMapper.selectDynamicsByPage(pageConf, userId);
+List<User> records = capsulesPage.getRecords();
+```
