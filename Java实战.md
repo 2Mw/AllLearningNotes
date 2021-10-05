@@ -588,6 +588,10 @@ public class MQReceiver {
 
 ## 博客
 
+### 网易云音乐外链
+
+
+
 ### 跨域请求下的Cookie设置
 
 同源策略三个标准：同协议(`http`, `https`)，同域名，同端口
@@ -976,3 +980,160 @@ Page<User> pageConf = new Page<>(1, 5);	// 查询第一页，每页5个数据
 Page<User> capsulesPage = tcMapper.selectDynamicsByPage(pageConf, userId);
 List<User> records = capsulesPage.getRecords();
 ```
+
+### 定时任务SpringTask
+
+定时同步redis数据到MySQL数据库。
+
+cron表达式：
+
+| **名称** | **必需** | **值**          | **允许的特殊字符** |
+| -------- | -------- | --------------- | ------------------ |
+| 秒       | 是       | 0-59            | , - * / R          |
+| 分钟     | 是       | 0-59            | , - * / R          |
+| 小时     | 是       | 0-23            | , - * / R          |
+| 日       | 是       | 1-31            | , - * / ? L W      |
+| 月       | 是       | 1-12 或 JAN-DEC | , - */             |
+| 星期几   | 是       | 0-6 或 SUN-SAT  | , - / ? L #        |
+| 年       | 否       | 1970-2099       | , - * /            |
+
+举例：
+
+* `0/2 * * * * ?` 每两秒同步一次
+* `0 0/5 * * * ?` 每5分钟执行一次
+
+
+
+每秒运行一次的任务
+
+```java
+@Component
+public class SyncRedisToDB {
+    @Scheduled(cron = "0/2 * * * * ?")	
+    public void taskdemo(){
+        System.out.println("Task");
+    }
+}
+```
+
+**解决单线程运行定时任务：**
+
+参考：
+
+[定时任务@Scheduled之单线程多线程问题](https://blog.csdn.net/Mr_EvanChen/article/details/103408290)
+
+[spring-boot @Scheduled实现多线程并发定时任务](https://blog.csdn.net/qq_32218473/article/details/102720024)
+
+* 方法一：扩大原定时任务线程池中的核心线程数
+
+  ```java
+  @Configuration
+  public class ScheduleConf implements SchedulingConfigurer {
+  
+      public static final int scheduledPoolSize = 5;
+  
+      @Override
+      public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+          taskRegistrar.setScheduler(Executors.newScheduledThreadPool(scheduledPoolSize));
+      }
+  }
+  ```
+
+* 方法二：把Scheduled配置成成多线程执行
+
+  使用`@EnableAsync`注解，但是任务1中的卡死线程越来越多，会导致线程池占满，还是会影响到定时任务。
+
+  ```java
+  @Configuration
+  @EnableAsync
+  class ScheduleConf2  {
+  
+      public static final int scheduledPoolSize = 5;
+  
+      @Bean
+      public TaskScheduler taskScheduler () {
+          ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
+          taskScheduler.setPoolSize(scheduledPoolSize);
+          return taskScheduler;
+      }
+  }
+  ```
+
+  代码：
+
+  ```java
+  @Component
+  public class SyncRedisToDB {
+      
+      @Scheduled(cron = "0/2 * * * * ?")
+      @Async
+      public void taskdemo(){
+          System.out.println("Task");
+      }
+  }
+  ```
+
+* 方法三：直接将@Scheduled注释的方法内部改成异步执行
+
+  ```java
+  @Component
+  public class SyncRedisToDB {
+  
+      ExecutorService service = Executors.newFixedThreadPool(5);
+  
+      @Scheduled(cron = "0/2 * * * * ?")
+      public void taskdemo(){
+          service.execute(()->{
+              System.out.println("task");
+          });
+      }
+  }
+  ```
+
+### 正则表达式
+
+参考：[Java 正则捕获组](https://www.runoob.com/w3cnote/java-capture-group.html)
+
+🔵设置匹配规则：
+
+```java
+Pattern pattern = Pattern.compile("dynamic:(?<id>[0-9]+):(thumbs|views)");
+```
+
+🔵是否**完全**匹配：
+
+```java
+String s = "This is a sentence";
+boolean b = pattern.matcher(s).match();
+```
+
+🔵是否存在**部分**匹配：
+
+```java
+boolean b = pattern.matcher(s).find();
+```
+
+🔵捕获组（例如`user:([\d]+):views`）：
+
+即匹配获取圆括号中的内容
+
+```java
+String id = pattern.matcher(s).group()
+```
+
+给捕获组设置name属性方便获取
+
+```java
+Pattern pattern = Pattern.compile("user:(?<userId>[\d]+):views");
+String id = pattern.matcher(s).group("userId");
+```
+
+使用`?<key>`的形式进行
+
+### 数据库同步到redis
+
+redis同步到数据库见<a href="#定时任务SpringTask">链接</a>
+
+一般用在常用读取操作上，在服务器初始化的时候进行操作。
+
+首先需要在对应的类上实现接口`InitializingBean`，并且实现`afterPropertiesSet()`方法，编写对应的业务即可。

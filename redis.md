@@ -355,7 +355,7 @@ appendfsync everysec		# 每秒同步一次，可能丢失1s的数据
 
 ### RDB（Redis Database）
 
-出发持久化的条件：
+触发持久化的条件：
 
 * 配置文件中的`save`
 * `flushall`和`exit`命令

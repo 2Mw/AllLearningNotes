@@ -63,17 +63,47 @@ hello-world   latest    d1165f221234   4 months ago   13.3kB
 
 > Windows下安装docker如果运行出现错误使用`netsh winsock reset`命令进行尝试。以及docker的C盘迁移[LINK](https://www.cnblogs.com/xhznl/p/13184398.html)
 
+## Windows使用docker
+
+[安装 WSL | Microsoft Docs](https://docs.microsoft.com/zh-cn/windows/wsl/install)
+
 ## WSL迁移
 
 1. 首先关闭docker
+
 2. 关闭所有发行版：
    `wsl --shutdown`
-3. 将docker-desktop-data导出到D:\SoftwareData\wsl\docker-desktop-data\docker-desktop-data.tar（注意，原有的docker images不会一起导出）
+   
+3. 查看所有镜像
+
+   `wsl -l -v`
+
+4. 将docker-desktop-data导出到D:\SoftwareData\wsl\docker-desktop-data\docker-desktop-data.tar（注意，原有的docker images不会一起导出）
    `wsl --export docker-desktop-data D:\SoftwareData\wsl\docker-desktop-data\docker-desktop-data.tar`
-4. 注销docker-desktop-data：
+
+5. 注销docker-desktop-data：
    `wsl --unregister docker-desktop-data`
-5. 重新导入docker-desktop-data到要存放的文件夹：D:\SoftwareData\wsl\docker-desktop-data\：
+
+6. 重新导入docker-desktop-data到要存放的文件夹：D:\SoftwareData\wsl\docker-desktop-data\：
    `wsl --import docker-desktop-data D:\SoftwareData\wsl\docker-desktop-data\ D:\SoftwareData\wsl\docker-desktop-data\docker-desktop-data.tar --version 2`
+
+样例CMD：
+
+```sh
+wsl --shutdown
+wsl -l -v
+wsl --export docker-desktop-data .\docker-desktop-data.tar
+wsl --unregister docker-desktop-data
+wsl --import docker-desktop-data  .\   .\docker-desktop-data.tar --version 2
+echo 'migrate docker-desktop-data successfully'
+
+wsl --export docker-desktop .\docker-desktop.tar
+wsl --unregister docker-desktop
+wsl --import docker-desktop  .\   .\docker-desktop.tar --version 2
+
+echo 'Over'
+pause
+```
 
 ## 配置阿里云镜像加速
 
@@ -83,7 +113,7 @@ hello-world   latest    d1165f221234   4 months ago   13.3kB
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json <<-'EOF'
 {
-  "registry-mirrors": ["https://*.mirror.aliyuncs.com"]
+  "registry-mirrors": ["https://xei795wg.mirror.aliyuncs.com"]
 }
 EOF
 sudo systemctl daemon-reload
@@ -807,3 +837,34 @@ docker network connect <net-name> <con-name>
 ```
 
 相当于将此容器加入到这个网络中
+
+## 启动挂载样例
+
+### nginx
+
+配置所在目录：`/etc/nginx/`
+
+日志目录：`/var/log/nginx/`
+
+网页所在目录：`/usr/share/nginx/html`
+
+```sh
+docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr/share/nginx/html nginx
+```
+
+### MySQL
+
+挂载数据到本地：
+
+```sh
+docker run --name mysql01 -d -p 3306:3306 -v E:\Notes\docker\vhost\mysql01\data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=password mysql
+```
+
+### Redis
+
+redis持久化的目录在`/data`下，`--save`表示每60秒如果有一次写操作就进行持久化。
+
+```sh
+docker run --name redis01 -d -p 6379:6379 -v E:\Notes\docker\vhost\redis01\data:/data redis --save 60 1
+```
+
