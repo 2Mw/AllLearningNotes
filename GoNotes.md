@@ -3525,15 +3525,106 @@ func getMyIP() (ip string){
 }
 ```
 
+## Cobra
+
+> 快速生成命令行界面
+
+链接：[spf13/cobra](https://github.com/spf13/cobra)
+
+### 简单介绍
+
+cobra指令分为两种，一种是command，一种是flag。
+
+形式为：
+
+```sh
+demo.exe test --account jack
+```
+
+其中`test`为command，`--account`为flag，`jack`为参数。
+
+### 定义指令
+
+根指令是由`cobra.Command`结构体创建而成。
+
+* `Use` 表示使用输入的具体命令，
+* `Short`表示对整体程序使用`demo.exe -h`时，指令后面的说明文字
+* `Long`表示对该指令使用`demo.exe main -h`时候，所展示的具体文字。
+* `Run`表示运行此指令的时候执行的函数。
+* `TraverseChildren`设置为`true`表示可以在主程序上使用flag，默认不可以在主程序后面使用flag，比如`demo.exe -name jack`。
+* `AddCommand(...*Command)`，指令之间可以进行嵌套，添加子指令
+* `cobra.MousetrapHelpText = ""`，可以在直接点击exe程序的时候运行，cobra默认设置不可以直接运行，必须采用命令行的形式运行。参考：[cobra package](https://pkg.go.dev/github.com/spf13/cobra#pkg-variables)
+
+```go
+var rootCmd = &cobra.Command{
+	Use:              "main",
+	Short:            "Short text for program",
+	Long:             "Illustration of AirJ Login program",
+	TraverseChildren: true, // 允许在主命令上使用flag
+	Run: func(cmd *cobra.Command, args []string) {
+		acc, pass := service.ReadLoginData() // 获取配置文件
+		if len(acc) > 0 && len(pass) > 0 {
+			service.Login(acc, pass)
+		} else {
+			log.Println("Account parameter error.")
+		}
+		time.Sleep(time.Second * 2)
+	},
+}
+
+func Execute() {	// 在main程序中调用即可
+   if err := rootCmd.Execute(); err != nil {
+      log.Println("Input command format error.")
+      os.Exit(1)
+   }
+}
+
+func init() {
+   rootCmd.AddCommand(versionCmd, changeCmd, listCmd, delCmd)
+   cobra.MousetrapHelpText = ""
+}
+```
+
+### 定义flag标志
+
+标志的类型可以分为两种：一种是持久性标志`PersistentFlags()`，一种是局部标志`Flags()`。持久性标志可以在所有的command下指定，局部表示只能在当前command下指定。
+
+`String()`：指令名称无短名称，返回String类型
+
+`StringP()`：指令名称有短名称，返回String类型
+
+`StringVarP()`：将数据返回到对应变量，可以指定短名称，返回String类型
+
+`MarkFlagRequired()`：将对应的指令标识为**必需**参数。
+
+其他类型变量类似
+
+```go
+var changeCmd = &cobra.Command{
+   Use:   "change",
+   Short: "Change AirJ account",
+   Long:  "Change a new account of airJ, then login with this account, if this account exists, then change to this.",
+   Run: func(cmd *cobra.Command, args []string) {
+      // 业务逻辑
+   },
+}
+
+func init() {
+   changeCmd.Flags().StringVarP(&account, "account", "a", "", "your account (required)")
+   changeCmd.Flags().StringVarP(&password, "password", "p", "", "your password")
+   _ = changeCmd.MarkFlagRequired("account")
+}
+```
+
+### Viper
+
+> 可以将传入的参数写入到配置文件中，并且下次可读取。
+
 ## 设计模式
 
 [设计模式之美](https://time.geekbang.org/column/intro/100039001) -> 对应资源 -> [BDPan: 密码6666](https://pan.baidu.com/s/1bSL6twuY3JGqkb66n09zAQ )
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
-
-
-
-
 
 ## 其他
 

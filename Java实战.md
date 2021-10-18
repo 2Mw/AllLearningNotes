@@ -590,7 +590,17 @@ public class MQReceiver {
 
 ### 网易云音乐外链
 
+数字为音乐id
 
+```
+http://music.163.com/song/media/outer/url?id=433107530.mp3
+```
+
+也可以使用jsdelivr加速github
+
+```
+https://cdn.jsdelivr.net/gh/ACCOUNT/PROJECT@latest/lyrics/1340143947.lrc
+```
 
 ### 跨域请求下的Cookie设置
 
@@ -1137,3 +1147,13 @@ redis同步到数据库见<a href="#定时任务SpringTask">链接</a>
 一般用在常用读取操作上，在服务器初始化的时候进行操作。
 
 首先需要在对应的类上实现接口`InitializingBean`，并且实现`afterPropertiesSet()`方法，编写对应的业务即可。
+
+### Vue路由中history模式nginx404解决方法
+
+```conf
+location / {
+　　# .....
+　　try_files $uri $uri/ /index.html;
+```
+
+[nginx +VUE 解决404 问题](https://www.jianshu.com/p/989d8bc719c4)

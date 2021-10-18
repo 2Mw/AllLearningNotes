@@ -852,6 +852,14 @@ docker network connect <net-name> <con-name>
 docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr/share/nginx/html nginx
 ```
 
+使用自己的nginx.conf
+
+```sh
+docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr/share/nginx/html -v E:\Notes\docker\vhost\nginx01\conf\n:/etc/nginx/nginx.conf nginx
+```
+
+
+
 ### MySQL
 
 挂载数据到本地：
