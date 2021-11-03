@@ -4556,6 +4556,64 @@ int kmp(string s,string t){
 }
 ```
 
+## 二分和前缀和
+
+### 二分
+
+思想：
+
+1. 确定一个区间，使得答案一定在区间内。
+2. 找一个性质满足两点：
+   * 性质具有二段性，前段满足条件，后段不满足条件
+   * 答案是分界点的
+
+比如整数二分。
+
+​	L=mid的时候，计算mid需要加一，因为找右端点的时候需要向上取整，R=mid时候不需要加一。
+
+ 模板题：[Link](https://www.acwing.com/problem/content/791/)
+
+```c++
+#include<cstdio>
+#include<cstring>
+
+int n, q;
+
+int s[100010];
+
+int main(){
+	scanf("%d%d", &n, &q);
+	for(int i=0;i<n;i++)scanf("%d", &s[i]);
+	for(int i = 0; i < q; i ++){
+		int t;
+		scanf("%d", &t);
+		
+		int l = 0, r = n - 1;
+		while(l < r){
+			int mid = l + r >> 1;
+			if(s[mid] >= t) r = mid;
+			else l = mid + 1;
+		}
+		
+		if(s[r] == t){
+			printf("%d ", r);
+			r = n - 1;
+			while(l < r){
+				int mid = l + r + 1 >> 1;
+				if(s[mid] <= t) l = mid;	// l = mid +1向上取整
+				else r = mid - 1;
+			}
+			printf("%d\n", r);
+		}else{
+			printf("-1 -1\n");
+		}
+	} 
+	return 0;
+}
+```
+
+
+
 ## 背包问题专题
 
 视频讲解：https://www.bilibili.com/video/BV1qt411Z7nE
