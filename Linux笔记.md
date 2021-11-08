@@ -169,3 +169,65 @@ dirname $(pwd)/a.txt
 `locate`：`-i`忽略大小写 `-l` 输出几行 `-S`查看数据库信息，配合`updatedb`使用
 
 `find`：`find [PATH] [-ctime | -atime | -mtime]`
+
+## Linux文件压缩
+
+### gzip
+
+```sh
+# 压缩
+gzip -v a.txt
+# 解压缩
+gzip -d a.txt.gz
+```
+
+* `-d`，解压缩
+* `-t`，检查数据一致性
+* `-v`，输出压缩比
+* `-#`，#表示压缩等级数字，1压缩比最差，9压缩比最高
+
+对于压缩文件中的文本文件可以使用`zcat a.txt.gz`来查看。
+
+### bzip2
+
+> 压缩比要比gzip更好
+
+```sh
+bzip2 -vk a.txt  # 压缩
+bzip2 -d a.txt.bz2	# 解压缩
+```
+
+其他参数与`gzip`一致
+
+* `-k`，保留源文件压缩
+
+类似`zcat`，bzip2压缩方式也有对应的`bzcat/bzmore/bzless/bzgrep`
+
+### xz
+
+> 压缩比要比bzip2还要好
+
+```sh
+xz -vk a.txt  # 压缩
+xz -d a.txt.bz2	# 解压缩
+```
+
+参数同bzip2
+
+### 打包 tar
+
+```sh
+# 压缩
+tar -zcvf a.tar.gz filename
+tar [-z|-j|-J] [cv] [-f 待建立的包名] 待压缩的文件或者文件名
+# 解压缩
+tar -zxvf file.tar.gz [-C 目录]
+# 查看压缩文件名称
+tar -ztvf file.tar.gz
+```
+
+* 压缩方式：`-z`表示gzip  `-j`表示bzip2，`-J`表示xz
+* 操作类型：`-c`表示compress，`-x`表示解压缩，`-t`表示查看文件名
+* `-v`表示输出详细信息，`-f`表示操作的文件名
+* `-C` 表示解压缩到特定的目录
+

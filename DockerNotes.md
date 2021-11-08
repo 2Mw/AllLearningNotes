@@ -870,9 +870,9 @@ docker run --name mysql01 -d -p 3306:3306 -v E:\Notes\docker\vhost\mysql01\data:
 
 ### Redis
 
-redis持久化的目录在`/data`下，`--save`表示每60秒如果有一次写操作就进行持久化。
+redis持久化的目录在`/data`下，`--save`表示每60秒如果有一次写操作就进行持久化，并且加载配置文件。
 
 ```sh
-docker run --name redis01 -d -p 6379:6379 -v E:\Notes\docker\vhost\redis01\data:/data redis --save 60 1
+docker run --name redis01 -d -p 6379:6379 -v E:\Notes\docker\vhost\redis01\data:/data -v E:\Notes\docker\vhost\redis01\conf\redis.conf:/etc/redis/redis.conf redis redis-server /etc/redis/redis.conf --save 60 1
 ```
 

@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P31
+[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P32
 
 ## 初始nginx
 
@@ -543,3 +543,20 @@ keepalive_requests指令：
 语法：`keepalive_requests number`，默认`100`,用来设置一个`keep-alive`连接使用的次数。
 
 可以在http，server，location块中使用
+
+### Server块
+
+```
+server{
+	listen 80;
+	server_name localhost;
+	location / {	# 映射根目录
+		root html;
+		index index.html index.htm
+	}
+}
+```
+
+> 对于可以在http，server，location块中都可以使用的命令，那个会生效？
+>
+> > >>这个是按照“就近原则”处理的。在本块中有，就不会在父级中生效，互不交叉。
