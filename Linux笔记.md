@@ -231,3 +231,207 @@ tar -ztvf file.tar.gz
 * `-v`表示输出详细信息，`-f`表示操作的文件名
 * `-C` 表示解压缩到特定的目录
 
+## Linux shell
+
+### 基本介绍
+
+不同的用户可能使用不同的shell
+
+```sh
+[root@localhost ~]# cat /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+2mw:x:1000:1000:2mw:/home/2mw:/bin/bash
+nginx:x:987:981:nginx user:/var/cache/nginx:/sbin/nologin
+www:x:1001:1001::/home/www:/bin/bash
+```
+
+对于root用户使用的是`/bin/bash`，对于nginx使用的是`/sbin/nologin`
+
+查看历史记录：`history`，存储文件`~/.bash_history`（记录的是本次登录以前执行的命令）
+
+* `-n`输出最近n条历史记录
+* `-c`清楚所有历史记录
+
+设置别名命令：`alias`比如`alias lm='ls -al'`，取消别名使用`unalias`
+
+查询命令类型指令：`type ls`，会有alias，file、builtin三种类型
+
+换行的命令使用：`\[enter]`
+
+### Shell变量
+
+> 注意变量赋值中间不能有空格
+
+对于变量使用`$`为前缀，在双引号内的保留原有变量属性，在单引号内仅为一般字符。
+
+```sh
+[root@localhost ~]> name=jack
+[root@localhost ~]> echo "my name is $name"
+my name is jack
+[root@localhost ~]> echo 'my name is $name'
+my name is $name
+```
+
+取消变量：`unset name`
+
+获取命令的值，使用==`==字符进行包含
+
+或者使用`$()`
+
+```sh
+[root@localhost ~]> version=`uname -r`
+[root@localhost ~]> echo $version
+3.10.0-1160.el7.x86_64
+[root@localhost ~]> version2=$(uname -a)
+[root@localhost ~]> echo $version2
+Linux localhost.localdomain 3.10.0-1160.el7.x86_64 1 SMP Mon Oct 19 16:18:59 UTC 2020 ...
+```
+
+### 环境变量
+
+可以使用`env`或者`set`来查看系统的环境信息。
+
+输出其他信息：
+
+```sh
+# 输出本次使用的shell
+[root@localhost ~]> echo $SHELL
+/bin/bash
+# 输出上次命令运行的返回结果（0表示正常）
+[root@localhost ~]> echo $?
+0
+# 输出本次shell的PID
+[root@localhost ~]> echo $$
+6305
+```
+
+可以使用`export`将自定义变量转为环境变量
+
+> 在linux中，子进程仅会继承父进程的环境变量，不会继承自定义变量。
+
+语法：`export var`
+
+如果var为空，则将所有的环境变量输出
+
+```sh
+[root@localhost ~]> myname=`uname -a`haha
+[root@localhost ~]> echo $myname
+Linux localhost.localdomain 3.10.0-1160.el7.x86_64 1 SMP Mon Oct 19 16:18:59 UTC 2020 x86_64 x86_64 x86_64 GNU/Linuxhaha
+# 进入子进程（未export）
+[root@localhost ~]> bash
+[root@localhost ~]> echo $myname
+
+[root@localhost ~]> exit
+exit
+[root@localhost ~]> export myname
+# 重新进入子进程
+[root@localhost ~]> bash
+[root@localhost ~]> echo $myname
+Linux localhost.localdomain 3.10.0-1160.el7.x86_64 1 SMP Mon Oct 19 16:18:59 UTC 2020 x86_64 x86_64 x86_64 GNU/Linuxhaha
+# 查看所有环境变量（看最后一行）
+[root@localhost ~]> export
+declare -x DISPLAY="localhost:13.0"
+declare -x HISTCONTROL="ignoredups"
+declare -x HISTSIZE="1000"
+declare -x HOME="/root"
+declare -x HOSTNAME="localhost.localdomain"
+declare -x LANG="en_US.UTF-8"
+declare -x LESSOPEN="||/usr/bin/lesspipe.sh %s"
+declare -x LOGNAME="root"
+declare -x MAIL="/var/spool/mail/root"
+declare -x OLDPWD
+declare -x PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin"
+declare -x PWD="/root"
+declare -x SHELL="/bin/bash"
+declare -x SHLVL="2"
+declare -x SSH_CLIENT="192.168.230.1 5591 22"
+declare -x SSH_CONNECTION="192.168.230.1 5591 192.168.230.134 22"
+declare -x SSH_TTY="/dev/pts/3"
+declare -x TERM="xterm"
+declare -x USER="root"
+declare -x XDG_DATA_DIRS="/root/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
+declare -x XDG_RUNTIME_DIR="/run/user/0"
+declare -x XDG_SESSION_ID="33"
+declare -x myname="Linux localhost.localdomain 3.10.0-1160.el7.x86_64 #1 SMP Mon Oct 19 16:18:59 UTC 2020 x86_64 x86_64 x86_64 GNU/Linuxhaha"
+```
+
+### 变量读取与声明
+
+`read`用于读取用户的键盘输入。
+
+* `-p`表示提示文字
+* `-t`表示等候用户的秒数
+
+`declare`用于声明变量的类型
+
+* `-a`将变量定义为数组array类型
+* `-i`将变量定义为int数字类型
+* `-x`将变量定义为环境变量，类似`export`
+* `-r`将变量定义为只读类型
+
+```sh
+[root@localhost ~]> declare -i sum=100+30+50
+[root@localhost ~]> echo $sum
+180
+[root@localhost ~]> declare -x sum
+[root@localhost ~]> export | grep sum
+declare -ix sum="180"
+
+# 数组
+[root@localhost ~]> arr[1]=ok
+[root@localhost ~]> arr[0]=good
+[root@localhost ~]> echo $arr
+good
+[root@localhost ~]> echo $arr[1]
+good[1]
+[root@localhost ~]> echo ${arr[1]}
+ok
+```
+
+### 设置开机显示信息
+
+登陆中显示信息修改`/etc/issue`
+
+登录成功后显示信息修改：`/etc/motd`
+
+### 重定向数据流
+
+标准输入：`<`，`<<`
+
+标准输出：覆盖`>`，追加`>>`
+
+标准错误输出(`stderr`)：`2>`，`2>>`
+
+```sh
+find /home -name .bashrc > right.txt 2> error.txt
+```
+
+🔵管道命令
+
+`|`，上一个命令的结果是下一个命令的输入
+
+```sh
+ls -al | less
+last | grep 2mm
+```
+
+🔵排序命令
+
+`sort`, `wc`, `uniq`
+
+🔵双向重定向
+
+`tee`，既将数据输出到屏幕上，也将数据输出到文件中
+
+```sh
+last | tee [-a] last.txt
+# -a 表示append
+```
+
+🔵处理命令
+
+* `tr`删除或者替换字符串
+* `split`如果文件过大，将大文件划分为多个小文件
+  * `-b`表示划分成文件的大小
+  * `-l`按照行数来划分
+

@@ -139,7 +139,7 @@
    	<<interface>> Animal
    ```
 
-## 软件设计原则
+## 六大设计原则
 
 > 为了提高软件系统的可维护性和可复用性，增加可扩展性和灵活性。
 
@@ -162,5 +162,338 @@ classDiagram
 	DefaultSkin: +display() void
 	HeimaSkin: +display() void
 	Software:+ShowSkin(AbstractSkin skin) void
+```
+
+### 里氏代换原则
+
+> 里氏代换原则(Liskov Substitution Principle LSP)
+>
+> 子类继承父类，尽量不要重写父类方法。
+
+以正方形不是长方形为例
+
+Square继承Rectangle，RectangleDemo依赖于Rectangle。
+
+```mermaid
+classDiagram
+	Rectangle <|-- Square
+	Rectangle <.. RectangleDemo
+	
+	RectangleDemo: +resize(Rectangle rectangle) void
+	RectangleDemo: +print(Rectangle rectangle) void
+	
+	class Rectangle{
+		-double width
+		-double length
+		+SetLength(double length) void
+		+SetWidth(double width) void
+	}
+	
+	class Square{
+		+SetLength(double length) void
+		+SetWidth(double width) void
+	}
+```
+
+代码案例：
+
+Rectangle类
+
+```java
+public class Rectangle {
+    private double width;
+    private double length;
+
+    public double getWidth() { return width; }
+
+    public void setWidth(double width) { this.width = width; }
+
+    public double getLength() { return length; }
+
+    public void setLength(double length) { this.length = length; }
+}
+```
+
+Square类：
+
+```java
+public class Square extends Rectangle{
+    @Override
+    public void setWidth(double width) {
+        super.setWidth(width);
+        super.setLength(width);
+    }
+
+    @Override
+    public void setLength(double length) {
+        this.setWidth(length);
+    }
+}
+```
+
+Demo执行类
+
+```java
+public class RectangleDemo {
+    // 里氏代换原则
+    public static void main(String[] args) {
+        Rectangle rectangle = new Rectangle();
+        rectangle.setLength(10);
+        rectangle.setWidth(20);
+        resize(rectangle);
+        print(rectangle);
+
+        // New a Square
+        System.out.println("===========");
+        Square square = new Square();
+        square.setWidth(15);
+        resize(square);     // 这里会死循环
+        print(square);
+    }
+
+    public static void resize(Rectangle rectangle){
+        // 当才发现长小于宽时候伸长
+        while (rectangle.getLength() <= rectangle.getWidth()){
+            rectangle.setLength(rectangle.getLength() + 1);
+        }
+    }
+
+    public static void print(Rectangle rectangle){
+        System.out.println(rectangle.getWidth() + " " + rectangle.getLength());
+    }
+}
+```
+
+在这个案例中，对于长方形类使用resize方法是没有任何问题的，但是如果使用对于子类正方形使用`resize()`方法，就会出现问题，会对正方形的长和宽一同进行设置，导致死循环。因此在resize方法中，长方形的参数不能被正方形替换，所以`Rectangle`和`Square`类之间违反了里氏代换原则，继承关系不存在，因此正方形不是长方形。
+
+
+
+因此需要重新设计程序，抽象出一个`Quadrilateral`四边形接口，让正方形和长方形实现此接口。
+
+```mermaid
+classDiagram
+	Quadrilateral <|.. Rectangle
+	Quadrilateral <|.. Square
+	Rectangle <.. RectangleDemo
+	Quadrilateral <.. RectangleDemo
+	
+	RectangleDemo: +resize(Rectangle rectangle) void
+	RectangleDemo: +print(Quadrilateral quadrilateral) void
+	
+	class Quadrilateral{
+		+GetWidth() double
+		+GetLength() double
+	}
+	
+	class Rectangle{
+		-double width
+		-double length
+		+SetLength(double length) void
+		+SetWidth(double width) void
+		+GetWidth() double
+		+GetLength() double
+	}
+	
+	class Square{
+		+double side
+		+GetWidth() double
+		+GetLength() double
+		+SetSide(double side) void
+		+GetSide() double
+	}
+	<<interface>> Quadrilateral
+```
+
+对于resize函数只对长方形生效。
+
+### 依赖倒换原则
+
+> 依赖倒换原则(Dependence Inversion Principle,DIP)
+>
+> 对抽象进行编程，而不是对实现进行编程。开闭原则的另一种实现。
+
+举例：计算机的关系
+
+其他配件与计算机都是关联关系。
+
+```mermaid
+classDiagram
+	Computer o-- WDDisk
+	Computer o-- IntelCPU
+	Computer o-- KSMemory
+	
+	class Computer{
+		-WDDisk disk
+		-IntelCPU cpu
+		-KSMemory memory
+		+getters()
+		+setters() void
+		+run() void		
+	}
+	
+	class WDDisk{
+		+save(String data)void
+		+get()String
+	}
+	
+	class IntelCPU{
+		+run() void
+	}
+	
+	class KSMemory{
+		+save() void
+	}
+```
+
+存在一个问题：就是用户不能自定义自己喜欢的配件，比如CPU想用AMD的，就还得修改代码。
+
+因此需要重构代码，就硬盘、CPU、内存抽象成一个接口。
+
+不同品牌的配件实现对应的接口。
+
+```mermaid
+classDiagram
+	Computer o-- Disk
+	Computer o-- CPU
+	Computer o-- Memory
+	
+	class Computer{
+		-WDDisk disk
+		-IntelCPU cpu
+		-KSMemory memory
+		+getters()
+		+setters() void
+		+run() void		
+	}
+	
+	<<interface>> Disk
+	<<interface>> CPU
+	<<interface>> Memory
+	
+	Disk <|.. WDDisk
+	CPU <|.. IntelCPU
+	CPU <|.. AMDCPU
+	Memory <|.. KSMemory
+	
+	class Disk{
+		+save(String data)void
+		+get()String
+	}
+	
+	class CPU{
+		+run() void
+	}
+	
+	class Memory{
+		+save() void
+	}
+```
+
+### 接口隔离原则
+
+>接口隔离原则（interface-segregation principles，ISP）
+>
+>客户端不应该被迫依赖于它不使用的方法，一个类对另一个类应该建立在最小的接口上。
+
+存在问题：
+
+```mermaid
+classDiagram
+	A <|.. B
+	A: +m1() void
+	A: +m2() void
+	<<interface>> A
+```
+
+B类实现的A类之后，B类就拥有了A类所有的方法，但是B类只想使用A类的`m1`方法，不想拥有`m2`方法，却被迫拥有`m2`方法，因此不符合ISP原则。
+
+**改进**：
+
+```mermaid
+classDiagram
+	A1 <|.. B
+	A2 <|.. B
+	A1: +m1() void
+	A2: +m2() void
+	<<interface>> A1
+	<<interface>> A2
+```
+
+### 迪米特原则
+
+> 迪米特法则（Law of Demeter, LOD），又称最少知识原则
+>
+> 如果两个类之间无须直接调用，就不应该相互调用，应该使用第三方来转发此调用
+
+举例：明星和经纪人的关系
+
+组合关系
+
+```mermaid
+classDiagram
+	Agent *-- Star
+	Agent *-- Fans
+	Agent *-- Company
+
+	class Agent{
+		-Star star
+		-Fans fans
+		-Company company
+		+GettersAndSetters()
+		+Meeting() void
+		+Business() void
+	}
+	
+	class Star{
+		-String name
+		+G&S()
+	}
+	
+	class Fans{
+		-String name
+		+Fans(String name) void
+		+G&S()
+	}
+	
+	class Company{
+		-String name
+		+G&S()
+	}
+```
+
+### 合成复用关系
+
+>组合/聚合复用原则（Composite/Aggregate Reuse Principle，CARP）
+
+尽量使用合成或者聚合的关联关系来实现，其次才考虑继承关系。
+
+继承复用的子父类耦合度较高
+
+举例：汽车分类管理程序
+
+汽车分类很多：按动力分，汽油和电动；按颜色分，红白等色；
+
+```mermaid
+classDiagram
+	Car <|-- PetrolCar
+	Car <|-- ElectricCar
+	PetrolCar <|-- RedPetrolCar
+	PetrolCar <|-- WhitePetrolCar
+	ElectricCar <|-- RedElectricCar
+	ElectricCar <|-- WhiteElectricCar
+```
+
+这种就产生了很多子类，如果还有新的分类，子类将特别多，因此改为聚合复用。
+
+```mermaid
+classDiagram
+	Car <|-- PetrolCar
+	Car <|-- ElectricCar
+	Car: Color color
+	class Color
+	<<interface>> Color
+	Color <|.. Red
+	Color <|.. White
+	Car o-- Color
 ```
 
