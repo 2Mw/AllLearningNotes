@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU) P10
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU) P45
 
 ## 初识
 
@@ -495,5 +495,611 @@ classDiagram
 	Color <|.. Red
 	Color <|.. White
 	Car o-- Color
+```
+
+## 设计模式—创建者模式
+
+> 主要关注点是：将对象的创建和使用分离
+
+### 1. 单例模式
+
+提供了一种创建对象的绝佳方式；这种方法这涉及一个类，并且只能创建单个对象，提供了一种外界只能访问其唯一对象的方式，不需要实例化该类的对象。
+
+单例模式的角色：
+
+* 单例类，只能创建一个对象的类
+* 访问类：是使用单例类
+
+分为两类：
+
+* 饿汉式
+
+  > 类加载的时候该实例就会被创建，但是如果一直不用就会造成内存浪费
+
+  1. 静态成员变量的方式创建
+
+     使用`private`修饰默认构造函数，使其无法创建对象。
+
+     使用静态方法来返回静态成员。
+
+     ```java
+     public class Singleton {
+         private Singleton() {}
+     
+         private static Singleton instance = new Singleton();
+         
+         public static Singleton getInstance() {
+             return instance;
+         }
+     }
+     ```
+
+  2. 使用静态代码块的方式实现
+
+     ```java
+     public class Singleton {
+         // 饿汉式2
+         private Singleton() {}
+     
+         private static Singleton instance;
+     
+         static {
+             instance = new Singleton();
+         }
+     
+         public static Singleton getInstance() {
+             return instance;
+         }
+     }
+     ```
+
+* 懒汉式
+
+  首次使用实例的时候才会创建
+
+  1. 方式一（==线程不安全==）
+
+     ```java
+     public class Singleton {
+         // 懒汉式1，存在线程不安全的问题
+         private Singleton() {}
+     
+         private static Singleton instance;
+     
+         public static Singleton getInstance(){
+             if (instance == null)instance = new Singleton();
+             return instance;
+         }
+     }
+     ```
+
+  2. 方式二（线程安全）
+
+     ```java
+     public class Singleton {
+         // 懒汉式2
+         private Singleton() {}
+     
+         private static Singleton instance;
+     
+         public static synchronized Singleton getInstance(){
+             if (instance == null)instance = new Singleton();
+             return instance;
+         }
+     }
+     ```
+
+  3. 方式三（双重检查锁）
+
+     对于`getInstance()`方法来说，大部分情况都是读操作，而读操作的是线程安全的，因此没必要在每次读取的时候加一个锁，需要调整加锁的时机，即双重检查锁。
+
+     ❓这里为什么需要两个if？
+
+     ```java
+     public class Singleton {
+         private Singleton () {}
+     
+         private static volatile Singleton instance;
+     
+         public static Singleton getInstance() {
+             if (instance == null){
+                 synchronized (Singleton.class){
+                     if (instance == null){
+                         instance = new Singleton();
+                     }
+                 }
+             }
+             return instance;
+         }
+     }
+     ```
+
+     > 添加`volataile`关键字后在多线程下还能保持安全，保证实例化是顺序！
+
+  4. 方式四（静态内部类方式）
+
+     实例由静态内部类创建，由于JVM在加载外部类的时候，是不会加载内部类的，只有将内部类的属性/方法被调用时才会加载，并且初始化静态属性；
+
+     并且静态属性被`static`关键字修饰，保证只被实例化一次，并且严格保证实例化的顺序。
+
+     ```java
+     public class Singleton {
+         // 懒汉式3 静态内部类方式
+         private Singleton() {}
+     
+         private static class SingletonHolder{
+             private static final Singleton INSTANCE = new Singleton();
+         }
+     
+         public static Singleton getInstance(){
+             return SingletonHolder.INSTANCE;
+         }
+     }
+     ```
+
+  5. 方式五（枚举方式==最推荐==）
+
+     > 枚举类型线程安全，并且只会装载一次，唯一一个不会被破坏的方式
+
+​				属于恶汉式（不考虑内存空间）
+
+<h4>单例模式存在的问题</h4>
+
+破坏单例模式：使用序列化和反射，使得单例模式创建多个对象。
+
+🔵序列化破坏单例模式：
+
+> 对于`Singleton`类需要实现`Serializable`接口，在输出序列化对象之后再进行读取两次，就会获取到不同地址引用的对象，从而破坏单例模式。
+
+```java
+public class Destroy {
+    public static void main(String[] args) throws Exception {
+        OutputObj();
+        Singleton ins1 = readObj();
+        Singleton ins2 = readObj();
+        System.out.println(ins1 == ins2);   // false
+    }
+
+    public static Singleton readObj() throws Exception {
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream("./a.txt"));
+        return (Singleton) ois.readObject();
+    }
+
+    public static void OutputObj() throws IOException {
+        ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("./a.txt"));
+        Singleton ins = Singleton.getInstance();
+        oos.writeObject(ins);
+    }
+}
+```
+
+🔵反射破坏单例模式
+
+> 看不太懂，太菜了
+
+```java
+// 反射破坏单例模式
+public class Destroy {
+    public static void main(String[] args) throws Exception {
+        // 1 获取Singleton字节码对象
+        Class clazz = Singleton.class;
+        // 2 获取无参构造方法对象
+        Constructor cons = clazz.getDeclaredConstructor();
+        // 3 取消访问检查
+        cons.setAccessible(true);
+        // 4 创建Singleton对象
+        Singleton s1 = (Singleton) cons.newInstance();
+        Singleton s2 = (Singleton) cons.newInstance();
+        System.out.println(s1 == s2);   // false
+    }
+}
+```
+
+🔵解决被序列化反射破坏单例模式的问题
+
+* 解决序列化
+
+  在`Singleton`对象中添加`readResolve()`方法，在反序列化时被反射调用，如果定义了这个方法，就返回这个方法的值；如果没有定义就返回新new出来的对象。
+  
+  ```java
+  public class Singleton implements Serializable {
+      // 饿汉式1
+      private Singleton() {
+      }
+  
+      private static Singleton instance = new Singleton();
+  
+      public static Singleton getInstance() {
+          return instance;
+      }
+  
+      // Repair 修复这个bug
+      public Object readResolve(){
+          return getInstance();
+      }
+  }
+  ```
+
+* 解决反射
+
+  ```java
+  public class Singleton {
+      // 饿汉式1
+      private static boolean flag = false;
+  
+      private Singleton() {
+          // 修复反射
+          synchronized (Singleton.class){
+              if (flag){
+                  throw new RuntimeException("不能创建多个实例");
+              }
+              flag = true;
+          }
+      }
+  
+      private static Singleton instance = new Singleton();
+  
+      public static Singleton getInstance() {
+          return instance;
+      }
+  }
+  ```
+
+<h4>Singleton案例——Runtime类</h4>
+
+> Runtime类使用的就是单例设计模式
+
+代码：
+
+```java
+public class Runtime {
+    private static final Runtime currentRuntime = new Runtime();
+
+    /**
+     * Returns the runtime object associated with the current Java application.
+     * Most of the methods of class {@code Runtime} are instance
+     * methods and must be invoked with respect to the current runtime object.
+     *
+     * @return  the {@code Runtime} object associated with the current
+     *          Java application.
+     */
+    public static Runtime getRuntime() {
+        return currentRuntime;
+    }
+
+    /** Don't let anyone else instantiate this class */
+    private Runtime() {}
+    
+    // ...
+}
+```
+
+简单使用`Runtime`类
+
+```java
+public class RuntimeDemo {
+    public static void main(String[] args) throws IOException {
+        Runtime runtime = Runtime.getRuntime();
+
+        Process exec = runtime.exec("ipconfig");
+        InputStream is = exec.getInputStream();
+        byte arr[] = new byte[1024*1024 * 100];
+        int len = is.read(arr);
+        String s = new String(arr, 0, len, "GBK");
+        System.out.println(s);
+
+        System.out.println("Java虚拟机的内存总量：" + runtime.totalMemory());
+        //  Java虚拟机的内存总量：264241152
+        System.out.println("Java虚拟机试图使用的最大内存量：" + runtime.maxMemory());
+        // Java虚拟机试图使用的最大内存量：4200595456
+    }
+}
+```
+
+### 2. 工厂模式
+
+举例设计一个咖啡点餐系统
+
+```mermaid
+classDiagram
+	Coffee <.. CoffeeStore
+	Coffee <|-- AmericanCoffee
+	Coffee <|-- LatteCofffee
+	CoffeeStore: +orderCoffee(String type) Coffee
+	class Coffee{
+		+getname() String
+		+addMilk() void
+		+addSugar() void
+	}
+	AmericanCoffee:+addSugar() void
+	LatteCofffee:+addSugar() void
+```
+
+对应代码：
+
+```java
+public class CoffeeStore {
+    public Coffee orderCoffee(String type){
+        Coffee coffee;
+        if (type.equals("american"))coffee = new AmericanCoffee();
+        else if(type.equals("latte")) coffee = new LatteCoffee();
+        else throw new RuntimeException("No this type of coffee.");
+
+        coffee.addMilk();
+        coffee.addSugar();
+
+        return coffee;
+    }
+}
+```
+
+存在的问题：
+
+如果新添加一种咖啡，就需要在`CoffeeStore`类中进行重新修改代码，这就违背了开闭原则，引用一个工厂来进行解耦合。
+
+<h4>简单工厂模式</h4>
+
+> 严格上来说，简单工厂模式不是一种设计模式，而是一个编程习惯
+
+分为以下角色：
+
+* 抽象产品：（interface）定义了产品的规范，描述了其主要特性和功能
+* 具体产品：（实现接口）实现和继承抽象产品的子类
+* 具体工厂：提供创建产品的方法
+
+```mermaid
+classDiagram
+	Coffee <.. SimpleCoffeeFactory
+	SimpleCoffeeFactory <..  CoffeeStore
+	Coffee <|-- AmericanCoffee
+	Coffee <|-- LatteCofffee
+	CoffeeStore: +orderCoffee(String type) Coffee
+	class Coffee{
+		+getname() String
+		+addMilk() void
+		+addSugar() void
+	}
+	class SimpleCoffeeFactory{
+		+createCoffee(String type) Coffee
+	}
+	AmericanCoffee:+addSugar() void
+	LatteCofffee:+addSugar() void
+```
+
+对应代码：
+
+工厂中的代码和原来`CoffeeStore`创建`Coffee`的代码类似。
+
+> 也可以将`orderCoffee`方法设置为静态方法，方便调用，不需要再创建工厂对象。
+
+```java
+package com.yz.pattern.creator.factory.simpleFactory;
+
+public class CoffeeStore {
+    public Coffee orderCoffee(String type){
+        SimpleCoffeeFactory factory = new SimpleCoffeeFactory();
+        Coffee coffee = factory.createCoffee(type);
+        coffee.addMilk();
+        coffee.addSugar();
+        return coffee;
+    }
+}
+```
+
+优缺点：
+
+* 这样就解除了`CoffeeStore`和`Coffee`的实现类耦合。
+* 产生了新的`SimpleCoffeeFactory`和`Coffee`的实现类耦合，还是违背了开闭原则。
+
+<h4>工厂方法模式</h4>
+
+角色：
+
+* 抽象产品：（interface）定义了产品的规范，描述了其主要特性和功能
+* 具体产品：（实现接口）实现和继承抽象产品的子类
+* 抽象工厂：创建者提供创建具体工厂来创建实例
+* 具体工厂：实现创建产品的接口，提供创建产品的方法
+
+```mermaid
+classDiagram
+	Coffee <.. CoffeeFactory
+	Coffee <|-- AmericanCoffee
+	Coffee <|-- LatteCofffee
+	CoffeeFactory <|.. AmericanCoffeeFactory
+	CoffeeFactory <|.. LatteCofffeeFactory
+		CoffeeFactory <..  CoffeeStore
+	Coffee <..  CoffeeStore
+	CoffeeStore: +orderCoffee(String type) Coffee
+	class Coffee{
+		+getname() String
+		+addMilk() void
+		+addSugar() void
+	}
+	class CoffeeFactory{
+		+createCoffee(String type) Coffee
+	}
+	AmericanCoffee:+addSugar() void
+	LatteCofffee:+addSugar() void
+	<<interface>> CoffeeFactory
+```
+
+优缺点：
+
+* 用户需要知道具体工厂名称就可以得到对应的产品；增加新产品的时候只需要添加对应的具体工厂类即可，满足开闭原则
+* 缺点：每增加一个产品就需要实现一个具体工厂类，增加了复杂类
+
+<h4>抽象工厂模式</h4>
+
+之前的工厂模式只考虑一类产品，而抽象工厂模式将要考虑的是**多级别产品的生产**
+
+```mermaid
+classDiagram
+	Coffee <|-- AmericanCoffee
+	Coffee <|-- LatteCofffee
+	Dessert <|--Tiramsu
+	Dessert <|--MatchaMousse
+	
+	AmericanCoffee <.. AmericanFoodFactory
+	Tiramsu <.. AmericanFoodFactory
+	
+	FoodFactory <|.. AmericanFoodFactory
+	FoodFactory <|.. ItalianFoodFactory
+	
+	LatteCofffee <.. ItalianFoodFactory
+	MatchaMousse <.. ItalianFoodFactory
+	
+	<<interface>> FoodFactory
+
+```
+
+如果还要增加一个产品的话，所有的类都可能需要修改。
+
+使用场景：需要创建的对象是一系列的产品族，换的是一整套的系统
+
+<h4>工厂模式之模式扩展</h4>
+
+在开发中有一种固定的开发套路：**简单模式+配置文件接触耦合**，类似Spring框架，利用反射的机制进行对象取出。
+
+第一步：定义配置文件
+
+```java
+american=com.yz.pattern.creator.factory.config_factory.AmericanCoffee
+latte=com.yz.pattern.creator.factory.config_factory.LatteCoffee
+```
+
+第二步：编写Factory类：
+
+```java
+public class CoffeeFactory {
+
+    private static HashMap<String, Coffee> map = new HashMap<>();
+
+    // 加载文件只需要加载一次
+    static {
+        Properties p = new Properties();
+        InputStream is = CoffeeFactory.class.getClassLoader().getResourceAsStream("bean.properties");
+        try {
+            p.load(is);
+            // 创建对应的对象
+            Set<Object> keySet = p.keySet();
+            for (Object k : keySet) {
+                String className = p.getProperty((String) k);
+                Coffee coffee = (Coffee) Class.forName(className).getDeclaredConstructor().newInstance();
+                map.put((String) k, coffee);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public static Coffee createCoffee(String name) {
+        Coffee coffee = map.get(name);
+        return coffee;
+    }
+}
+```
+
+<h4>JDK源码扩展——Collection.iterator方法</h4>
+
+
+
+```mermaid
+classDiagram
+	Iterator <.. Collection
+	<<interface>> Collection
+	<<interface>> Iterator
+	Collection <|.. ArrayList
+	Iterator <|.. ArrayListIter
+```
+
+`Iterator`就是抽象产品类，`ArrayList$Iter`属于具体产品；`Collection`是抽象工厂类，`ArrayList`就是具体工厂。
+
+### 3. 原型模式
+
+> 用一个已经创建好的实例作为原型，提供复制该原型对象来创建一个和原型对象相同的新对象
+
+结构：
+
+* 抽象原型类：规定原型对象必须实现的`clone()`方法
+* 具体原型类：实现抽象原型对象中的`clone()`方法，他是可被复制的对象
+* 访问类：使具体原型类中的`clone()`方法来复制新的对象
+
+```mermaid
+classDiagram
+	Prototype <|.. Realizetype
+	Realizetype <.. Test
+	class Prototype{
+		+clone() Prototype
+	}
+	class Realizetype{
+		+clone() Prototype
+	}
+	<<interface>> Prototype
+```
+
+<h4>实现-浅克隆</h4>
+
+> 克隆分为浅克隆和深克隆，浅克隆中非基本属性，仍指向原有属性中的对象地址
+
+在Java中`Cloneable`就是克隆抽象原型类，克隆的对象不是通过`new`来创建的。
+
+```java
+package com.yz.pattern.creator.prototype.demo1;
+
+public class RealizeType implements Cloneable{
+    @Override
+    protected RealizeType clone() throws CloneNotSupportedException {
+        System.out.println("Copy!");
+        return (RealizeType) super.clone();
+    }
+}
+```
+
+测试：
+
+```java
+public class Test {
+    public static void main(String[] args) throws CloneNotSupportedException {
+        RealizeType t = new RealizeType();
+        RealizeType clone = t.clone();
+        System.out.println(clone == t);					// false
+        System.out.println(clone.person == t.person);   // true 浅克隆
+    }
+}
+```
+
+<h4>实现-深克隆</h4>
+
+这种情况的话需要使用对象流(`ObjectOutputStream, ObjectInputStream`)
+
+> 对于具体原型和其引用属性都需要实现`Serializable`才能够序列化
+
+```java
+public class RealizeType implements Cloneable, Serializable {
+
+    public Person person;
+
+    public RealizeType() {
+        this.person = new Person();
+    }
+
+    @Override
+    protected RealizeType clone() throws CloneNotSupportedException {
+        RealizeType realizeType = null;
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("./objClone"));
+            oos.writeObject(this);
+            oos.close();
+
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream("./objClone"));
+            realizeType = (RealizeType) ois.readObject();
+            return realizeType;
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return realizeType;
+    }
+}
 ```
 

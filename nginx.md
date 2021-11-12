@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P32
+[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P36
 
 ## 初始nginx
 
@@ -54,7 +54,7 @@ yum install -y openssl openssl-devel
 
 方法：源码安装——简单安装和复杂安装；yum安装。
 
-🔵简单安装
+🔵简单安装 
 
 将压缩包解压到对应目录
 
@@ -560,3 +560,149 @@ server{
 > 对于可以在http，server，location块中都可以使用的命令，那个会生效？
 >
 > > >>这个是按照“就近原则”处理的。在本块中有，就不会在父级中生效，互不交叉。
+
+## nginx配置
+
+### 实战
+
+需求：
+
+```
+(1) 有如下访问:
+http://192.168.200.133:8081/server1/location1
+访问的是: index_sr1_location1.htm1
+http://192.168.200.133:8081/server1/location2
+访问的是: index_sr1_location2.htm1
+http://192.168.200.133:8082/server2/location1
+访问的是: index_sr2_locationl.htm1
+http://192.168.200.133:8082/server2/location2
+访问的是: index_sr2_location2.htm1
+(2) 如果访问的资源不存在，返回自定义的404页面
+(3) 将/server1和/server2的配置使用不同的配置文件分割
+将文件放到/home/www/conf.d目录下，然后使用include进行合并
+(4)为/server1和/server2各自创建一个访问日志文件
+```
+
+nginx.conf
+
+```
+user www;
+worker_processes  2;
+error_log  logs/error.log;
+pid        logs/nginx.pid;
+daemon on;
+events {
+    worker_connections  1024;
+    accept_mutex on;
+    multi_accept on;
+    use epoll;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+
+    keepalive_timeout  65;
+
+    log_format server1 '===> server 1';
+    log_format server2 '===> server 2';
+
+    include /home/www/conf.d/*conf;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+server1.conf
+
+```
+server{
+        listen 8081;
+        server_name localhost;
+        access_log /home/www/myweb/server1/logs/access.log server1;
+        location /server1/location1{
+                root /home/www/myweb;
+                index index_sr1_location1.html;
+        }
+
+        location /server1/location2{
+                root /home/www/myweb;
+                index index_sr1_location2.html;
+        }
+        error_page 404 /404.html;
+        location = /404.html{
+                root /home/www/myweb;
+                index 404.html;
+        }
+
+}
+```
+
+server2.conf大致类似，此处省略
+
+### 配置系统服务
+
+1. 在`/usr/lib/systemd/system/nginx.service`
+
+   ```sh
+   vim /usr/lib/systemd/system/nginx.service
+   ```
+
+2. 写入以下配置
+
+   ```
+   [Unit]
+   Description=nginx web service
+   Document=http://nginx.org/en/docs
+   After=network.target
+   
+   [Service]
+   Type=forking
+   PIDFILE=/usr/local/nginx/logs/nginx.pid
+   ExecStartPre=/usr/local/nginx/sbin/nginx -t -c /usr/local/nginx/conf/nginx.conf
+   ExecStart=/usr/local/nginx/sbin/nginx
+   ExecReload=/usr/local/nginx/sbin/nginx -s reload
+   ExecStop=/usr/local/nginx/sbin/nginx -s stop
+   PrivateTmp=true
+   
+   [Install]
+   WantedBy=default.target
+   ```
+
+3. 给文件添加权限
+
+   ```sh
+   chmod 755 /usr/lib/systemd/system/nginx.service
+   ```
+
+4. 使用命令操作nginx
+
+   ```sh
+   systemctl start nginx
+   systemctl stop nginx
+   # 重启
+   systemctl restart nginx
+   # 重新加载配置文件
+   systemctl reload nginx
+   # 查看状态
+   systemctl status nginx
+   # 开机启动
+   systemctl enable nginx
+   ```
+
+   
