@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU) P45
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU) P70
 
 ## 初识
 
@@ -796,7 +796,7 @@ public class RuntimeDemo {
 }
 ```
 
-### 2. 工厂模式
+### 2. 工厂模式（2种）
 
 举例设计一个咖啡点餐系统
 
@@ -1102,4 +1102,362 @@ public class RealizeType implements Cloneable, Serializable {
     }
 }
 ```
+
+### 4. 建造者模式
+
+> 将一个复杂对象的构建与表示分离
+
+构造有builder来负责，装配有director来负责。
+
+建造者模式中的四个角色：
+
+* 抽象建造者类（builder）：接口规定实现复杂对象部分的创建
+* 具体建造者类（ConcreteBuilder）：实现builder接口，完成具体创建不同部件。
+* 产品类（product）：要创造的复杂的对象。
+* 指挥者类（Director）：保证部分完成创建。
+
+```mermaid
+classDiagram
+	Director o-- Builder
+	Director: -Builder builder
+	Director: +Construct() Product
+	Builder <|-- ConcreteBuilder
+	Product <-- ConcreteBuilder
+```
+
+举例（创建自行车案例）：
+
+```mermaid
+classDiagram
+	class Builder{
+		+Bike bike
+		+buildFrame() void
+		+buildSeat() void
+		+createBike() Bike
+	}
+	class Bike{
+		+String frame
+		+String seat
+		+S&G()
+	}
+	
+	<<abstract>> Builder
+	Builder <|.. MobikeBuilder
+	Builder <|.. OfoBuilder
+	Builder o-- Bike
+	Director o-- Builder
+```
+
+**优缺点**：
+
+* 封装性很好，客户端不需要了解产品内部的细节，符合开闭原则。
+* 建造者模式的产品大部分情况下需要有较多的共同点。
+
+**使用场景：**
+
+在其产品的各个部分经常面临发生剧烈的变化，使得他们组合在一起的时候算法又十分的稳定。
+
+<h4>模式扩展</h4>
+
+在开发中还有一种常用的方式，就是当一个类构造器需要传入多个参数的时候，如果创造这个类就会导致代码的可读性很差，而且容易引入错误，需要使用建造者模式对代码进行重构。
+
+改造前：
+
+```java
+public class Phone {
+    private String camera, cpu, screen, battery;
+
+    @Override
+    // Getter and Setters And toString method.
+}
+
+public class Test{
+    public static void main(String[] args) {
+        Phone phone = new Phone("Leica", "Intel", "JDF", "NingDeEra");
+        System.out.println(phone);
+    }
+}
+```
+
+如果参数更多的话，就会导致代码的可读性变差，成本升高。
+
+新创建方式：
+
+```java
+public class Phone {
+    private String camera, cpu, screen, battery;
+
+    private Phone(Builder builder) {
+        this.camera = builder.camera;
+        this.cpu = builder.cpu;
+        this.screen = builder.screen;
+        this.battery = builder.battery;
+    };
+
+    public static final class Builder{
+        private String camera, cpu, screen, battery;
+
+        public Builder camera(String camera){
+            this.camera = camera;
+            return this;
+        }
+        public Builder cpu(String cpu){
+            this.cpu = cpu;
+            return this;
+        }
+        public Builder screen(String screen){
+            this.screen = screen;
+            return this;
+        }
+        public Builder battery(String battery){
+            this.battery = battery;
+            return this;
+        }
+
+        public Phone build(){
+            return new Phone(this);
+        }
+    }
+}
+// Main
+    public static void main(String[] args) {
+        Phone phone = new Phone.Builder()
+                .camera("Leca")
+                .cpu("Amd")
+                .screen("jdf")
+                .battery("NingDe")
+                .build();
+        System.out.println(phone);
+    }
+```
+
+可以链式调用，无需指定对应的顺序和方法，并且清楚明了。
+
+### 5. 总结与对比
+
+* 工厂模式和建造者模式
+
+  工厂方法注重的是整体的创建方式，而建造者模式注重的是组件的创建方法。
+
+* 抽象工厂模式和建造者模式
+
+  抽象工厂是注重于对产品家族的创建；建造者模式是按照步骤来构建产品。
+
+## 设计模式—结构性模式
+
+结构性模式是将类和对象按照某种布局组成更大的结构，分为类结构型模式和对象型结构模式。
+
+分为7种：
+
+* 代理模式
+* 适配器模式
+* 装饰者模式
+* 桥接模式
+* 外观模式
+* 组合模式
+* 享元模式
+
+### 1. 代理模式
+
+由于某些原因需要给某个对象提供一个代理以控制该对象的访问，访问对象不适合直接访问和引用目标对象，代理对象是访问对象和目标对象的中介。
+
+Java中的代理又分为动态代理和静态代理。动态代理又分为JDK代理和CGLib代理。
+
+结构：
+
+* 抽象主题（Subject）类：定义了代理对象需要实现的具体方法
+* 真实主题（Real Subject）类：代理对象所代理的真实对象
+* 代理（Proxy）类
+
+<h4>静态代理：</h4>
+
+类图（火车站买票样例）：
+
+```mermaid
+classDiagram
+	SellTickets <|.. TrainStation
+	SellTickets <|.. ProxyPoint
+	ProxyPoint o-- TrainStation
+	SellTickets: +sell() void
+	ProxyPoint: -TrainStation trainStation
+	ProxyPoint: +sell() void
+	TrainStation: +sell() void
+	ProxyPoint <-- Person
+	<<interface>> SellTickets
+```
+
+即在`ProxyPoint`类中的`sell`方法调用`TrainStation`类中的`sell`方法。
+
+<h4>JDK动态代理：</h4>
+
+没有代理类，而是在JDK运行的过程中进行代理。使用的JDK中的`java.reflection.Proxy`包中的对象，使用的是`newProxyInstance`方法来实现，需要添加的功能在对象的`InvocationHandler`的`invoke`方法实现。
+
+实现一个proxyFactory
+
+```java
+public class ProxyFactory {
+
+    private SellTickets trainStation = new TrainStation();
+
+    public SellTickets getProxyObj() {
+        SellTickets instance = (SellTickets) Proxy.newProxyInstance(
+                trainStation.getClass().getClassLoader(),
+                trainStation.getClass().getInterfaces(),
+                new InvocationHandler() {
+                    /*
+                    Object proxy 就是要返回的代理对象
+                    Method method 就是对接口中进行封装的方法
+                    Object[] args 调用方法的实际参数
+                    返回值：就是方法的返回值
+                     */
+                    @Override
+                    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                        // invoke
+                        Object obj = method.invoke(trainStation, args);
+                        if (method.getName().equals("sell")){
+                            System.out.println("代理买票收取费用");
+                        }
+                        return obj;
+                    }
+                });
+        /*
+        (ClassLoader loader,            类加载器，加载代理类
+          Class<?>[] interfaces,        代理类的接口对象
+          reflect.InvocationHandler h   代理对象调用的处理程序
+         */
+        return instance;
+    }
+}
+```
+
+<h4>CGLib动态代理：</h4>
+
+JDK动态代理是必须要定义类的接口，对于没有接口的类因此就需要CGLib代理。
+
+添加依赖：
+
+```xml
+<dependency>
+    <groupId>cglib</groupId>
+    <artifactId>cglib</artifactId>
+    <version>3.3.0</version>
+</dependency>
+```
+
+使用Enhancer来进行代理设置：
+
+1. 创建Enhancer对象
+2. 设置目标代理类
+3. 设置回调函数，实现`MethodInterceptor`
+4. 实现`intercept`函数，其他类似JDK静态代理。
+
+```java
+public class ProxyFactory implements MethodInterceptor {
+
+    public TrainStation trainStation = new TrainStation();
+
+    public TrainStation getProxtObj() {
+        // 创建Enhancer对象，类似jdk中的Proxy
+        Enhancer enhancer = new Enhancer();
+        // 设置目标类字节码
+        enhancer.setSuperclass(TrainStation.class);
+        // 设置callback
+        enhancer.setCallback(this);
+        // 创建代理对象
+        TrainStation o = (TrainStation) enhancer.create();
+        return o;
+    }
+
+    @Override
+    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+//        System.out.println(o.getClass().getName());
+        if (method.getName().equals("sell")) System.out.println("Proxy fees.");
+        method.invoke(trainStation, objects);
+        return null;
+    }
+}
+```
+
+<h4>优缺点</h4>
+
+CGLib是动态生成目标类的子类，JDK1.8后效率高于CGlib代理。静态代理要比动态代理麻烦。
+
+* 代理对象可以对原来的类起到保护的作用
+* 用于类功能的扩展
+* 增加了系统的复杂度
+
+使用场景：
+
+* 远程代理，类似rpc
+* 防火墙代理
+* 保护代理
+
+### 2. 适配器模式
+
+适配器：比如出国旅游的话，各个国家电压标准不同，需要使用到不同的适配器。手机充电器也类似。
+
+> 将一个类的接口，转换为另一个类的接口，使得原有不能一起使用的类可以共同工作。分为类适配器和对象适配器模式。
+
+结构：
+
+* 目标Target接口：当前业务所期待的接口（类似欧洲国家的插座）
+* 适配者Adaptee类：被访问或者适配现存组件的类（）
+* 适配器Adapter类：转换器类，把适配者的接口转为目标接口
+
+<h4>类适配器模式</h4>
+
+举例（读卡器案例）：
+
+一台电脑只能读取SD卡，如果要读取TF卡就需要使用到适配器模式
+
+```mermaid
+classDiagram
+	class SDCard{
+		+OpSD() void
+	}
+	<<interface>> SDCard
+	SDCard <|.. NokiaSD
+	SDCard <|.. SDAdapeTF
+	SDCard <-- Computer
+	Computer: +readSD(SDCard card)
+	HuaweiTF <|-- SDAdapeTF
+	class TFCard{
+		+OpTF() void
+	}
+	<<interface>> TFCard
+	TFCard <|.. HuaweiTF
+	
+	
+```
+
+这个类适配器**继承**了`HuaweiTF`类和**实现**了`SDCard`类，类适配器明显违反了合成复用原则，如果新添加一个TF卡，就还需要修改代码。
+
+<h4>对象适配器</h4>
+
+对类适配器进行修改，对于`TFCard`采用聚合的方式进行处理：
+
+```mermaid
+classDiagram
+	class SDCard{
+		+OpSD() void
+	}
+	<<interface>> SDCard
+	SDCard <|.. NokiaSD
+	SDCard <-- Computer
+	Computer: +readSD(SDCard card)
+	SDCard <|.. SDAdapeTF
+	TFCard o-- SDAdapeTF
+	SDAdapeTF: -TFCard tfcard
+	class TFCard{
+		+OpTF() void
+	}
+	<<interface>> TFCard
+	TFCard <|.. HuaweiTF
+```
+
+<h4>应用场景</h4>
+
+* 旧的系统需要应用到新的系统，进行无缝对接
+
+在JDK中`Reader`字符流和`InputStream`字节流的适配使用的是`StreamDecoder`, `StreamDecoder`继承了`Reader`聚合了`InputStream` 。
 

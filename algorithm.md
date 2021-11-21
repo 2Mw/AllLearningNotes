@@ -3108,9 +3108,9 @@ int main(){
 }
 ```
 
-### 苹果树——树形背包问题
+### 数学DP
 
-好难，三维DP
+
 
 ### 最小回文——区间DP
 
@@ -4550,7 +4550,7 @@ int kmp(string s,string t){
         if(j==-1||s[i]==t[j]){
             i++,j++;
         }else j=next[j];	//找到上一个前缀
-    }
+    D
     if(j>=t.length())return i-t.length();
     return -1;
 }
@@ -4612,7 +4612,13 @@ int main(){
 }
 ```
 
+### 前缀和
 
+求一个数组中间n段数组的和。
+
+欲求$\displaystyle\sum_{i=l}^ra_i$，设$S_n=\displaystyle\sum_{i=0}^na_i$，则$\displaystyle\sum_{i=l}^ra_i=S_r-S_{l-1}$。
+
+扩展二维矩阵和。
 
 ## 背包问题专题
 

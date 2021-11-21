@@ -435,3 +435,132 @@ last | tee [-a] last.txt
   * `-b`表示划分成文件的大小
   * `-l`按照行数来划分
 
+### 脚本编写
+
+<h4>默认变量$0, $1..</h4>
+
+```sh
+./start.sh	lihua	24	eat
+$0			$1		$2	$3
+```
+
+其他变量：
+
+* `$#`表示参数的个数
+* `$@`表示`$1 $2 ...`
+
+复杂判断流程：
+
+> 注意判断条件需要由`[ ]`包含，并且需要空格隔开，`==, !=`之间也需要空格隔开。
+
+```sh
+read -p "Input you name:" name
+if [ "${name}" == "me" ]; then
+        echo "Yes it is me"
+elif [ "${name}" == "you" ]; then
+        echo "No thats you"
+else
+        echo "Other people"
+fi
+```
+
+举例：
+
+```sh
+tim=$(date "+%Y%m%d-%H%M%S")
+redisPort=6379
+mysqlPort=3306
+tmpFile=port_file.tmp
+netstat -tunvp > $tmpFile
+content=`grep ":3306" $tmpFile | grep "docker"`
+if [ "${content}" != "" ]; then
+	echo "Mysql has opened."
+else
+	docker start mysql01
+	echo "Starting mysql from docker."
+fi
+
+content=`grep ":6379" $tmpFile | grep "redis"`
+if [ "${content}" != "" ]; then
+	echo "Redis has opened."
+else
+	/usr/local/bin/redis-server /usr/local/bin/redis.conf
+	echo "Starting redis."
+fi
+nohup java -jar blogBackend.jar > ./log/${tim}".out" 2>&1 &
+echo "Start Server, log file is in: ./log/${tim}.out"
+rm $tmpFile
+```
+
+Case语句：
+
+```sh
+read -p "Input your name" name
+case $name in
+        "jack" )
+        echo "yes, Jack"
+        ;;
+
+        "john" )
+        echo "yes john"
+        ;;
+
+        * )
+        echo "Other Girl..."
+esac
+```
+
+函数功能：
+
+函数的定义和传参
+
+```sh
+function s(){
+        echo function name is ${0};
+        echo you name is $1.
+}
+
+read -p "Name: " nn
+s $nn
+```
+
+循环：
+
+```sh
+while [ condition ]
+do
+	# ...
+done
+
+until [ condition ]
+do
+	# ...
+done
+```
+
+迭代：
+
+```sh
+for var in a b c
+do
+	echo $var
+done
+# a b c
+for var in $( seq 1 5 ) # 从1循环到5
+do 
+	# ...
+done
+
+for (( i=1; i <= 10; i=1+1 ))
+do
+	s=$(( ${s} + ${i} ))
+done
+```
+
+<h4>脚本检验</h4>
+
+用法：`sh [-nx] a.sh`
+
+* `-n` 不执行脚本，只检验语法问题
+* `-x` 将使用到的脚本内容输出到屏幕
+* `-v` 执行前，先将脚本内容输出到屏幕上

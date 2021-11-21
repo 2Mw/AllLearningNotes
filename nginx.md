@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P36
+[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P93
 
 ## 初始nginx
 
@@ -705,4 +705,710 @@ server2.conf大致类似，此处省略
    systemctl enable nginx
    ```
 
-   
+
+### 配置环境变量
+
+1. 配置`/etc/profile`
+
+2. 添加nginx的二进制目录：
+
+   `export PATH=$PATH:/usr/local/nginx/sbin`
+
+3. 生效：`source /etc/profile`
+
+## Nginx静态资源部署
+
+我们需要考虑以下几个问题：
+
+1. 静态资源的配置指令
+2. 静态资源的配置优化
+3. 静态资源的压缩配置
+4. 静态资源的缓存处理
+5. 静态资源的访问控制，包括跨域和防盗链的问题
+
+### 配置指令
+
+<h4>listen指令</h4>
+
+参考：[Listen指令](http://nginx.org/en/docs/http/ngx_http_core_module.html#listen)
+
+语法：`	listen address[:port] [default_server];`
+
+这里的default_server，如果不设置，表示如果host的名称没有匹配到对于的地址，第一个server块就会成为default_server；
+
+位置server块
+
+```
+listen 127.0.0.1:8000;
+listen 127.0.0.1;
+listen 8000;
+listen *:8000;
+listen localhost:8000;
+```
+
+<h4>server_name指令</h4>
+
+语法：`server_name name ...`
+
+位置：server块
+
+有三种匹配方式：
+
+* 精确匹配
+* 正则匹配：`server_name ~^www\.(\w+)\.com$`
+* 通配符匹配：`server_name *.jd.com www.baidu.*`，不可以`www.*.cn  www.aaa.c*`
+
+可以指定对应的域名，实验的时候可以通过`hosts`文件进行实验。
+
+匹配执行顺序：1. 精确匹配 2. 通配符（前 -> 后）  3. 正则表达式
+
+<h4>location指令</h4>
+
+语法：`location [ 无 |= | ~ | ~* | ^~ | @] uri {...}`
+
+🔵不带符号的（以指定模式开始的）：
+
+```
+location /abc {
+	
+}
+```
+
+能匹配的`/abc`开头的，比如：`/abc, /abcd /abcaaa`等
+
+🔵`=`开始的(精确匹配)
+
+`location=/abc`只能匹配`/abc`路径
+
+🔵正则表达式匹配
+
+`~`区分大小写，`~*`不区分大小写
+
+比如：
+
+```
+location ~^/abc$
+```
+
+🔵`^~`匹配
+
+用于不包含正则表达式的url前，如果模式匹配，就不再向后搜索
+
+`location ^~/abc`
+
+<h4>设置请求资源的目录（root和alias）</h4>
+
+root指令：
+
+语法：`root path`
+
+位置：location，server，http
+
+alias指令：
+
+语法：`alias path`
+
+位置：location
+
+root指令是指定请求的根目录，然后在这个根目录下根据`location`指定的路径查找文件
+
+alias指令相当于是一个为长的目录起一个别名，方便快捷访问。
+
+<h4>index指令</h4>
+
+来设置网站的默认首页
+
+语法：`index index.html`
+
+位置：location， server， http
+
+<h4>error_page指令</h4>
+
+语法：`error_page code ... [=[response]] uri;`
+
+位置：location， server， http
+
+1. 指定其具体跳转的页面
+
+   ```
+   error_page 404 http://www.baidu.com
+   ```
+
+2. 指定重定向地址
+
+   ```
+   error_page 404 500 /50x.html
+   location /50x.html{
+   	root html;
+   }
+   ```
+
+3. 使用location的`@`符号
+
+   ```
+   error_page 404 @toerror
+   location @toerror{
+   	default_type text/plain;
+   	return 404 "Not Found!";
+   }
+   ```
+
+4. `[=response]`的使用
+
+   将原来的状态码改成另一个状态码，这里为`200`
+
+   ```
+   error_page 404 =200 /50x.html
+   location /50x.html{
+   	root html;
+   }
+   ```
+
+### 配置优化
+
+可以从三个方面进行优化：
+
+```
+sendfile on;
+tcp_nopush on;
+tcp_nodeplay on;
+```
+
+1. `sendfile` 开启高效的文件传输模式
+
+   语法：`sendfile on | off`，默认`off`
+
+   位置：location， server， http
+
+   开启此命令之后，可以减少系统内核态的切换和内存拷贝，减少系统开销。
+
+2. `tcp_nopush`，必须在`sendfile`开启之后才会生效，用于提高网络传输的效率
+
+   语法：`tcp_nopush on | off` 默认`off`
+
+   位置：location， server， http
+
+   在tcp传输的过程中开辟一个缓冲区，等缓冲区存满的时候开始传输数据。和`tcp_nodelay`互斥。
+
+3. `tcp_nodelay`，必须是在`keep-alive`开启后才会生效，用于提高网络传输的实时性
+
+   语法：`tcp_nodelay on | off` 默认`on`
+
+   位置：location， server， http
+
+   当在数据传输的最后一个数据包的时候，nginx会忽略`tcp_nopush`这个参数，会直接将数据发送出去，因此建议这两个指令同时开启，提高网络的传输效率。
+
+### 压缩配置
+
+在nginx中可以使用gzip来对静态资源进行压缩，提高网络传输速度。有三个压缩模块
+
+```
+ngx_http_gzip_module模块
+ngx_http_gzip_static_module模块
+ngx_http_gunzip_module模块
+```
+
+后两个模块需要安装才能够使用
+
+存在的问题：
+
+```
+1.gzip各模块支持的配置命令
+2.gzip压缩功能的配置
+3.gzip和sendfile冲突的解决
+4.浏览器不支持gzip的解决方案
+```
+
+<h4>压缩配置指令</h4>
+
+参考：[ngx_http_gzip_module](http://nginx.org/en/docs/http/ngx_http_gzip_module.html)
+
+🔵gzip指令
+
+语法：`gzip on | off ` 默认`off`
+
+位置：location， server， http
+
+🔵gzip_types指令
+
+对于指定的`MIME-Types`的文件类型进行压缩
+
+语法：`gzip_types mime-types` 默认：`text/html`
+
+位置：location， server， http
+
+```
+gzip on;
+gzip_types text/html application/javascript;
+```
+
+🔵gzip_comp_level指令
+
+语法：`gzip_comp_level level;` 默认1，1表示压缩程度最低
+
+🔵gzip_vary指令
+
+语法：`gzip_vary on | off` 默认 off
+
+即告诉对方是否使用的gzip压缩头：`Vary: Accept-Encoding`
+
+🔵gzip_proxied指令
+
+语法：`gzip proxied off | expired | no-cached | auth | any ...`
+
+设置是否对服务器端返回的结果进行压缩
+
+off作为反向代理服务器不会对数据进行压缩
+
+🔵其他指令
+
+`gzip_diasble "Mozila 5.0.*"`根据不同的客户端`User-Agent`来决定是否开始gzip压缩，兼容低版本的浏览器。
+
+`gzip_min_length`针对传输数据大小来决定是否开启压缩，只要比某个值小，就不会进行压缩。
+
+<h4>gzip和sendfile冲突的解决</h4>
+
+`sendfile`命令可以减少静态资源在计算机中复制的次数，而`gzip`指令需要将静态资源先压缩，再进行发送就需要进行多次的复制和传输，与其产生了冲突。
+
+因此使用`ngx_http_gzip_static_module`，再处理静态资源的时候预先压缩静态文件，
+
+添加模块：
+
+```sh
+nginx -V
+mv nginx nginx_old # 备份
+cd /home/2mw/Downloads/nginx/ # 进入源代码目录
+make clean
+./configure --with-http_gzip_static_module	# 添加模块
+make	# 重新编译
+cp objs/nginx /usr/local/nginx/sbin/ # 将编译后的nginx重新复制到sbin目录下
+make upgrade
+```
+
+在`nginx.conf`中设置`gzip_static on;`
+
+这个模块会自动寻找同名文件下的`.gz`压缩的对应文件，因此需要对想要压缩的文件进行压缩。
+
+```sh
+gzip -9 jquery.js
+```
+
+### 缓存处理
+
+如果服务端的网页没有发生变化，就不再请求服务器而是从缓存中读取数据，加快加载速度。
+
+HTTP协议中和页面缓存相关的字段
+
+| header        | 说明                              |
+| :------------ | :-------------------------------- |
+| Expires       | 缓存过期的日期和时间              |
+| Cache-Control | 设置缓存相关的配置信息            |
+| Last-Modified | 请求资源上传修改的时间            |
+| Etag          | 请求变量的实体标签值，比如文件MD5 |
+
+判断缓存流程，分为**强缓存**和**弱缓存**
+
+![image-20211117215000300](https://i.loli.net/2021/11/17/pFXIy2DS5hGYJBQ.png)
+
+<h4>expires指令</h4>
+
+语法：`expires (time | epoch | echo | max | off)`，默认`off`
+
+如果time设置为负数，则设置`Cache-Control:no-cache`不缓存，否则设置`Cache-Control: max-age=time`
+
+设置max为10年，off为默认不缓存
+
+举例：设置为10天
+
+```
+location ~ .*\.(png|js|img|jpg){
+	expires 10d;
+}
+```
+
+<h4>add_header指令</h4>
+
+语法：`add_header name value [always]`
+
+位置：http，server，location
+
+```
+location ~ .*\.(png|js|img|jpg){
+	add_header Cache-Control no-cache;
+}
+```
+
+### 跨域 防盗链
+
+同源策略：协议、域名、端口全部相同即为同源。
+
+添加两个头信息：
+
+```
+location =/get {
+	add_header Access-Control-Allow-Origin: http://localhost;
+	add_header Access-Control-Allow-Method: POST,PUT,GET,DELETE;
+}
+```
+
+防盗链
+
+根据相关头信息`Referer`来判定
+
+<h4>valid_referers指令</h4>
+
+语法：`valid_referers none|blocked|server_names|string...`
+
+位置：server, location
+
+none: 如果referer为空，允许访问
+
+blocked：referer不为空，可能被防火墙或者代理伪装过，表示不带`http`或者`https`开始的网址。
+
+server_names：表示指定的域名或者IP
+
+string：表示匹配的正则表达式，需要以`~`开头
+
+如果匹配到就会将`$invalid_referer`变量置为0，没有匹配到就会置为1.
+
+```
+location ~ .*\.(png|js|img|jpg){
+	valid_referers none blocked www.baidu.com;
+	if($invalid_referer){	# 未匹配到
+		return 403;
+	}
+}
+```
+
+> 但是这种方式防不了真正的程序员，只需要伪造一个Referer请求头即可。
+
+## Rewrite功能
+
+Rewrite功能依赖于`PCRE`正则表达式库，主要用于URL的重写。
+
+Rewrite相关命令：`set,if,break,return,rewrite,rewrite_log`
+
+应用场景：域名跳转、域名镜像、独立域名、目录自动加`/`，合并目录，防盗链的实现
+
+### 相关指令
+
+<h4>set指令</h4>
+
+该指令用来设置一个新的变量。
+
+语法：`set $var value`
+
+位置：server、location、if
+
+```
+server{
+    listen 8080;
+    server_name localhost;
+    location /server{
+        set $name TOMMY;
+        set $age 20;
+        default_type text/plain;
+        return 200 $name=$age;
+    }
+}
+```
+
+注意不要与nginx内置的变量相覆盖。比如`$args $http_user_agent $host $document_uri $http_cookie $remote_addr $remote_port $remote_user $server_addr $request_method $request_uri`，可以配合`log_format`指令一起使用。
+
+<h4>if指令</h4>
+
+语法：`if (condtion) {}` 注意if后面要有一个空格` ' '`.
+
+位置：server，location
+
+> 注意`=`或者`!=`判断符前后**必须**要有空格。
+
+```
+location /testif{
+    set $name 'Liasa';
+    default_type text/plain;
+    if ($name = 'Lisa'){
+        return 200 'Yes, Lisa!';
+    }
+    return 404 'not lisa';
+}
+```
+
+使用正则表达式：
+
+`~`区分大小写，`~*`不区分大小写
+
+```
+if ($http_user_agent ~ Chrome){
+    return 200 'Yes, Chrome!';
+}
+```
+
+判断文件是否存在`-f`：
+
+```
+if (!-f $request_filename){
+    return 200 'File not found!';
+}
+```
+
+其他：`-d`目录是否存在 `-e`目录或者文件是否存在 `-X`判断文件是否可执行。
+
+<h4>break指令</h4>
+
+可以用于中断当前作用域种其他的配置，位于它前面的配置生效，后面的配置失效。**并且**中断当前URL的匹配，重定向到location目录下找对应的文件。
+
+位置：server、location、if
+
+<h4>return指令</h4>
+
+语法：`return code [text | url]`或者`return url`
+
+位置：server、location、if
+
+<h4>rewrite指令</h4>
+
+语法：`rewrite regex new_url [flag]`
+
+regex为匹配的正则表达式，new_url匹配成功后用于替换被截取内容的字符串。如果字符串是以`http(s)://`开头的，则不会向下对URL进行其他处理，直接返回重写后的URL。
+
+```
+location /rewrite{
+    default_type text/plain;
+    rewrite ^/rewrite/url\w*$ https://www.qaqaqqa.asia;
+    rewrite ^/rewrite/(demo)\w*$ /$1;
+}
+```
+
+flag: 
+
+* `last`：在其他的location块中寻找
+* `break`：不去location块中寻找，而是去`/www/share/html`目录下寻找
+* `redirect`：302并且重写URL返回，使用在不是以`http(s)://`开头的情况，会将页面的url改变。
+* `permanent`：301使用在不是以`http(s)://`开头的情况，会将页面的url改变。
+
+<h4>rewrite_log指令</h4>
+
+语法：`rewrite_log on | off` 默认 off
+
+开启需要将`error_log`级别设置为notice级别。
+
+### 实际操作
+
+<h4>域名跳转</h4>
+
+```
+location /rewrite{
+    rewrite ^(.*) https://www.baidu.com$1;
+}
+```
+
+这个可以将url后面的请求路径也可以带过去
+
+<h4>独立域名</h4>
+
+为每一个模块设置一个独立子域名。
+
+```
+server{
+	listen 81;
+	server_name a.jd.com;
+	rewrite ^(.*) http://www.itcast.cn/a$1;
+}
+server{
+	listen 82;
+	server_name name.jd.com;
+	rewrite ^(.*) http://www.itcast.cn/name$1;
+}
+```
+
+<h4>目录自动加'/'</h4>
+
+> 现在版本的nginx无需此操作
+
+如果在地址栏中不加最后的`/`，nginx会自动返回301并且添加`/`来访问目录下的index。
+
+```
+server{
+	listen 82;
+	server_name localhost;
+	location /get {
+		if (-d $request_filename){
+			rewrite ^(.*)([^/])$  http://$host:$server_port$1$2/ permanent;
+		}
+	}
+}
+```
+
+<h4>合并目录</h4>
+
+比如要访问`www.jd.com/11/22/33/44/55/a.html`
+
+优化可以使用`alias`命令或者`rewrite`命令
+
+```
+server{
+	listen 82;
+	server_name localhost;
+	location /get {
+		rewrite ^/get-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+)-(\w+)\.html$ /server/$1/$2/$3/$4/$5/$6.html last;
+	}
+}
+```
+
+## 反向代理
+
+都是由`nginx_http_proxy_module`解析。
+
+### 配置语法
+
+<h4>proxy_pass指令</h4>
+
+用来被设置成被代理服务器，
+
+语法：`proxy_pass URL`
+
+位置：location
+
+```
+location / {
+	# proxy_pass http://192.168.1.102/;
+	proxy_pass http://192.168.1.102;
+}
+
+location /server {
+	# proxy_pass http://192.168.1.102/;
+	proxy_pass http://192.168.1.102;
+}
+```
+
+在proxy_pass的URL中是否加`/`?
+
+如果不加的话，nginx就会将`/server`拼接到代理的URL后面，如果加的话就不拼接。
+
+<h4>proxy_set_header指令</h4>
+
+这个指令更改nginx服务器接受到的客户端请求头信息，然后将新的请求头信息发给被代理服务器。可以用于将客户的真实地址发送给服务器端。
+
+语法：`proxy_set_header field value`
+
+默认值：`proxy_set_header Connection close`
+
+位置：http，server，location
+
+被代理服务器的配置（用来观察）：
+
+```
+server{
+	listen 8080;
+	server_name localhost;
+	default_type text/plain;
+	return 200 $http_username;
+}
+```
+
+代理服务器：
+
+```
+server{
+	listen 8080;
+	server_name localhost;
+	location /server{
+		proxy_pass http://192.168.1.102:8080/;
+		proxy_set_header username TOM;
+	}
+}
+```
+
+<h4>proxy_redirect指令</h4>
+
+用来重置头信息中的`Redirect`和`Refresh`值。
+
+语法：`proxy_redirect [ redirect replacement | default | off]` 默认default
+
+用来防止暴露服务器的地址。
+
+### SSL安全控制
+
+默认nginx没有添加`nginx_http_ssl_module`模块，因此需要重新安装并且配置。
+
+<h4>证书生成</h4>
+
+方式一：阿里云腾讯云
+
+方式二：自签证书
+
+```
+openssl genrsa -des3 -out server.key 1024
+openssl req -new -key server.key -out server.csr
+cp server.key server.key.org
+openssl rsa -in server.key.org -out server.key
+openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+```
+
+<h4>ssl指令</h4>
+
+开启ssl
+
+语法：`ssl on | off`默认off
+
+也可以使用`listen 443 ssl`打开。
+
+<h4>证书指令</h4>
+
+* `ssl_certificate file` 指定ssl证书文件路径
+* `ssl_certificate_key file` 指定密钥的路径
+* `ssl_session_cache off | none |builtin | [shared:name:size] ` 配置ssl缓存，off禁用，builtin为内置ssl缓存，尽在一个工作进程中使用；shared所有工作进程都适用。
+* `ssl_session_timeout 5m`：设置客户端能在缓存中反复使用的会话参数时间。
+* `ssl_ciphers passwd`：指出允许的密码，为Openssl格式
+
+实例配置：
+
+```
+server{
+	listen 443 ssl;
+	listen [::]:443 ssl; # ipv6
+	
+	ssl_certificate server.cert;
+	ssl_certificate_key server.key;
+	ssl_session_cache shared:SSL:1m;
+	ssl_session_timeout 5m;
+	
+	ssl_ciphers HIGH:!aNULL:!MD5;
+	ssl_prefer_server_ciphers on;
+	
+	location / {
+		root html;
+		index index.html;
+	}
+}
+```
+
+### http自动转https
+
+```
+server{
+	listen 80;
+	listen [::]:80;
+	server_name www.aaa.com;
+	location / {
+		rewrite ^(.*) https://www.aaa.com$1;
+	}
+}
+```
+
+### 反向代理系统优化
+
+<h4>proxy_buffering指令</h4>
+
+用于开启或者关闭代理服务器的缓冲区。
+
+语法：`proxy_buffering on | off` 默认 on
+
+<h4>proxy_buffers指令</h4>
+
+指定单个连接从代理服务器中读取的缓冲区的个数和大小。
+
+语法：`proxy_buffers number size`默认 `8 4k | 8k`大小由操作系统配置决定
+
+numer表示缓冲区的数目，size表示每个缓冲区的大小
