@@ -1157,3 +1157,174 @@ location / {
 ```
 
 [nginx +VUE 解决404 问题](https://www.jianshu.com/p/989d8bc719c4)
+
+## IPv6建站流程梳理
+
+最近想着怎么将以前的接电脑重新利用起来，想到学校宽带可以分配IPv6地址，立马产生了一个想法，把我的旧电脑当成一个服务器，我的旧电脑8核8G的配置，虽然校园网只有10M但也比腾讯云的2核1G1M的服务器强多了。
+
+而且手机流量运营商默认支持IPv6，这样就可以随时随地访问自己的服务器了。
+
+[IPv6閒談-一起玩玩IPv6自動配置 - 台部落 (twblogs.net)](https://www.twblogs.net/a/5c7f7082bd9eee35fc133b9b)
+
+### 1. 检查IPv6
+
+首先需要直插网线来检验自己的使用的运营商是否支持IPv6，在window端使用`ipconfig`指令可以查看是否有IPv6地址。
+
+如果有IPv6地址会显示如下：
+
+```
+以太网适配器 以太网:
+
+   连接特定的 DNS 后缀 . . . . . . . :
+   IPv6 地址 . . . . . . . . . . . . : 2401:3a2:2194:6320::1001
+   IPv6 地址 . . . . . . . . . . . . : 2401:3a2:2194:6320:6989:1d24:1d7b:ae1c
+   临时 IPv6 地址. . . . . . . . . . : 2401:3a2:2194:6320:3496:447e:914c:e38d
+   本地链接 IPv6 地址. . . . . . . . : fe80::6989:1d24:1d7b:391c%9
+   IPv4 地址 . . . . . . . . . . . . : 192.168.1.101
+   子网掩码  . . . . . . . . . . . . : 255.255.255.0
+   默认网关. . . . . . . . . . . . . : fe80::6a77:24ff:feb1:7aa9%9
+                                       192.168.1.1
+```
+
+其中`2401:`开头的地址为全球IPv6地址，`fe80:`开头的则为本地IPv6地址。如果只有本地IPv6地址则表明并未开启IPv6.
+
+对于部分windows设备的默认设置可能并未开启IPv6协议，可以通过打开`控制面板->网络和共享中心->更改适配器设置`，选择当前自己的网络，右键属性中网络选项卡中查看是否勾选`Internet协议版本6`，没勾选请勾选上。
+
+<img src="https://i.loli.net/2021/11/22/7iPeF6vpj2EVQkM.png" alt="image-20211122223934053" style="zoom: 67%;" />
+
+如果还未设置，需要检查你的路由器、光猫是否分配IPv6地址，或者联系运营商。
+
+在linux中使用`ip addr | grep inet6`或者`ifconfig | inet6`来查看是否分配IPv6地址。
+
+```sh
+➜  ~ ip addr | grep inet6
+    inet6 ::1/128 scope host 
+    inet6 2401:3a2:2094:6320::1000/128 scope global dynamic noprefixroute 
+    inet6 2401:3a2:2094:6320:8130:33bf:6d5c:5f8f/64 scope global temporary dynamic 
+    inet6 2401:3a2:2094:6320:b5ea:5511:1fc9:8d28/64 scope global dynamic mngtmpaddr noprefixroute 
+    inet6 fe80::66e:39a1:916:7c17/64 scope link noprefixroute
+```
+
+检验是否成功连接IPv6，是否可以成功访问以下网址:
+
+* <a href="https://test-ipv6.com/" target="blank_">test-ipv6</a>
+* <a href="http://speed.neu6.edu.cn/" target="blank_">东北大学IPv6测速站</a>
+
+### 2. 硬件准备
+
+检查好自己的网络已经支持了IPv6的话，就可以开始准备硬件了。
+
+> 注意这里的路由器是为了方便非流量设备进行IPv6访问，比如平板、电脑、电视、智能语音助手等设备。如果没有这个需求，也可以只使用网线进行连接。
+
+1. 支持IPv6的路由器（少部分路由器支持）这里选择了`TL-WDR5620千兆版`，某东大约￥130购入。
+2. 支持IPv6的设备（95%设备都支持）
+
+检查路由器是否成功分配到IPv6。
+
+<img src="https://i.loli.net/2021/11/22/zZDFhliJYa3r4KI.png" alt="image-20211122225800779" style="zoom:80%;" />
+
+### 3. 设置IPv6临时地址
+
+临时地址大概意思是一个设备的ip不固定，为了隐私考虑。ipv6地址不像ipv4一样使用NAT公用一个ip，IPv6使得设备间连接更容易，但是更容易造成安全隐患。为此操作系统可以选用多个临时ip，每个ip有固定的生命周期。ipv6自动配置时使用你的MAC地址来选择一个ip地址，这样其它设备根据你的ip地址可能会算出你的mac地址（全球唯一)。
+
+而临时IPv6地址的出现就是为了解决这个安全隐患，临时IPv6地址会上一级网络获得的`租约时间`来改变，如果时间到了会自动切换一个临时IPv6地址，使得设备的安全性提高。
+
+对于普通的**客户端**来说，临时IPv6地址的开启可以某种程度上有效提高设备的安全性。
+
+而对于**服务器端**来说，并不想让其他的用户通过临时IPv6地址进行访问，要求其必须从固定的IPv6地址访问，因此需要进行配置。
+
+windows端：
+
+* 开启临时IPv6地址：`netsh interface ipv6 set privacy state=enable`
+* 关闭临时IPv6地址：`netsh interface ipv6 set privacy state=disable`
+
+Linux端：
+
+参考：[linux设置ipv6临时地址](https://www.cnblogs.com/makefile/p/5040615.html)
+
+查看是否开启IPv6临时地址：
+
+```sh
+> sudo sysctl -a | grep tempaddr     
+net.ipv6.conf.all.use_tempaddr = 2
+net.ipv6.conf.default.use_tempaddr = 2
+net.ipv6.conf.docker0.use_tempaddr = 2
+net.ipv6.conf.eno1.use_tempaddr = 0
+net.ipv6.conf.lo.use_tempaddr = -1
+net.ipv6.conf.veth0b4fc75.use_tempaddr = 2
+net.ipv6.conf.wlo1.use_tempaddr = 2
+```
+
+如果是无线网卡就修改`wlol`的配置，如果是以太网就修改`eno1`的配置。
+
+* 开启：
+
+  ```sh
+  vim /etc/sysctl.d/10-ipv6-privacy.conf
+  # 设置以下
+  net.ipv6.conf.default.use_tempaddr = 0
+  # 推出vim
+  sysctl --system	# 使得配置生效
+  ```
+
+* 关闭：设置为`net.ipv6.conf.default.use_tempaddr = 2`重新连接网络即可。
+
+### 4. 防火墙设置
+
+服务器如果是indows中需要关闭网络防火墙，在`控制面板\系统和安全\Windows Defender 防火墙\自定义设置`中`关闭windows Defender防火墙`，这个防火墙默认会拦截来自内网和外网的80或者443端口。
+
+<img src="https://i.loli.net/2021/11/23/JhlqfFjPkRTLNSp.png" alt="image-20211123113927157" style="zoom:80%;" />
+
+在Linux暂时还没有遇到，默认是全部放行。
+
+### 5. 域名解析和DDNS配置
+
+这里使用[阿里云](https://www.aliyun.com/)的域名和[DNSPod](https://www.dnspod.cn/)的https证书申请。这里使用阿里云是因为其有丰富的设置API，可以在远端使用程序即可设置域名DDNS解析。
+
+首先是测试自己的域名是否能够正常解析到自己的IPv6地址：
+
+进入阿里云域名控制台后选择已经创建好的域名后，点击**解析**，然后添加记录。
+
+* 记录类型选择`AAAA`，用于指向一个IPv6的地址，当前中国只有IPv6地址的服务器无需备案。
+* 主机记录根据自己选择，这里我选择了`@`
+* 解析路线默认即可
+* 记录值即自己服务器的IPv6地址，填写服务器的**固定**IPv6地址。
+* TTL设置为10分钟最短的更新时间。
+
+登录到阿里云控制台后进入[RAM 访问控制](https://ram.console.aliyun.com/users)，点击创建用户，并且勾选`Open API 调用访问`用于生成调用阿里云API的Token。创建完成后一定要保存自己的`AccessKey ID`和`AccessKey`这是在后来API中重要的验证参数。
+
+创建完成后为其添加两个权限`AliyunDomainFullAccess`和`AliyunDNSFullAccess`，这两个是允许这个APIToken进行控制的权限，分别是管理域名服务的权限和管理云解析(DNS)的权限，否则之后使用API无法对DDNS进行修改和设置。
+
+由于IPv6的地址由于运营商的设置可能会发生变换，因此DDNS的设置就是为了让自己的IPv6地址与域名解析实时更新。
+
+DDNS设置使用Github的开源项目：https://github.com/NewFuture/DDNS
+
+具体用法见https://github.com/NewFuture/DDNS/blob/master/README.md。
+
+### 6. Nginx配置
+
+如果使用nginx来配置服务器，需要监听IPv6地址对应的端口，如果不开启会导致无法使用IPv6地址访问。
+
+```
+server{
+	listen 80;
+	listen [::]:80;	# IPv6地址
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
