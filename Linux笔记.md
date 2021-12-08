@@ -564,3 +564,332 @@ done
 * `-n` 不执行脚本，只检验语法问题
 * `-x` 将使用到的脚本内容输出到屏幕
 * `-v` 执行前，先将脚本内容输出到屏幕上
+
+## 用户管理
+
+### 用户和用户组信息
+
+`id`查看每个用户有自己唯一的UID，所在的组为GID
+
+```sh
+[root@localhost ~]# id
+uid=0(root) gid=0(root) groups=0(root)
+[root@localhost ~]# id nginx
+uid=987(nginx) gid=981(nginx) groups=981(nginx)
+```
+
+查看`/etc/passwd`用户信息：
+
+```sh
+> head -n 4 /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+```
+
+分号之间分割的是：账号名称：密码：UID：GID：用户信息栏：home目录：shell
+
+这里的密码迁移到了`/etc/shadow`文件中了。
+
+```sh
+> head -n 6 /etc/shadow
+root:$1$jAtUS7QW$ztQIqapSdbgJCKnS/eJrs/::0:99999:7:::
+bin:*:18353:0:99999:7:::
+daemon:*:18353:0:99999:7:::
+adm:*:18353:0:99999:7:::
+lp:*:18353:0:99999:7:::
+2mw:$1$jAtUS7QW$ztQIqapSdbgJCKnS/eJrs/:18882:0:99999:7:::
+```
+
+分号之间分割的是：
+
+* 账号名称
+* 密码
+* 最近密码修改日期
+* 密码不可被修改的天数
+* 密码需要重新修改的天数
+* 密码需要修改期限前警告天数
+* 密码过期后宽限的天数
+* 账号失效日期
+* 保留
+
+root密码忘记了怎么办：可以使用Live CD方式启动系统，并且修改`/etc/shadow`文件中的密码。
+
+查看linux中密码加密机制：`authconfig --test | grep hashing`
+
+查看用户组的信息文件`/etc/group`
+
+```sh
+> head -n 4 /etc/group
+root:x:0:
+bin:x:1:
+daemon:x:2:
+sys:x:3:
+adm:x:4:
+```
+
+分别是组名：用户组密码：GID：用户组支持的账号名称
+
+切换用户组：`newgrp root`
+
+### 账号管理
+
+修改密码：`sudo passwd jack`，不知道用户名默认为修改使用者账号密码。
+
+```sh
+-l # 表示Lock，是密码失效，在/etc/shadow对应密码项前加一个!
+-u # 表示unlock，解锁密码
+-n # 表示多久不可以修改密码的天数
+-x # 表示多久内必须修改密码的天数
+-w # 表示密码过期前警告天数
+-i # 接日期，表示密码失效的日期
+-S # 查看账户详细信息
+```
+
+添加用户：`useradd`
+
+```
+useradd jack [-g 初始group] [-G 次要用户组] [-c 说明] [-s 使用的shell] [-d home目录] [-e YYYY-MM-DD失效日期]
+```
+
+显示密码详细参数：`chage`
+
+```sh
+-l # 列出详细账户参数
+-E # 修改账号失效日期 YYYY-MM-DD
+-I # 修改密码失效天数
+-M # 密码多久需要进行修改
+-W # 密码过期前警告日期
+```
+
+修改用户权限`usermod`：
+
+```sh
+-L # 暂时锁定用户
+-U # 解锁用户
+# 其他指令于useradd类似，比如-g 修改初始用户组，-G修改次要用户组
+```
+
+修改自己启动的shell `chsh`指令
+
+```sh
+chsh -l	# 查看可以用的shell
+chsh -s /bin/bash # 修改自己的shell
+```
+
+删除用户：`userdel`
+
+```sh
+userdel [-r] jack
+# -r 表示连同home目录一起删除
+```
+
+<h4>组管理</h4>
+
+添加组：`groupadd student`
+
+修改组：`groupmod -n newname name`
+
+删除组：`groupdel groupname`
+
+用户组管理员：`gpasswd`
+
+```sh
+gpasswd group	# 不加参数表示设置组管理员密码
+gpasswd -A user1 user2 groupname	# 设置组管理员
+gpasswd -M user1 groupname			# 将用户添加进这个组
+gpasswd -r gname	# 删除密码
+```
+
+查看当前登录的用户：`who`或者`w`
+
+查看登录记录：`last`或者`lastlog`
+
+终端之间发送消息：
+
+`write root`向root用户发送消息
+
+`mesg [y|n]` 选择是否开启接收消息，y表示yes
+
+## 计划任务
+
+### at命令
+
+`at`命令用于只执行一次的任务，不过需要`atd`服务的开启，有些linux服务器可能并未开启。
+
+开启atd服务：
+
+```sh
+systemctl restart atd
+systemctl enable atd
+systemctl status atd
+```
+
+使用at命令的限制：
+
+允许使用at命令的配置在`/etc/at.allow`文件中，禁止使用at命令的配置在`/etc/at.deny`文件中。
+
+使用语法：
+
+```sh
+at [-mldv] TIME
+at -c taskId
+-m # 表示发送email
+-l # 表示列出所有使用者的计划任务
+-d # 取消一个计划任务
+-v # 使用较为明显的时间格式来显示任务列表
+-c # 列出该项任务的实际内容，后面接任务ID
+Time：
+	HH:MM
+	HH:MM YYYY-MM-DD
+	HH:MM[am|pm] [Month] [Date]
+	HH:MM[am|pm] + number [minutes|hours|days|weeks]
+	now + 5 minutes
+```
+
+删除任务：
+
+```
+at -d id
+atrm id
+```
+
+`batch`命令：在CPU任务负载小于0.8的时候才执行工作任务，命令类似at。
+
+### crontab命令
+
+同样限制使用的配置文件在`/etc/cron.allow`和`/etc/cron.deny`
+
+```sh
+crontab [-u username] [-ler]
+-e # 编辑定时任务
+-l # 查看定时任务
+-r # 删除定时任务
+```
+
+特殊字符：
+
+* `*` 代表任意时间
+* `,` 代表“或” `0 3,6 * * *` 代表3：00和6：00执行命令
+* `-` 代表区间。`20 8-12 * * *` 代表 8，9，10，11，12时的20分会执行任务
+* `/n` 代表时间间隔 `*/5 * * * *` 表示每间隔5分钟执行一次
+
+### timeout命令
+
+```sh
+$ timeout [OPTION] DURATION COMMAND [ARG]...
+ s : 秒 (默认)
+ m : 分钟
+ h : 小时
+ d : 天
+ # 长选项必须使用的参数对于短选项时也是必需使用的。
+ -k, 命令在初始信号发出后再经过所指定持续时间后仍在运行，则对其发送 KILL 信号
+ -s : --signal=信号，超时后发送的信号。信号类似"HUP"的信号名或是信号数。查看"kill -l"以获得信号列表
+ --help        显示此帮助信息并退出
+ --version        显示版本信息并退出
+ # 如果不添加任何单位，默认是秒。如果DURATION为0，则关联的超时是禁用的。
+ # 如果程序超时则退出状态数为124，否则返回程序退出状态。
+ # 如果没有指定信号则默认为TERM 信号。TERM 信号在进程没有捕获此信号时杀死进程。
+ # 对于另一些进程可能需要使用KILL (9)信号，当然此信号不能被捕获。
+```
+
+比如：
+
+```sh
+timeout 10 top 					# 10秒后结束top命令
+timeout 5m ping www.baidu.com	# 5分钟后停止ping命令
+timeout -k 10s 1m ./gcc			# 1分钟后还在运行，则再过10秒后结束
+```
+
+### sleep命令
+
+延迟
+
+```sh
+sleep 1		# 延迟一秒
+sleep 5m
+sleep 3h
+sleep 1d
+```
+
+## 任务管理
+
+### 后台任务
+
+开启后台任务 `&`
+
+```
+./redis-server &
+```
+
+在vim编辑器中切换后台：`ctrl+z`键
+
+查看所有后台: `jobs`
+
+将应用从后台切换上来：
+
+```sh
+[root@localhost bin]# jobs
+[2]+  Stopped                 vim cron.log  (wd: ~)
+[3]-  Running                 redis-server &
+[root@localhost bin]# fg %2
+```
+
+`kill`命令：可以杀死进程，也可以向进程传递信号
+
+### 查看进程
+
+```sh
+ps -l # 只查看和自己bash相关的进程
+ps aux # 查看系统中所有进程的状态
+ps -ef # 查看每一个进程详细信息
+```
+
+动态查看进程：`top`
+
+查看进程树：`pstree`
+
+查看内存使用情况：`free`
+
+查看系统启动时间和任务负载：`uptime`
+
+查看网络情况：`netstat -tunlp`	tu表示tcp和udp，n时服务以端口显示 p显示进程。
+
+## 系统服务
+
+系统服务配置文件目录：`/usr/lib/systemd/system`
+
+### systemctl查看状态
+
+```bash
+# systemctl [cmd] [service]
+systemctl status atd
+# start stop restart reload enable disable status
+systemctl # 查看所有的服务
+systemctl list-dependencies [unit] [--reverse]
+# --reverse 表示反向追踪谁使用这个unit
+```
+
+### 配置文件详解
+
+service文件：
+
+```
+[Unit]
+Description=简易说明
+Documentation=文档说明
+After=在哪个Daemon启动后才运行（不强制）
+Requires=在哪个Daemon启动后才运行（强制）
+Conflicts=冲突性检查
+[Service]
+Type=启动方式会影响ExecStart.simple由ExecStart启动，forking由于程序运行过久因此关闭，oneshot一次性的
+EnvironmentFile=环境变量配置文件（一般在/etc/sysconfig/sshd）
+ExecStart=启动命令或脚本
+ExecStop=关闭服务的命令 systemctl stop命令
+ExecRelod=systemctl reload相关命令
+Restart=
+RestartSec=被关闭后需要多长时间重启(毫秒)
+[Install]
+```
+

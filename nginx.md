@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  P109
+[BV1ov41187bq](https://www.bilibili.com/video/BV1ov41187bq)  Over
 
 ## 初始nginx
 
@@ -1606,4 +1606,361 @@ backup用于其他服务器都不能使用的时候，才启用这个服务器�
     }
     ```
 
-    
+
+### 四层负载均衡
+
+nginx1.9之后增加了一个Stream模块，用于四层负载均衡的转发、代理和负载均衡等功能。
+
+因此需要添加模块：
+
+```sh
+./configure --with-stream
+make
+cp objs/nginx /usr/local/nginx/sbin
+make upgrade
+```
+
+四层负载均衡就可以实现非web应用的负载均衡，比如Redis的负载均衡，tomcat的负载均衡。
+
+`stream`指令，这个是用来配置nginx四层负载均衡的指令
+
+所在的块为`main`块中，不隶属于其他的块。
+
+在`stream`块中，还有两个指令：`upstream`和`server`。`upstream`指令同http块中的指令类似，用于定义一组用于负载均衡的服务器。
+
+举例：实现两个Redis服务器和两个Tomcat服务器之间的负载均衡：
+
+```
+stream{
+	upstream redisBackend{	# Redis的实际端口
+		server 192.168.200.101:6379;
+		server 192.168.200.101:6378;
+	}
+	
+	upstream tomcatBackend{	# Tomcat的实际端口
+		server 192.168.200.101:8080;
+		server 192.168.200.101:8081;
+	}
+	
+	server{
+		listen 81;	# nginx服务器监听的端口
+		proxy_pass redisBackend;	# 不同添加"http://"
+	}
+	
+	server{
+		listen 82;
+		proxy_pass tomcatBackend;
+	}
+}
+```
+
+### Nginx缓存集成
+
+在实际环境中有很多种缓存：操作系统缓存，数据库缓存、应用程序缓存、Web服务器缓存、浏览器缓存。
+
+缓存也有可能导致数据不一致的问题。nginx种的缓存功能是由`ngx_http_proxy_module`模块中集成。
+
+<h4>缓存相关指令</h4>
+
+* `proxy_cache_path`：指定设置缓存的目录
+
+  语法：`proxy_cache_path  path  [level=number] keys_zone=zone_name:zone_size [inactive=name] [max_size=size]`
+
+  位置：http
+
+  目录的名称是由url的地址MD5计算出来的。
+
+  `level=1:2`表示缓存具有两层目录，第一层是一个字母，第二层是两个字母，可以最多设置3层。
+
+  `level=1:2` 存储路径为 `path/a/07`  `level=:3:1`存储路径为 `path/a0/c64/b`
+
+  `key_zone`用来表示缓冲区的名称和大小，比如`key_zone=itcast:300m`表示缓存区名称是itcast，大小300MB
+
+  `inactive`用于指定数据多次未访问就删除缓存。比如`inactive=1d`
+
+  `max_size`用来设置最大的缓存空间，如果缓存存满就会覆盖缓存时间最长的数据。
+
+  代码：
+
+  ```
+  http{
+  	# ...
+  	proxy_cache_path /tmp/proxy_cache level=2:2 keys_zone=itcast:200m inactive=1d max_size=20g
+  	# ...
+  }
+  ```
+
+* `proxy_cache`用于开启或者关闭缓存，如果开启则指定使用哪个缓冲区名称
+
+  语法：`proxy_cache zone_name | off` 默认 off
+
+  位置：http，server，location
+
+* `proxy_cache_key`用于设置web缓存的key值，nginx会根据key的MD5来计算哈希缓存。
+
+  > 这个key的设置挺重要的，如果设置为常量值，所有本块中的请求缓存都会存放在一个缓冲区中，如果还设置了`proxy_cache_valid`这个属性的话，一个目录下不存在返回404状态码，其他存在的目录也会因为在同一个缓冲区返回404，即使这个目录存在。
+
+  语法：`proxy_cache_key key`默认key为`$schema$proxy_host$request_uri`
+
+  位置：http，server，location
+
+* `proxy_cache_valid`用来对不同返回的状态码设置不同的缓存时间，比如对200设置缓存时间长一点，对404设置缓存短一点
+
+  语法：`proxy_cache_valid code time;`
+
+  位置：http，server，location
+
+  ```
+  proxy_cache_valid 200 302 10m;
+  proxy_cache_valid 404 1m;
+  proxy_cache_valid any 3m;
+  ```
+
+* `proxy_cache_min_uses`设置资源被访问多少次后被缓存
+
+  语法：`proxy_cache_valid times;`
+
+  位置：http，server，location
+
+* `proxy_cache_min_methods`设置缓存哪些HTTP请求方法
+
+  语法：`proxy_cache_methods GET|DELETE;`
+
+  位置：http，server，location
+
+<h4>删除缓存</h4>
+
+方式一：直接在对应目录下删除所有缓存文件
+
+方式二：使用第三方库。
+
+`ngx_cache_purge`这个库就可以进行删除具体的资源。
+
+```sh
+git clone https://github.com/FRiCKLE/ngx_cache_purge
+mv ngx_cache_purge purge
+./configure --add-module=/path/to/purge
+make
+cp objs/nginx /usr/local/nginx/sbin
+make upgrade
+```
+
+使用命令：`proxy_cache_purge 缓冲区名称 key值`
+
+<h4>nginx设置不缓存</h4>
+
+对于经常发生变化的资源，使用缓存可能会导致数据更新不及时的问题。
+
+* `proxy_no_cache`用于定义不将数据进行缓存的条件 
+
+  语法：`proxy_no_cache str ...`
+
+  `str`可以指定三个变量分别是`$cookie_nocache, $arg_nocache, $cookie_comment`
+
+  位置：http，server，location
+
+* `proxy_cache_bypass str ...`
+
+  `str`可以指定三个变量分别是`$cookie_nocache, $arg_nocache, $arg_comment`
+
+  位置：http，server，location
+
+`$cookie_nocache`表示当前请求中cookie键中`nocache`对应的值
+
+` $arg_nocache, $arg_comment`分别表示请求参数中`nocache`和`comment`的值。
+
+## Nginx服务器端部署
+
+nginx可以进行部署集群tomcat，由于tomcat的并发量很低，没有nginx的并发量高。因此可以使用nginx对多台tomcat来进行反向代理，提高其并发量。
+
+### nginx高可用部署
+
+对于nginx反向代理服务器端来说已经能够解决服务器端并发量较低的问题，但是假如nginx端宕机，就会导致用户无法找到服务器端的地址。因此需要多台nginx服务器来进行部署集群，但是由于nginx的多台服务器IP地址不尽相同，因此导致了一个难题，需要`Keepalived`软件来进行解决。
+
+Keepalived是借助VRRP(Virtual Route Redundancy Protocal, 虚拟路由冗余协议)协议实现的，VRRP设备可以将多台路由器可以虚拟成一个==虚拟路由器==。对于多台路由器分为两种角色master角色和Backup角色，master角色一般情况下做两件事情，一就是正常处理用户的请求，二是master节点发出一个心跳检测，告诉其他backup节点自身的情况。如果master节点本身宕机之后，其他backup节点就可以通过选择来自动推选出一个master节点，用于处理特殊的情况。
+
+### Keepalived安装部署
+
+下载地址：[Keepalived | Download](https://keepalived.org/download.html)
+
+```sh
+wget https://keepalived.org/software/keepalived-2.2.4.tar.gz
+tar -zxf keepalived-2.2.4.tar.gz
+cd keepalived-2.2.4
+./configure --sysconf=/etc --prefix=/usr/local
+make && make install
+cp /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.d  # 备份
+```
+
+Keepalive的配置文件在`/etc/keepalived/keepalived.conf`，二进制文件在`/usr/local/sbin/keepalived`
+
+keepalived配置文件共分为三个部分：1. global全局配置  2. vrrp相关设置  3. LVS相关配置
+
+全局设置：
+
+```
+global_defs {
+	# 警告通知邮件
+   notification_email {
+     acassen@firewall.loc
+     failover@firewall.loc
+     sysadmin@firewall.loc
+   }
+   notification_email_from Alexandre.Cassen@firewall.loc
+   smtp_server 192.168.200.1
+   smtp_connect_timeout 30
+   router_id LVS_DEVEL
+   vrrp_skip_check_adv_addr
+   vrrp_strict
+   vrrp_garp_interval 0
+   vrrp_gna_interval 0
+}
+```
+
+VRRP配置：
+
+```
+vrrp_instance VI_1 {
+    state MASTER	# 角色
+    interface eth0
+    virtual_router_id 51
+    priority 100	# 优先级，当master失效的时候就会自动选出一个master节点
+    advert_int 1	# 发送状态时间间隔
+    authentication {	# 认证密码
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {		# 虚拟路由器的地址
+        192.168.200.16
+        192.168.200.17
+        192.168.200.18
+    }
+}
+```
+
+设置各个服务器的角色为`MASTER`和`BACKUP`，指定要使用的网卡`interface`，以及设置虚拟路由器的地址后，启动Keepalived二进制文件`/usr/local/sbin/keepalived`
+
+开启二进制文件后，就可以使用`ip addr`查看IP地址的配置，在对应的网卡下，如果是master节点就可以看到对应的虚拟IP地址，如果是backup节点的话需要master节点宕机后才可以看到。
+
+### Keepalived自动切换
+
+当本台服务器上的nginx出现故障的时候，不能一直人工的去切换keepalive的进程开关，因此需要一个自动化脚本来进行keepalived的vrrp路由转换操作。
+
+使用到keepalived的脚本配置`vrrp_script`
+
+```
+vrrp_script name{
+	script "脚本位置"
+	interval 3	# 执行时间间隔
+	weight -20 # 动态调整主机的优先级
+}
+```
+
+编写脚本：
+
+```sh
+#!/bin/bash
+num=`ps -C nginx --no-header | wc -l`
+if [ num -eq 0 ]; then
+	/usr/local/nginx/sbin/nginx
+	sleep 2
+	if [ `ps -C nginx --no-header | wc -l` -eq 0 ]; then
+		killall keepalived
+	fi
+fi
+```
+
+这个脚本需要放在对应的`vrrp_instance`之前，并且需要在其中添加`track_script`，指定执行对应的vrrp脚本。
+
+```
+vrrp_instance VI_1 {
+    state MASTER	# 角色
+    interface eth0
+    virtual_router_id 51
+    priority 100	# 优先级，当master失效的时候就会自动选出一个master节点
+    advert_int 1	# 发送状态时间间隔
+    authentication {	# 认证密码
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {		# 虚拟路由器的地址
+        192.168.200.16
+    }
+    track_script{
+    	ck_nginx	# 对应vrrp_script的名称
+    }
+}
+```
+
+对于优先级高的机器，如果宕机重新启动会抢占优先级比他低的机器，这增加了额外的切换开销，因此可以使用非抢占式的方法来减少节点切换；`weight -20`也可以启动大致类似的效果，将对应的优先级权重减少。
+
+### 实现下载站点
+
+使用的模块是`ngx_http_autoindex_module`来实现的，这个模块会处理以 `/` 结尾的请求，并且生成对应的目录列表。
+
+* `autoindex`指令，启用或者禁用目录列表的输出
+
+  语法：`autoindex on | off`默认off
+
+  位置：location，http，server
+
+* `autoindex_exact_size`，对应HTML格式，指定是否显示文件的确切大小
+
+  语法：`autoindex_exact_size on | off`默认off
+
+  on是确切大小，单位bytes，off单位是MB，GB等
+
+  位置：location，http，server
+
+* `autoindex_format`设置目录列表的格式：
+
+  语法：`autoindex_format html | xml | json | jsonp`默认html
+
+  位置：location，http，server
+
+* `autoindex_localtime`显示时间 on GMT时间，off服务器时间
+
+### 用户认证模块
+
+用户认证模块限制客户端对服务器资源的访问，是通过`ngx_http_auth_basic_module`模块来实现的，它实现是通过HTTP身份验证。
+
+* `auth_basic`使用HTTP基本认证协议启用用户名和密码验证
+
+  `auth_basic string | off`默认off，String为提示信息。
+
+* `auth_basic_user_file`指定用户名和密码所在文件
+
+  语法：`auth_basic_user_file file`
+
+  需要使用`htpasswd`工具来生成对应的用户名和密码。
+
+  ```
+  apt-get install -y httpd-tools
+  htpasswd -c /etc/htpasswd username 			# 创建新文件记录用户名和密码
+  htpasswd -b /etc/htpasswd username passwd  	# 新增一个用户名和密码
+  htpasswd -D /etc/htpasswd username			# 删除一个用户
+  htpasswd -v /etc/htpasswd username passwd	# 验证用户名和密码
+  ```
+
+## Nginx扩展模块
+
+安装Lua。[Lua: download](https://www.lua.org/download.html)
+
+```sh
+wget https://www.lua.org/ftp/lua-5.4.3.tar.gz
+tar -zxf lua-5.4.3.tar.gz
+cd lua-5.4.3
+make linux test 		# 测试在linux环境下是否报错
+make && make install
+lua -v
+```
+
+淘宝开发了一个`ngx_lua`模块，将lua解释器集成进nginx。
+
+搭建环境：[OpenResty® - 中文官方站](https://openresty.org/cn/)，Openresty集成了Nginx和Lua
+
+直接使用OpenResty，编译配置的方法同nginx类似。
+
+<img src="https://i.loli.net/2021/11/26/W7mY3Te1bRIPZLN.png" alt="img" style="zoom: 80%;" />
+
+lua可以操作Redis(`lua-resty-redis`)，MySQL(`lua-resty-mysql`)，处理json数据(`lua-cjson`)
