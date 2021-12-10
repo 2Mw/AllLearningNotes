@@ -201,7 +201,16 @@ drive.mount('/content/dreve',force_remount=True)
 
 🔵`read_csv()`
 
-读取csv文件，默认参数`header=0`，读取表格第一行为表头。
+读取csv文件，默认参数`header=0`，读取表格第一行为表头。 
+
+🔵填充`NAN`值
+
+```python
+inputs, outputs = data.iloc[:, 0:2], data.iloc[:, 2]
+inputs = inputs.fillna(inputs.mean())
+```
+
+
 
 ### Numpy
 
@@ -220,6 +229,13 @@ drive.mount('/content/dreve',force_remount=True)
 * 两矩阵形状不同
 
   加入a的shape为`(s1,s2,s3,s4...,sn)`,b不为标量且其shape为`(x1,x2,x3)`，b的维度小于a且有$x_1=s_{n-2},x_2=s_{n-1},x_3=s_{n}$之类，则可以进行广播。
+
+🔵节约内存
+
+```python
+Y = Y + X		# (X)
+Y[:] = Y + X	# (√)
+```
 
 ### PyTorch
 
@@ -338,6 +354,10 @@ def same_seeds(seed):
 
 
 
+### seaborn
+
+
+
 ### 垃圾回收
 
 > gc包是python自带的包
@@ -347,6 +367,16 @@ import gc
 
 del train, train_label, train_x, train_y, val_x, val_y
 gc.collect()
+```
+
+### 数据类型相互转换
+
+```python
+# numpy ndarray -> python list
+a = np.array(matrix)
+a.tolist()
+# torch.tensor(gpu) -> numpy ndarray
+var.cpu().data.numpy()
 ```
 
 ## 一 回归regression
@@ -378,7 +408,7 @@ $$
 
 缺陷：
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20210928004231918.png" alt="image-20210928004231918" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/LkR5nNZS3hXloUt.png" alt="image-20210928004231918" style="zoom:50%;" />
 
 会陷入局部最优点，可能会找不到最低全局最低点，可以通过选取多个不同初始点来进行解决。
 
@@ -388,15 +418,15 @@ $$
 
 一个函数可以写成多个函数无限加成得到，有点类似于傅里叶变换和逆变换。
 
-<img src="./lhy2021dl.assets/image-20210928010124002.png" alt="image-20210928010124002" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/1r7uasMvp5iKfco.png" alt="image-20210928010124002" style="zoom:50%;" />
 
 * sigmoid函数：$z=\dfrac1{1+e^{-y}}, y=\omega x +b$
 
   红线函数可以写成：${\color{\red}red}=b+\sum_i c_i\text{sigmoid}(b_i+\sum_j w_{ij}x)$
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20210928010930279.png" alt="image-20210928010930279" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/KYforlPGSzX3vDn.png" alt="image-20210928010930279" style="zoom:50%;" />
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20210928011124526.png" alt="image-20210928011124526" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/sfPpBz86umIj9l1.png" alt="image-20210928011124526" style="zoom:50%;" />
 
 ​	使用线性代数即可以表示为：$t=b+c^T\sigma(b+Wx)$
 
@@ -404,13 +434,13 @@ $$
 
   $z=c\max(0,b+\omega x)$
 
-  ![image-20210928012905189](E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20210928012905189.png)
+  ![image-20210928012905189](https://i.loli.net/2021/10/26/GI9jiY68d5oBRCV.png)
 
 ### 更新参数
 
 update和epoch的区别，一个epoch中可能会更新多次参数
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20210928012524132.png" alt="image-20210928012524132" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/BAdgteWv8ErhH29.png" alt="image-20210928012524132" style="zoom:50%;" />
 
 ### 过拟合与欠拟合
 
@@ -447,7 +477,7 @@ $$
 
 🔵好的局部最优值：
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211011222434558.png" alt="image-20211011222434558" style="zoom: 67%;" />
+<img src="https://i.loli.net/2021/10/26/31GJEnR6B5WM9bX.png" alt="image-20211011222434558" style="zoom: 67%;" />
 
 Flat局部最优要比Sharp局部最优更**好**，当在验证集上进行偏移的时候，Sharp的变化更大，误差更大。
 
@@ -457,7 +487,7 @@ Flat局部最优要比Sharp局部最优更**好**，当在验证集上进行偏�
 
 使用全部数据集进行更新参数只能更新一次。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211011220401996.png" alt="image-20211011220401996" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/4td2ng6IwJWxa5Z.png" alt="image-20211011220401996" style="zoom:50%;" />
 
 需要合理设置Batch大小，当batch较小的时候，大小为10和1000并差不了多少，但是分割的数量累加上去，batch为10的训练时间可能要比batch为1000的要长。
 
@@ -465,7 +495,7 @@ Flat局部最优要比Sharp局部最优更**好**，当在验证集上进行偏�
 
 🔵Momentum
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211011223008769.png" alt="image-20211011223008769" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/bwhsopONBiYlQPT.png" alt="image-20211011223008769" style="zoom:50%;" />
 
 ### 自适应学习速率
 
@@ -483,13 +513,13 @@ $$
 
 * AdaGrad
 
-  <img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211012101244735.png" alt="image-20211012101244735" style="zoom:50%;" />
+  <img src="https://i.loli.net/2021/10/26/GPjWMSzhyU9XBse.png" alt="image-20211012101244735" style="zoom:50%;" />
 
 * RMSProp（改进版AdaGrad）
 
   在梯度大的时候移动小，在梯度小的时候移动大
 
-  <img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211012101619584.png" alt="image-20211012101619584" style="zoom:50%;" />
+  <img src="https://i.loli.net/2021/10/26/YTPsBxZWEqv2kwg.png" alt="image-20211012101619584" style="zoom:50%;" />
 
 * Adam：RMSProp+momentum
 
@@ -498,7 +528,7 @@ $$
 * 学习速率衰减（Learning Rate Decay）随着训练进行接近终点的时候，减小学习速率。
 * 学习速率预热（Warm up），学习速率先增大再变小
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211012102458093.png" alt="image-20211012102458093" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/V4n6QApLhFbtPRS.png" alt="image-20211012102458093" style="zoom:67%;" />
 
 ### Softmax函数
 
@@ -531,19 +561,23 @@ $$
 - GroupNorm将channel分组，然后再做归一化；
 - SwitchableNorm是将BN、LN、IN结合，赋予权重，让网络自己去学习归一化层应该使用什么方法。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013103344912.png" alt="image-20211013103344912" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/oO5QjNvFCeD8Vzr.png" alt="image-20211013103344912" style="zoom:67%;" />
 
 参考：[pytorch常用normalization函数](https://www.cnblogs.com/wanghui-garcia/p/10877700.html)
 
 ## 三 决策树
 
+> 好处：可解释，能处理分类和数值类的特征
+>
+> 缺点：不稳定，过拟合，不容易并行计算（由根到叶子需要顺序进行）
+
 ### 决策流程
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017094034770.png" alt="image-20211017094034770" style="zoom:80%;" />
+<img src="https://i.loli.net/2021/10/26/BxEozcTK7gCtPAi.png" alt="image-20211017094034770" style="zoom:80%;" />
 
 决策树学习目的是为了产生泛化能力强的决策树，
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017094640233.png" alt="image-20211017094640233" style="zoom:80%;" />
+<img src="https://i.loli.net/2021/10/26/Kli5Sz3RvXLT6tA.png" alt="image-20211017094640233" style="zoom:80%;" />
 
 以下三种情形会导致递归返回：
 
@@ -598,6 +632,12 @@ $$
 
 <h4>后剪枝</h4>
 
+### 改进方法
+
+随机森林：生成多个决策树，随机Baging几棵树并且有可能重复。
+
+Boosting：Gradient Boosting
+
 ## 四 SVM支持向量机
 
 参考：
@@ -611,7 +651,7 @@ $$
 
 ### 线性可分和线性不可分
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013125411522.png" alt="image-20211013125411522" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/r5bB6IAixZ8SvUV.png" alt="image-20211013125411522" style="zoom:67%;" />
 
 判断标准：是否可以由一个直线将两个类别分开（2D），三维是平面，高维是超平面。
 
@@ -631,11 +671,11 @@ $$
 
 > 最优化问题
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013130905212.png" alt="image-20211013130905212" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/EJodhH4GT3OrnFD.png" alt="image-20211013130905212" style="zoom:50%;" />
 
 对于线性可分问题，可能有无数个超平面将类别分开。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013171914343.png" alt="image-20211013171914343" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/uHAXCEJo9fDtnTy.png" alt="image-20211013171914343" style="zoom:50%;" />
 
 图中的三个点就是**支持向量**。
 
@@ -645,7 +685,7 @@ r=\dfrac{|\omega^Tx+b|}{||\omega||},\; ||\omega||为L2范数
 $$
 证明：
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013165229599.png" alt="image-20211013165229599"  />
+<img src="https://i.loli.net/2021/10/26/vW8a9P3X7SjVewg.png" alt="image-20211013165229599"  />
 
 
 
@@ -660,7 +700,7 @@ $\omega^T(x_A-\gamma*\dfrac{\omega}{||\omega||})+b=0$，得$\omega^Tx_A-\gamma*{
 * $\pm 1$绝对值相同保证所求超平面与两个对应平面距离相同
 * $\omega^Tx+b=1$与$\alpha\omega^Tx+\alpha b=\alpha$所表示的平面相同，用1可以方便表示。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013172616828.png" alt="image-20211013172616828" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/AOBp2JgtIZ8kR3u.png" alt="image-20211013172616828" style="zoom:67%;" />
 
 🔵为什么最优化目标为 ${\displaystyle \min_{\omega,b}}\dfrac12||\omega||^2$？
 
@@ -680,7 +720,7 @@ $\omega^T(x_A-\gamma*\dfrac{\omega}{||\omega||})+b=0$，得$\omega^Tx_A-\gamma*{
 
 > 核函数即将数据有低维映射到高维
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013161608903.png" alt="image-20211013161608903" style="zoom: 50%;" />
+<img src="https://i.loli.net/2021/10/26/TCpjhqYvDikPV4H.png" alt="image-20211013161608903" style="zoom: 50%;" />
 
 Cover定理：
 
@@ -690,7 +730,7 @@ Cover定理：
 
 * 无需找出核函数具体形式：
 
-  <img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211013163207061.png" alt="image-20211013163207061" style="zoom:50%;" />
+  <img src="https://i.loli.net/2021/10/26/F5ZBIHGP6fh4Vkd.png" alt="image-20211013163207061" style="zoom:50%;" />
 
 
 
@@ -739,7 +779,7 @@ $$
 
 ### 软间隔与正则化
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014103151297.png" alt="image-20211014103151297" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/cHmS1MJGwPYaKEZ.png" alt="image-20211014103151297" style="zoom:67%;" />
 
 在实际中，很难确定适合的超平面将所有的样本严格分开，“**软间隔**”即允许支持向量机在一些样本上出错。
 
@@ -763,7 +803,7 @@ $$
 
 [CNN卷积算法直观理解](https://github.com/vdumoulin/conv_arithmetic)
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014175338105.png" alt="image-20211014175338105" style="zoom: 80%;" />
+<img src="https://i.loli.net/2021/10/26/fHXaykAqB1YO97w.png" alt="image-20211014175338105" style="zoom: 80%;" />
 
 ### 卷积核
 
@@ -774,7 +814,7 @@ $$
 1. 有固定大小的接收域(3X3, 5X5, 7X7)等，神经元只需要看某个区域信息。
 2. 每个神经元之间进行参数共享
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014174214195.png" alt="image-20211014174214195" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/t7uVsgjO2KqJTEi.png" alt="image-20211014174214195" style="zoom:50%;" />
 
 ### 池化
 
@@ -782,7 +822,8 @@ $$
 
 比如最大池化：
 
-<center><img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014175050427.png" alt="image-20211014175050427" style="zoom:50%;" /><img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014175106671.png" alt="image-20211014175106671" style="zoom:50%;" /></center>
+
+<center><img src="https://i.loli.net/2021/10/26/Pxp7uZ6o2AbDE8n.png" alt="image-20211014175050427" style="zoom:50%;" /><img src="https://i.loli.net/2021/10/26/ABCg1JicSqNLlnb.png" alt="image-20211014175106671" style="zoom:50%;" /></center>
 
 往往卷积和池化相互搭配使用。
 
@@ -794,13 +835,13 @@ $$
 
 有n个输入数据，并且输出n个结果，并且n个数据之间存在某种关系，上下文关系。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211014191729389.png" alt="image-20211014191729389" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/ai2JxrG8kMfw9T4.png" alt="image-20211014191729389" style="zoom:50%;" />
 
 Self-attention层可以叠加多次。相关Paper：[Attention is all you need.](https://arxiv.org/abs/1706.03762)
 
 🔵自注意力如何从输入处理到输出：
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017155151714.png" alt="image-20211017155151714" style="zoom:80%;" />
+<img src="https://i.loli.net/2021/10/26/FTetB7C65hq2cfk.png" alt="image-20211017155151714" style="zoom:80%;" />
 
 在对于 $a^1$输出$b^1$的时候需要计算$a^1$与其他$a^n$之间的关系。
 
@@ -814,13 +855,13 @@ k=a^2\cdot W^k\\
 $$
 这个$\alpha$也叫注意力分数（Attention Score）
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017155958625.png" alt="image-20211017155958625" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/3BPGQTjFwpVE1u5.png" alt="image-20211017155958625" style="zoom:50%;" />
 
 在求$b^1$的时候，需要对所有的输入$a^m,m=(1,..,n)$都乘以$W^k$矩阵，$a^1$也需要乘得到$k^m$，并且乘以$W^q$矩阵得到query矩阵$q^1$。
 
 接着求解对应的注意力分数（Attention Score）,$\alpha_{1,m}=q^1\cdot k^m, m = (1,...,n)$，然后对$\alpha_{1,m}$进行SoftMax处理得到$\alpha'_{1,m}$。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017160518350.png" alt="image-20211017160518350" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/CWE4qKHFiwjOogJ.png" alt="image-20211017160518350" style="zoom:50%;" />
 
 再令$v^m=W^va^m,m=(1,...,n)$，然后进行逐项相加得到$b^1=\displaystyle{\sum_i} a'_{1,i}v^i$。
 
@@ -830,7 +871,7 @@ $$
 
 $q$由于工程中需要关注的因素不止一个，需要关注多方面的因素才能够让模型更优。
 
-![image-20211017163431071](E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017163431071.png)
+![image-20211017163431071](https://i.loli.net/2021/10/26/M67axv8OwXCnKSI.png)
 
 将每个$q,k,v$分为多个head，各个head之间内部进行处理。
 
@@ -838,7 +879,7 @@ $q$由于工程中需要关注的因素不止一个，需要关注多方面的�
 
 对于多个head之间并没有位置之间的关联，每个位置都添加一个特定的位置向量。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017163754270.png" alt="image-20211017163754270" style="zoom:67%;" />
+<img src="https://i.loli.net/2021/10/26/HtEP69XxdojvwlD.png" alt="image-20211017163754270" style="zoom:67%;" />
 
 ### CNN与自注意力机制的关系
 
@@ -848,4 +889,8 @@ CNN可以看作一个简化版的Self-Attention
 
 CNN只考虑感知野中的数据。
 
-<img src="E:\Notes\python\xx学习\李宏毅2021DL\lhy2021dl.assets\image-20211017165120993.png" alt="image-20211017165120993" style="zoom:50%;" />
+<img src="https://i.loli.net/2021/10/26/Or5Hs9U41FtKJ2E.png" alt="image-20211017165120993" style="zoom:50%;" />
+
+## 六 transformer
+
+sequence to sequence. 输出的结果有模型决定。

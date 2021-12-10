@@ -5252,7 +5252,211 @@ void testRedis(){
 }
 ```
 
+## Spring Security
 
+[BV1Cz4y1k7rd](https://www.bilibili.com/video/BV1Cz4y1k7rd)
+
+[Spring Security | FULL COURSE - YouTube](https://www.youtube.com/watch?v=her_7pa0vrg)
+
+https://youtu.be/her_7pa0vrg?t=6898
+
+### startup
+
+1. spring security intro
+2. Oauth2
+3. Spring security oauth2
+4. JWT
+
+添加依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-test</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+添加Spring security依赖之后会为项目自动添加认证`/login`和`/logout`页面。
+
+### 简单验证
+
+方式一：
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SercurityConfig extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .anyRequest()
+                .authenticated()
+                .and()
+                .httpBasic();
+    }
+}
+```
+
+这种方式是以浏览器prompt的形式进行验证，验证成功会添加一个Header：
+
+```
+Authorization: Basic dXNlcjo2NjA1YmQxOS0xYzA4LTRkZTYtODkwOS1lNTkzY2U0YzFkZGE=
+```
+
+内容为：`Basic base64(username:password)`
+
+<h4>添加白名单</h4>
+
+使用`antMatchers`和`permitAll()`函数在前面。
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SercurityConfig extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/", "index", "/css/*", "/js/*")
+                .permitAll()
+                .anyRequest()
+                .authenticated()
+                .and()
+                .httpBasic();
+    }
+}
+```
+
+### 密码加密与验证
+
+```java
+@Test
+void password(){
+    PasswordEncoder pe = new BCryptPasswordEncoder();
+    String encoded = pe.encode("123");
+    System.out.println(encoded);
+    System.out.println(pe.matches("123", "$2a$10$wpPPru6SOA.56QQYiqtPu.iu9jLSO28sDB3ybN3uFEoXgrn41x1Vm"));
+    System.out.println(pe.matches("123", encoded));
+}
+```
+
+### 自定义用户
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SercurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/", "index", "/css/*", "/js/*")
+                .permitAll()
+                .anyRequest()
+                .authenticated()
+                .and()
+                .httpBasic();	// basic auth
+    }
+
+    @Override
+    @Bean
+    protected UserDetailsService userDetailsService() {
+        UserDetails jack = User.builder()
+                .username("jack")
+                .password(passwordEncoder.encode("jack"))
+                .roles("student")
+                .build();
+        
+        UserDetails john = User.builder()
+                .username("john")
+                .password(passwordEncoder.encode("john"))
+                .roles("admin")
+                .build();
+        return new InMemoryUserDetailsManager(jack, john);
+    }
+}
+```
+
+### 角色鉴权
+
+这个是基于在`InMemoryUserDetailsManager`中创建`UserDetailsService`的用户角色`role`来确定的。
+
+通过`role`来鉴权：`hasRole()`用来允许一个用户，`hasAnyRole()`可以允许多个用户
+
+```java
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/", "index", "/css/*", "/js/*").permitAll()
+                .antMatchers("/api/**").hasAnyRole(ADMIN.name())
+                .anyRequest()
+                .authenticated()
+                .and()
+                .httpBasic();
+    }
+```
+
+**授权**鉴权：
+
+这里的授权是指`Authority()`，在添加用户的时候指定：
+
+`authorities()`函数
+
+```java
+UserDetails john = User.builder()
+        .username("john")
+        .password(passwordEncoder.encode("john"))
+        .roles(ADMIN.name())
+        .authorities(ADMIN.getGrantedAuthorities())
+        .build();
+```
+
+并且需要传入对应`GrantedAuthority`类的数组：
+
+```java
+public Set<SimpleGrantedAuthority> getGrantedAuthorities(){
+    Set<SimpleGrantedAuthority> permissions = getPermissions().stream()
+            .map(p -> new SimpleGrantedAuthority(p.getPermission()))
+            .collect(Collectors.toSet());
+
+    //permissions.add(new SimpleGrantedAuthority("ROLE_" + this.name()));
+    return permissions;
+}
+```
+
+鉴权时候通过`antMatchers`后的`hasAuthority`或者`hasAnyAuthority`来指定：
+
+```java
+.antMatchers(HttpMethod.POST, "/api/v1/*").hasAuthority(COURSE_READ.getPermission())
+```
+
+<h4>注解形式</h4>
+
+需要在实现`WebSecurityConfigurerAdapter`的安全设置类上添加注解`@EnableGlobalMethodSecurity(prePostEnabled = true)`
+
+在对应的请求上添加`@PreAuthorize`，设置条件`hasRole()`，`hasAnyRole()`，`hasAuthority`()，`hasAnyAuthority()`
+
+> 注意这里的Role需要加前缀`ROLE_`
+
+```java
+@GetMapping("/{studentId}")
+@PreAuthorize("hasRole('ROLE_ADMIN')")
+public Student getStudent(@PathVariable("studentId") Integer studentId){
+    return STUDENTS
+            .stream()
+            .filter(one -> studentId.equals(one.studentId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Student: " + studentId + " is not exists"));
+}
+```
 
 ## 资料
 
