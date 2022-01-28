@@ -36,7 +36,7 @@
     将类和对象按照某种布局组成更大的结构
 
     常用的有：代理模式、桥接模式、装饰者模式、适配器模式。
-    不常用的有：门面模式、组合模式、享元模式。
+    不常用的有：外观模式、组合模式、享元模式。
 
 3. 行为型（11种）
 
@@ -637,7 +637,7 @@ classDiagram
      }
      ```
 
-  5. 方式五（枚举方式==最推荐==）
+  5. 方式五（枚举方式）
 
      > 枚举类型线程安全，并且只会装载一次，唯一一个不会被破坏的方式
 
@@ -1461,3 +1461,152 @@ classDiagram
 
 在JDK中`Reader`字符流和`InputStream`字节流的适配使用的是`StreamDecoder`, `StreamDecoder`继承了`Reader`聚合了`InputStream` 。
 
+### 3. 装饰者模式
+
+在不改变现有的对象结构模式下，增加动态的增加一些功能。
+
+结构：
+
+* 抽象构件（Component）定义一个抽象接口
+* 具体构件（ConcreteComponent）实现抽象构件
+* 抽象装饰（Decorate）继承或者实现抽象构件，并且包含具体构件的实例，可以通过其子类扩展具体构件的功能
+* 具体装饰（ConcreteDecorate）实现抽象装饰的方法
+
+案例：
+
+```mermaid
+classDiagram
+	class FastFood{
+		-float price;
+		-String desc;
+		+GAS() void
+		+cost() float
+	}
+	
+	class FriedNoodle{
+		+cost() float
+	}
+	
+	class FriedRice{
+		+cost() float
+	}
+	
+	FastFood <|-- FriedNoodle
+	FastFood <|-- FriedRice
+	
+	class Decorator{
+		+FastFood fastfood
+		+G_S()
+		+Decorator(FastFood ff, float price, String desc)
+	}
+	
+	FastFood <|-- Decorator
+	Decorator o-- FastFood
+	class Egg{
+		+Egg(FastFood ff) void
+		+cost() void
+	}
+	
+	class Bacon{
+		+Bacon(FastFood ff) void
+		+cost() void
+	}
+	
+	Decorator <|-- Egg
+	Decorator <|-- Bacon
+```
+
+> 注意！这里的装饰器`Decorator`**继承并且聚合**`FastFood`
+
+这种方法增强了扩展性，使用子类包含父类实例的方法，减少了类的数量，十分灵活，并且装饰者和被装饰者可以独立扩展，互不影响。
+
+使用场景：
+
+* 每增加一个类，就会产生很多类的组合。
+
+在JDK中的`Writer, InputStreamWriter, FileWriter, BufferedWriter, BufferdInputStream`就是这种关系。
+
+<h4>代理和装饰者之间的关系</h4>
+
+相同点：
+
+* 都要实现和目标类的接口
+* 在类中都要声明目标对象
+* 可以增强目标方法
+
+不同点：
+
+* 装饰者类是为了增强目标（由外部传入），代理类用于隐藏目标对象（由代理类构建）
+
+### 4. 桥接模式
+
+> 每次在添加一个维度的时候都需要新增多个子类，会造成类爆炸，扩展不灵活。
+
+结构：
+
+* 抽象化角色（Abstraction）：定义抽象类，并且包含一个实现化对象的引用。
+* 扩展抽象化（Refined Abstraction）角色：抽象化角色的子类，实现父类的业务方法，通过组合关系实现。
+* 实现化（Implementor）角色：定义实现化角色的接口，供扩展抽象化角色调用
+* 具体实现化（Concrete Implementor）角色：具体实现。
+
+案例（视频播放器）：
+
+比如需要开发一个跨平台的播放器，可以在不同的操作系统上播放不同的格式的视频类型，比如AVI，RMVB，WMV和MP4格式等。
+
+```mermaid
+classDiagram
+	class OS{
+		+VideoFile video
+		+play(string file) void
+	}
+	<<abstract>> OS
+	OS <|-- Win
+	OS <|-- Mac
+	OS o-- VideoFile
+	class VideoFile{
+		+decode(string file) void
+	}
+	AVIFile --|> VideoFile
+	MP4File --|> VideoFile
+```
+
+桥接模式提高了模块的可扩展性，降低了耦合性；使用组合关系代替继承关系，避免了类爆炸的情况；
+
+### 5. 外观模式
+
+> 外观模式（Facade Pattern）隐藏系统的复杂性，并向客户端提供了一个客户端可以访问系统的接口。这种类型的设计模式属于结构型模式，它向现有的系统添加一个接口，来隐藏系统的复杂性。
+
+也是**迪米特法则**的典型应用。
+
+结构：
+
+* 外观（Facade）角色：为多个子系统提供一个共同的接口
+* 子系统（Sub system）角色：内部系统的实现细节。
+
+案例（智能音箱）：
+
+使用智能音箱来控制灯、电视、冰箱和空调等。
+
+```mermaid
+classDiagram
+	class SmartVoice{
+		+TV tv
+		+Light light
+		+AirConditioner ac
+		+Control() void
+	}
+	SmartVoice o-- TV
+	SmartVoice o-- Light
+	SmartVoice o-- AC
+	SmartVoice <-- Person
+```
+
+特点：
+
+* 降低了子系统和客户端之间的耦合性
+* 屏蔽了复杂子系统的细节
+* 但是不符合开闭原则，子系统发生改变，外观也需要进行改变。
+
+举例：
+
+在tomcat中，`HttpServletRequest`分别由两个子类`RequestFacade`和`Request`，并且`RequestFacade`聚合了`Request`。
