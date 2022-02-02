@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd) P105
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd) P146
 
 ## 多线程
 
@@ -512,9 +512,457 @@ public class WaitDemo {
 
 见设计模式一章
 
+### park和unpark
+
+是`LockSupport`中提供的，用于暂停和恢复线程的执行。
+
+```java
+@Slf4j(topic = "Park")
+public class Park {
+    public static void main(String[] args) {
+        Thread t1 = new Thread(() -> {
+            log.debug("Start park");
+            LockSupport.park();
+            log.debug("Park over");
+        }, "t1");
+
+        t1.start();
+
+        try {
+            Thread.sleep(1000);
+            log.debug("Start Unpark");
+            LockSupport.unpark(t1);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+🔵park的特点
+
+`unpark`可以在`park`之前调用并且唤醒对应的线程，park的线程不使用`Monitor`来对线程进行操作。
+
+`unpark`相当于补充干粮，`park`的时候如果没有干粮就等待，干粮充足就无需等待。
+
+### Java线程状态转换
+
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220128142720827.png" alt="image-20220128142720827" style="zoom:67%;" />
+
+* 2情况在`synchronized`获取对象锁之后调用`wait()`变成`WAITING`状态，`notify()`竞争成功变为`RUNNABLE`，锁竞争失败变`BLOCKED`。
+* 3情况是在`join()`方法调用线程会变为`WAITING`
+* 4情况比如`park()`
+* `RUNNABLE`变为`TIMED_WAITING`使用方法比如`join(n),wait(n)，sleep(n),parkNanos(n)`
+
+### 死锁定位与解决
+
+检测死锁可以使用jconsole或者jps来定位进程ID，再用jstack定位死锁。
+
+```
+Found one Java-level deadlock:
+=============================
+"DL-1":
+  waiting to lock monitor 0x000002159213d700 (object 0x00000007153d4498, a java.lang.Object),
+  which is held by "DL-2"
+"DL-2":
+  waiting to lock monitor 0x000002159213f700 (object 0x00000007153d4488, a java.lang.Object),
+  which is held by "DL-1"
+
+Java stack information for the threads listed above:
+===================================================
+"DL-1":
+        at com.yz.interrupt.DeadLock.lambda$main$0(DeadLock.java:15)
+        - waiting to lock <0x00000007153d4498> (a java.lang.Object)
+        - locked <0x00000007153d4488> (a java.lang.Object)
+        at com.yz.interrupt.DeadLock$$Lambda$14/0x0000000800066840.run(Unknown Source)
+        at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+"DL-2":
+        at com.yz.interrupt.DeadLock.lambda$main$1(DeadLock.java:29)
+        - waiting to lock <0x00000007153d4488> (a java.lang.Object)
+        - locked <0x00000007153d4498> (a java.lang.Object)
+        at com.yz.interrupt.DeadLock$$Lambda$15/0x0000000800066c40.run(Unknown Source)
+        at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+
+Found 1 deadlock.
+```
+
+以上是发现死锁的信息。
+
+### 活锁
+
+死锁是由于两个线程之间互相持有两者都想要却又不放手的资源而导致程序无法进行的情况。
+
+而活锁是由于两个线程之间互相改变两者对应结束条件而产生迟迟无法结束的情况。
+
+这里两个线程互相改变`count`的值。
+
+```java
+@Slf4j(topic = "LiveLock")
+public class LiveLock {
+    static int count = 10;
+
+    public static void main(String[] args) {
+        new Thread(() -> {
+            while (count > 0) {
+                try {
+                    Thread.sleep(200);
+                    count--;
+                    log.debug("count: {}", count);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+        new Thread(() -> {
+            while (count < 20) {
+                try {
+                    Thread.sleep(200);
+                    count++;
+                    log.debug("count: {}", count);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+}
+```
+
+如何解决活锁的情况：
+
+* 可以将两者的指令执行交错开，等一个线程执行完毕再执行另一个线程。
+
+### ※可重入锁ReentrantLock
+
+> ReentrantLock，可重入锁
+
+可重入锁的特点：
+
+* 可中断，
+* 可以设置超时时间，如果在指定时间内无法获得锁，就执行其他操作。
+* 可以设置公平锁，防止出现饥饿的现象。
+* 支持多个条件变量
+
+基本语法：
+
+```java
+reentrantLock.lock();
+// 临界区
+try{
+    // 临界区
+}finally{
+    // 释放锁
+    reentrantLock.unlock();
+}
+```
+
+🔵可重入
+
+```java
+private static ReentrantLock lock = new ReentrantLock();
+
+public static void main(String[] args) {
+    lock.lock();
+    try {
+        log.debug("Main");
+        m1();
+    }finally {
+        lock.unlock();
+    }
+}
+
+public static void m1(){
+    lock.lock();
+    try {
+        log.debug("m1");
+    }finally {
+        lock.unlock();
+    }
+}
+```
+
+🔵可打断`lockInterruptibly()`
+
+```java
+public static void canInterrupt() {
+    Thread t1 = new Thread(() -> {
+        try {
+            lock.lockInterruptibly();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            log.debug("未获得锁，退出");
+            return;
+        }
+
+        try {
+            log.debug("获得锁");
+        }finally {
+            lock.unlock();
+        }
+    });
+
+    lock.lock();
+    t1.start();
+    log.debug("打断t1");
+    t1.interrupt();
+    lock.unlock();
+}
+```
+
+🔵锁超时`tryLock()`
+
+> `tryLock()`可以设置超时时间。`tryLock(n, TimeUnit)`，可以利用`tryLock`方法来解决哲学家进餐问题，只需要在对应的资源类上继承`ReentrantLock`即可实现。
+
+```java
+public static void tryLock() {
+    Thread t1 = new Thread(() -> {
+        try {
+            log.debug("尝试获取锁");
+            if (!lock.tryLock(2, TimeUnit.SECONDS)) {
+                log.debug("获取不到锁，886");
+                return;
+            }
+            try {
+                log.debug("获取到锁");
+            } finally {
+                lock.unlock();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return;
+        }
+    });
+
+    lock.lock();
+    t1.start();
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+    lock.unlock();
+}
+```
+
+🔵锁公平
+
+使用`ReentrantLock(True)`可以将其设置为公平锁。
+
+> 但是一般情况下没必要设置公平锁。
+
+🔵条件变量
+
+条件变量的等待`await()`需要获得锁。使用条件变量便捷之处就是在一个线程处于`WAITING`状态的时候不会被虚假唤醒，可以通过各个不同的条件变量来进行特定唤醒。
+
+```java
+@Slf4j(topic = "ConditionLock")
+public class ConditionLock {
+
+    static ReentrantLock lock = new ReentrantLock();
+    static boolean hasCigar = false, hasTakeout = false;
+
+    public static void main(String[] args) throws InterruptedException {
+        Condition cigar = lock.newCondition();
+        Condition takeout = lock.newCondition();
+
+        new Thread(() -> {
+            lock.lock();
+            try {
+                while (!hasCigar) {
+                    log.debug("No cigar, await");
+                    try {
+                        cigar.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                log.debug("Has Cigar, Start work.");
+            } finally {
+                lock.unlock();
+            }
+        }).start();
+
+        new Thread(() -> {
+            lock.lock();
+            try {
+                while (!hasTakeout) {
+                    log.debug("No takeout, await");
+                    try {
+                        takeout.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                log.debug("Has Cigar, Start work.");
+            } finally {
+                lock.unlock();
+            }
+        }).start();
+
+        Thread.sleep(1000);
+
+        lock.lock();
+        try {
+            hasCigar = true;
+            log.debug("Send cigar");
+            cigar.signal();
+        } finally {
+            lock.unlock();
+        }
+
+        Thread.sleep(1000);
+
+        lock.lock();
+        try {
+            hasTakeout = true;
+            log.debug("Send takeout");
+            takeout.signal();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+## JMM-共享内存模型
+
+> JMM即，Java Memory Model，主要体现在原子性、可见性、有序性。
+
+原子性是保证指令不受线程上下文切换的影响，可见性是保证指令不受CPU缓存的影响，有序性是保证指令不会受CPU指令并行优化的影响。
+
+### 可见性
+
+```java
+static boolean run = true;
+
+public static void main(String[] args) throws InterruptedException {
+    new Thread(() -> {
+        while (run){
+
+        }
+    }, "T").start();
+    Thread.sleep(1000);
+    run = false;
+}
+```
+
+这里一秒后程序并不会停下来。
+
+> 注意里面没有代码。停下来可能是在while里面加了println吧，因为println是一个线程安全的方法 ，底层有synchronized，而synchronized保证了可见性，不会一直循环。
+
+🔵为什么线程没有停下来？
+
+线程开始前，`run`变量保存在主存中。线程开始之后，由于需要对比`run`变量的次数过多，JIT即时编译器就将`run`变量存放在另一处高速缓存中，之后此线程对比的变量就是高速缓存中的`run`变量。主存中的`run`变量发生变化的时候并未同步到高速缓存中，因此线程T最终对比的还是旧的`run`变量，从而导致线程无法停止。从而引出**可见性**这个知识点。
+
+**解决方法**：
+
+* 对变量修饰`volatile`关键字，设置变量不允许在缓存中读取。
+* 或者使用`synchronized`关键字进行包围。在Java内存模型中，synchronized规定，线程在加锁时， 先清空工作内存→在主内存中拷贝最新变量的副本到工作内存 →执行完代码→将更改后的共享变量的值刷新到主内存中→释放互斥锁。
+
+🔵使用`volatile`的注意事项：
+
+* `volatile`并不保证指令的原子性，只是保证一个线程修改变量，其他线程也可见，不保证指令的交错。
+* `sychronized`既可以保证代码块的原子性，也可以保证代码块内变量的原子性，但缺点就是`synchronized`是重量级操作，性能更低。
+
+### 有序性
+
+JVM会在不影响正确性的前提下，调整语句的执行顺序。比如：
+
+```java
+int i, j;
+i = 1;
+j = 2;
+```
+
+执行的时候可能会先对`i`赋值，也有可能先对`j`变量进行赋值。在单线程情况下是安全的，但是在多线程的情况下是会影响程序的正确性。
+
+🔵为什么会进行**指令重排**的优化？
+
+![img](E:\Notes\Java\Java并发编程\Java高并发.assets\885859-20210228105455789-1395883369.png)
+
+为了提高CPU的执行效率。
+
+🔵诡异的结果
+
+对于指令重排的效果需要借助大量的并发压力测试才能够复现诡异的结果。比如：
+
+```java
+@Slf4j(topic = "Ordering")
+@JCStressTest
+@Outcome(id = {"1", "4"}, expect = Expect.ACCEPTABLE, desc = "OK")
+@Outcome(id = {"0"}, expect = Expect.ACCEPTABLE_INTERESTING, desc = "!!!!!!")
+@State
+public class TestOrdering {
+    // 指令重排
+    int num = 0;
+    boolean ready = false;
+
+    @Actor
+    public void actor1(I_Result r) {
+        if (ready) r.r1 = num + num;
+        else r.r1 = 1;
+    }
+
+    @Actor
+    public void actor2(I_Result r) {
+        num = 2;
+        ready = true;
+    }
+}
+```
+
+这里的标注`@Actor`表示两个线程，通过分析代码可以知道程序运行如果没有指令重排会有两个结果，1和4。但是如果存在指令重排的情况下就会出现结果为0的情况。
+
+重排会让`actor2()`方法中的两条指令颠倒顺序。
+
+```java
+public void actor2(I_Result r) {
+    ready = true;
+    num = 2;
+}
+```
+
+结果也表明有千万级的结果是1或者4，只有千数量级的可能结果是0。
+
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220202221005983.png" alt="image-20220202221005983" style="zoom:150%;" />
+
+🟣诡异的结果解决方法：
+
+还是在`ready`变量加上`volatile`修饰，可以防止在存在`ready`语句之前的代码重排序。
+
+```java
+@Slf4j(topic = "Ordering")
+@JCStressTest
+@Outcome(id = {"1", "4"}, expect = Expect.ACCEPTABLE, desc = "OK")
+@Outcome(id = {"0"}, expect = Expect.ACCEPTABLE_INTERESTING, desc = "!!!!!!")
+@State
+public class TestOrdering {
+    // 指令重排
+    int num = 0;
+    boolean volatile ready = false;
+
+    @Actor
+    public void actor1(I_Result r) {
+        if (ready) r.r1 = num + num;
+        else r.r1 = 1;
+    }
+
+    @Actor
+    public void actor2(I_Result r) {
+        num = 2;
+        ready = true;
+    }
+}
+```
+
+
+
 ## 并发设计模式
 
 ### 两阶段终止设计模式
+
+🔵方式一：设置打断标记法
 
 在一线程1中“优雅”的终止线程2。这里的优雅是指能够给线程2一些处理后续操作的机会。比如线程2可能会持有一些共享资源的锁，需要释放锁，来防止其他线程死锁一直等待释放资源。
 
@@ -566,13 +1014,175 @@ class Monitor{
 }
 ```
 
-🔵知识点：
+🟣知识点：
 
 对于Java多线程中有两个方法`isInterrupted()`和方法`interrupted()`，两者都是用来判断当前的线程是否被打断，而前者不会清除打断标记，后者会清除打断标记。
+
+🔵方式二：volatile方式
+
+```java
+@Slf4j(topic = "Monitor")
+class Monitor{
+    private Thread monitor;
+    private volatile boolean hasStop;
+    public void start(){
+        monitor = new Thread(() -> {
+            while (true){
+                Thread cur = Thread.currentThread();
+                if (hasStop){
+                    log.debug("料理后事，释放所持有的资源");
+                    break;
+                }
+                try {
+                    Thread.sleep(1000); // 如果这里被打断会重置打断标记
+                    log.debug("继续监控");
+                } catch (InterruptedException e) {
+                }
+            }
+        }, "Monitor");
+
+        monitor.start();
+    }
+
+    public void stop(){
+        hasStop = true;
+        monitor.interrupt();
+    }
+}
+```
+
+这里的`interrupt()`是用于直接打断睡眠时间，防止等待时间过长。
 
 ### 同步保护性暂停
 
 即guarded suspension，用在一个线程等待另一个线程的执行结果。
 
-要点：
+### 生产者消费者模式
+
+### 哲学家进餐问题
+
+```java
+public class Philosopher extends Thread {
+    Chopstick c1, c2;
+
+    public static void main(String[] args) {
+        Chopstick c1 = new Chopstick("c1");
+        Chopstick c2 = new Chopstick("c2");
+        Chopstick c3 = new Chopstick("c3");
+        Chopstick c4 = new Chopstick("c4");
+        Chopstick c5 = new Chopstick("c5");
+
+        Philosopher p1 = new Philosopher("p1", c1, c2);
+        Philosopher p2 = new Philosopher("p2", c2, c3);
+        Philosopher p3 = new Philosopher("p3", c3, c4);
+        Philosopher p4 = new Philosopher("p4", c4, c5);
+        Philosopher p5 = new Philosopher("p5", c5, c1);
+
+        p1.start();
+        p2.start();
+        p3.start();
+        p4.start();
+        p5.start();
+    }
+
+    public Philosopher(String name, Chopstick c1, Chopstick c2) {
+        super(name);
+        this.c1 = c1;
+        this.c2 = c2;
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            synchronized (c1) {
+                synchronized (c2) {
+                    eat();
+                }
+            }
+        }
+    }
+
+    private void eat() {
+        System.out.println(this.getName() + " Eat.");
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 同步模式顺序控制
+
+> 让不同线程之间的按照指定的顺序进行执行
+
+🔵join方式
+
+🔵wait/notify版
+
+```java
+@Test
+public void testSync2() throws InterruptedException {
+    Thread t1, t2;
+
+    t2 = new Thread(() -> {
+        synchronized (lock){
+            log.debug("2");
+            has2 = true;
+            lock.notify();
+        }
+    }, "t2");
+
+    t1 = new Thread(() -> {
+        synchronized (lock) {
+            while (!has2) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        log.debug("1");
+    }, "t1");
+
+    t1.start();
+    t2.start();
+
+    t1.join();
+}
+```
+
+🔵await/signal版
+
+```java
+public void print(String s, Condition cur, Condition next){
+    lock.lock();
+    try{
+        cur.await();
+        log.debug("a");
+        next.signal();
+    }finally{
+        lock.unlock();
+    }
+}
+```
+
+🔵park/unpark版
+
+### 同步模式之犹豫模式(Balking)
+
+这个用于检查一个线程发现另一个线程已经开始做相同的事情时候，本线程无需在做就退出。
+
+```java
+static volatile boolean isStarted;
+public void start(){
+    synchronized(this){
+        if(isStarted)return;
+        isStarted=true;
+    }
+    // 业务代码
+}
+```
 
