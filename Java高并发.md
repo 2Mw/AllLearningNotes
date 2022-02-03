@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd) P146
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=173) P173
 
 ## 多线程
 
@@ -205,7 +205,7 @@ thread.setDaemon(true);
 
 其中`BLOCKED,WAITING,TIMED_WAITING`是Java层面的阻塞，不是操作系统层面上的阻塞。
 
-## 共享模型—管程
+## 共享模型—管程（悲观锁）
 
 ### synchronized关键字
 
@@ -867,6 +867,8 @@ public static void main(String[] args) throws InterruptedException {
 
 ### 有序性
 
+> 有序性和指令重排概念需要分开。
+
 JVM会在不影响正确性的前提下，调整语句的执行顺序。比如：
 
 ```java
@@ -956,7 +958,393 @@ public class TestOrdering {
 }
 ```
 
+### ※volatile原理
 
+> volatile底层原理是内存屏障（Memory Barrier / Fence）
+
+* 在volatile变量写指令后会加入写屏障
+* 在volatile变量读指令前会加入读屏障
+
+🔵读写屏障是如何保证可见性？
+
+写屏障是保证该屏障之前对共享变量的改动，都同步到主存中。
+
+```java
+public void actor2(I_Result r) {
+    num = 2;
+    ready = true;	// volatile
+}
+```
+
+读屏障是保证在该屏障之后，对共享变量的读取，从主存中加载最新数据：
+
+```java
+public void actor1(I_Result r) {
+    if (ready) r.r1 = num + num;
+    else r.r1 = 1;
+}
+```
+
+🔵读写屏障是如何保证有序性？
+
+* 指令重排时，不会将写屏障之前的代码改到之后。
+* 读屏障不会将之后的代码排在之前。
+
+> 读写屏障同样不能解决指令的交错。
+
+### ※双重检查锁
+
+> 本质知识点还是`volatile`原理
+
+为了解决每次想要拿取一个对象的时候都要加锁，从而导致的性能问题，因此使用双重检查锁(Double-Check Lock)的形式来解决这个问题。
+
+```java
+public class Singleton {
+    private Singleton () {}
+
+    private static Singleton instance;
+
+    public static Singleton getInstance() {
+        if (instance == null){
+            synchronized (Singleton.class){
+                if (instance == null){
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}
+```
+
+但是这种看似完美情况存在一个问题：即对`instance`第一次检查的时候并未在`synchronized`保护块内，因此还有可能发生指令重排的情况。
+
+```mermaid
+sequenceDiagram
+participant t1
+participant instance
+participant t2
+
+t1 ->> t1 : 17 : new
+t1 ->> t1 : 20 : dup
+t1 ->> instance : 24 : putstatic(给instance赋值)
+t2 ->> instance : 0 : getstatic(获取instance)
+t2 ->> t2 : 3 : ifnonnull 37
+t2 ->> t2 : 40 : areturn 返回
+t2 ->> t2 : 40 : 使用对象
+t1 ->> t1 : 21 : invokespecial(调用构造方法)
+```
+
+> `synchronized`只保证代码的有序性即java代码一句一句执行，不保证jvm指令的重排。如果不加此关键字，两种情况代码交错和指令交错都是有可能发生的。
+
+这里的`sychronized`代码块中的`instance = new Singleton()`指令可能会发生重排，因此在这种情况下，可能先进行类初始化后并未调用构造方法，然后对`instance`变量进行赋值，此时另一个多线程已经获取到这个`instance`变量，然而此时的`instance`变量是一个未经过调用构造方法初始化的变量，因此直接使用可能会出现问题。
+
+🔵如何解决双重检查锁的问题：
+
+给`instance`变量进行`volatile`进行修饰，使用`volatile`修饰之后，写屏障之前的代码不会被重排到写屏障之后，即在对`instance`变量赋值之前，必然已经执行构造方法并且写入主存。在对变量进行读取之前加入读屏障，防止读取变量之后的指令重排到之前，并且将主存中的最新数据读取到线程的工作内存中，保证程序的正确性。
+
+### Happens-Before规则
+
+happens-before规则规定了对共享变量对其他线程读操作可见，是一套有序性和可见性的规则总结，抛开happens-before规则，JMM并不能保证一个线程对共享变量的写，其他线程对于共享变量的读可见。
+
+1. 线程解锁m之前对变量的写，对于接下来对m的加锁的其他线程对该变量读可见。
+
+   ```java
+   static int x;
+   static Object lock = new Object();
+   
+   void main(){
+       new Thread(()->{
+           synchronized(lock){
+               x = 10;
+           }
+       }).start();
+       
+       new Thread(()->{
+           synchronized(lock){
+               System.out.println(x);
+           }
+       }).start();
+   }
+   ```
+
+2. 使用`volatile`关键字对变量进行修饰
+
+   ```java
+   static volatile int x;
+   
+   void main(){
+       new Thread(()->{
+           x = 10;
+       }).start();
+       
+       new Thread(()->{
+           System.out.println(x);
+       }).start();
+   }
+   ```
+
+3. 在写屏障之间的语句：
+
+   ```java
+   static volatile int x;
+   static int y;
+   
+   void main(){
+       new Thread(()->{
+           y = 20;
+           x = 10;
+       }).start();
+       
+       new Thread(()->{
+           // 其中y对第二个线程也可见
+           System.out.println(x);
+       }).start();
+   }
+   ```
+
+### 简单习题
+
+🔵单例习题1：
+
+```java
+// 1. 为什么加final
+// 2. 如果实现了Serializable接口，怎么防止序列化破坏单例？
+public final class Singleton implements Serializable {
+    // 3. 为什么设置为私有构造方法？是否能防止反射创建新的实例？
+    private Singleton();
+    // 4. 这样初始化是否能保证单例对象创建时线程安全？
+    private static final Singleton instance = new Singleton();
+    // 5. 为什么提供静态方法而不是之间将instance变量设置为public？
+    public static Singleton getInstance(){
+        return instance;
+    }
+    
+    public Object readResolve() {
+        return instance;
+    }
+}
+```
+
+1. 防止子类继承覆盖父类方法，从而破坏单例。
+2. 添加一个`readResolve`方法返回已经创建好的实例。
+3. 如果设为公有构造方法其他对象都能创建这个对象，破坏了单例。设置为私有不能防止反射创建新的实例，反射的功能很强大，可以得到类的构造器，并且设置`setAccessible(True)`就可以暴露构造方法调用构造器。
+4. 不存在线程安全问题，静态属性实在类加载器中进行加载的，JVM保证其线程安全。
+5. 设置为public就可以随便进行修改，设置方法就可以对其进行很好的封装。
+
+🔵单例2：
+
+```java
+// 1. 枚举单例是怎么限制单例个数的？
+// 2. 枚举单例在创建时是否有并发问题？
+// 3. 枚举单例是否能被反射破坏单例？
+// 4. 枚举单例是否能被反序列化破坏单例？
+// 5. 枚举单例是懒汉式还是饿汉式？
+// 6. 枚举单例如果希望加入一些初始化逻辑该怎么做？
+public enum Singleton {
+    INSTANCE;
+}
+```
+
+1. 根据反编译字节码可知，枚举单例的本质就是静态常量(`static final`)
+2. 同样没有，静态属性实在类加载器中进行加载的，JVM保证其线程安全。
+3. 不能被反射
+4. 可以被序列化，因为Enum类就实现了`Serializable`接口并且已经考虑到破坏单例的情况，无需其他操作。
+5. 饿汉式
+6. 加入构造方法即可。
+
+## 共享模型—无锁（乐观锁）
+
+### CAS
+
+> CAS(Compare And Set)，在更新的时候先进行比对然后进行新值的设置。
+
+这个是简单的无锁实现方式，借助`AtomicInteger`来进行操作，没有上锁且比上锁更加轻量级，并且能够保证线程安全。
+
+```java
+public class Withdraw {
+    private AtomicInteger balance;
+
+    public Withdraw(int balance) {
+        this.balance = new AtomicInteger(balance);
+    }
+
+    public int getBalance() {
+        return balance.get();
+    }
+
+    public void withdraw() {
+        while (true) {
+            int prev = balance.get();
+            int next = prev - 10;
+            if (balance.compareAndSet(prev, next)) break;
+        }
+    }
+}
+```
+
+🔵如何实现的？
+
+* CAS操作需要比对之前的值，如果匹配才能够修改成功，否则就会修改失败。
+
+* 并且CAS还需要`volatile`修饰的支持，CAS中对应变量才能够读取到变量的最新值才能实现CAS操作。
+
+🔵效率分析：
+
+使用无锁的形式要比`synchronized`的效率要高，因为没有上下文切换，代价较高；而CAS不会主动让上下文进行切换，开销较小。
+
+🔵CAS特点：
+
+* 适用于线程数较少、多核CPU的情况下
+* CAS是基于乐观锁的思想：不怕别的线程修改共享变量。
+* `synchronized`是基于悲观锁的思想，时刻放着其他线程对共享变量的修改。
+* 但是CAS如果竞争激烈，重试必然频繁发生，反而效率收到影响。
+
+### 原子整数
+
+JUC提供了很多原子操作包，比如`AtomicInteger`,`AtomicLong`,`AtomicBoolean`
+
+```java
+AtomicInteger i = new AtomicInteger();
+
+System.out.println(i.get());
+System.out.println(i.getAndIncrement()); // i++
+System.out.println(i.incrementAndGet()); // ++i
+
+System.out.println(i.getAndAdd(2)); // i, i += 2
+System.out.println(i.addAndGet(2)); // i+=2, i
+
+// 复杂运算 updateAndGet 或者 getAndUpdate
+System.out.println(i.updateAndGet(v -> (int) Math.pow(v, 2)));  // square
+```
+
+像其他方法`getAndIncrement,getAndAdd,updateAndGet`都是在while循环的基础上演化而来的比如：
+
+```java
+public final int updateAndGet(IntUnaryOperator updateFunction) {
+    int prev = get(), next = 0;
+    for (boolean haveNext = false;;) {
+        if (!haveNext)
+            next = updateFunction.applyAsInt(prev);
+        if (weakCompareAndSetVolatile(prev, next))
+            return next;
+        haveNext = (prev == (prev = get()));
+    }
+}
+```
+
+### 原子引用
+
+原子引用类型比如`AtomicReference,AtomicMarkableReference,AtomicStampedReference`
+
+```java
+public class AdvancedAtomic {
+    AtomicReference<BigDecimal> balance;
+
+    public AdvancedAtomic(BigDecimal balance) {
+        this.balance = new AtomicReference<>(balance);
+    }
+
+    public BigDecimal getBalance() {
+        return balance.get();
+    }
+
+    public void subBalance(BigDecimal mount) {
+        while (true) {
+            BigDecimal prev = balance.get();
+            BigDecimal next = prev.subtract(mount);
+            if (balance.compareAndSet(prev, next)) break;
+        }
+    }
+}
+```
+
+🔵ABA问题：
+
+```java
+@Slf4j(topic = "ABA")
+public class ABAProblem {
+    private static AtomicReference<String> str = new AtomicReference<>("A");
+
+    public static void main(String[] args) throws InterruptedException {
+        log.debug("Main start...");
+        String prev = str.get();
+        other();
+        Thread.sleep(1000);
+        log.debug("Change A -> C, {}", str.compareAndSet(prev, "C"));
+    }
+
+    public static void other() throws InterruptedException {
+        new Thread(() -> {
+            log.debug("Change A -> B, {}", str.compareAndSet("A", "B"));
+        }).start();
+        Thread.sleep(500);
+        new Thread(() -> {
+            log.debug("Change B -> A, {}", str.compareAndSet("B", "A"));
+        }).start();
+    }
+}
+```
+
+输出如下：
+
+```
+22:27:40.990 [main] DEBUG ABA - Main start...
+22:27:40.992 [Thread-0] DEBUG ABA - Change A -> B, true
+22:27:41.493 [Thread-1] DEBUG ABA - Change B -> A, true
+22:27:42.493 [main] DEBUG ABA - Change A -> C, true
+```
+
+🟣存在的问题：
+
+在从A改为C的过程中，变量从A改为B，B又改为A，中间发生了变化，但是CAS从A到C之间并未察觉到中间的变化，修改时的A和以前的A是不同的。因此需要其他的形式比如具有版本号的类`AtomicStampedReference`来处理。
+
+🔵`AtomicStampedReference`类的使用
+
+使用`AtomicStampedReference`的时候不仅需要比对原来的值，还需要比对原来值对应的版本号！
+
+```java
+@Slf4j(topic = "ABA")
+public class ABAProblem2 {
+    private static AtomicStampedReference<String> str = new AtomicStampedReference<>("A", 0);
+
+    public static void main(String[] args) throws InterruptedException {
+        log.debug("Main start...");
+        String prev = str.getReference();
+        int stamp = str.getStamp();
+        other();
+        Thread.sleep(1000);
+        log.debug("Change A -> C, {}", str.compareAndSet(prev, "C", stamp, stamp + 1));
+    }
+
+    public static void other() throws InterruptedException {
+        new Thread(() -> {
+            int stamp = str.getStamp();
+            log.debug("Change A -> B, {}", str.compareAndSet("A", "B", stamp, stamp + 1));
+        }).start();
+        Thread.sleep(500);
+        new Thread(() -> {
+            int stamp = str.getStamp();
+            log.debug("Change B -> A, {}", str.compareAndSet("B", "A", stamp, stamp + 1));
+        }).start();
+    }
+}
+```
+
+输出：
+
+```
+22:34:16.443 [main] DEBUG ABA - Main start...
+22:34:16.446 [Thread-0] DEBUG ABA - Change A -> B, true
+22:34:16.956 [Thread-1] DEBUG ABA - Change B -> A, true
+22:34:17.956 [main] DEBUG ABA - Change A -> C, false
+```
+
+结果执行为false，修改失败！
+
+🔵`AtomicMarkableReference`类的使用
+
+有时候我们不关心变量改过多少次，只关心改过没有，因此`AtomicMarkableReference`类存放的不是版本号，而是一个Boolean值。
 
 ## 并发设计模式
 
