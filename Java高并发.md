@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=173) P173
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=200) P200
 
 ## 多线程
 
@@ -1346,6 +1346,183 @@ public class ABAProblem2 {
 
 有时候我们不关心变量改过多少次，只关心改过没有，因此`AtomicMarkableReference`类存放的不是版本号，而是一个Boolean值。
 
+### 原子数组
+
+有三种类型：`AtomicIntegerArray, AtomicLongArray, AtomicReferenceArray`分别处理不同的数据类型
+
+```java
+@Slf4j(topic = "AtomicArray")
+public class AtomicArray {
+    public static void main(String[] args) throws InterruptedException {
+        int threadNum = 10;
+        Thread pools[] = new Thread[threadNum];
+
+        AtomicIntegerArray aDemo = new AtomicIntegerArray(threadNum);
+        for (int i = 0; i < threadNum; i++) {
+            pools[i] = new Thread(() -> {
+                for (int j = 0; j < 1000; j++) {
+                    for (int k = 0; k < threadNum; k++) {
+                        aDemo.getAndIncrement(k);
+                    }
+                }
+            });
+        }
+
+        for (int i = 0; i < threadNum; i++) {
+            pools[i].start();
+        }
+        Thread.sleep(500);
+        System.out.println(aDemo);
+
+    }
+}
+```
+
+### 字段更新器
+
+> 原子数组保护的是数组元素，字段更新器保护的是对象中的属性。
+
+类分为：`AtomicReferenceFieldUpdater, AtomicIntegerFieldUpdater, AtomicLongFieldUpdater`，分别针对的类型为引用类型，int和Long类型。
+
+❗注意：想要进行Updater的属性**必须**使用`volatile`进行修饰。
+
+```java
+public class AtomicRefUpdater {
+    public static void main(String[] args) {
+        Dog dog = new Dog();
+        AtomicReferenceFieldUpdater updater
+                = AtomicReferenceFieldUpdater.newUpdater(Dog.class, String.class, "name");
+
+        updater.compareAndSet(dog,null,"QQ");
+        System.out.println(dog.name);	// QQ
+
+    }
+}
+
+class Dog {
+    volatile String name;
+}
+```
+
+### 原子累加器Adder
+
+> 对于原子累加器，要比`AtomicInteger`等类性能要高。
+
+🔵缓存行与伪共享
+
+CPU分为不同级别的缓存（L1，L2，L3缓存），对于每次想要读取的数据，就将内存中的数据读取到一个缓存行中，Adder中使用到一个数据结构`Cell`，由于Cell是一个数组，当Cell[0]中的数据更新的时候，会导致另一个CPU中的同样数据的缓存行失效，需要重新读取更新最新值。由于更新的只是数组中的一个元素，其他元素并未更新，就会导致数组中其他索引也失效，从而需要更新整个数组对应的缓存行。
+
+而Adder中的`@sun.misc.Contended`注解就是为了解决这个问题，将数组中每个元素都作为一个缓存行，其它为空白的padding，这样当Cell[0]发生改变的时候不会改变Cell[1]中的缓存行就不会失效，提高了读取的效率。
+
+![image-20220204103230837](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220204103230837.png)
+
+🔵源码解读：
+
+[P179-LongAdder源码解读-add](https://www.bilibili.com/video/BV16J411h7Rd?p=179)
+
+看不懂
+
+### unsafe
+
+>使用底层方法来对线程、内存进行操作
+
+🔵获取unsafe对象
+
+jdk8
+
+```java
+public static void main(String[] args) throws NoSuchFieldException, IllegalAccessException {
+    Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+    theUnsafe.setAccessible(true);
+    Unsafe unsafe = (Unsafe) theUnsafe.get(null);
+    System.out.println(unsafe);
+}
+```
+
+jdk11以上加入了直接调用（但是不能在自己的方法中用，还得使用反射的方式）：
+
+```java
+Unsafe unsafe = Unsafe.getUnsafe();
+```
+
+🔵Unsafe的CAS方法
+
+```java
+public class UnsafeDemo {
+    public static void main(String[] args) throws NoSuchFieldException, IllegalAccessException {
+        Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+        theUnsafe.setAccessible(true);
+        Unsafe unsafe = (Unsafe) theUnsafe.get(null);
+        // 1. 获取对应属性的偏移地址
+        long ageOffset = unsafe.objectFieldOffset(Cat.class.getDeclaredField("age"));
+        long nicknameOffset = unsafe.objectFieldOffset(Cat.class.getDeclaredField("nickname"));
+        // 2. cas操作
+        Cat cat = new Cat();
+        unsafe.compareAndSwapInt(cat, ageOffset,0, 3);
+        unsafe.compareAndSwapObject(cat,nicknameOffset, null,"小兰");
+        // 3. 查看结果
+        System.out.println(cat);
+
+    }
+}
+
+@Data
+class Cat {
+    volatile int age;
+    volatile String nickname;
+}
+```
+
+## 不可变类
+
+举例：
+
+```java
+@Slf4j(topic = "Mutable")
+public class MutableDemo {
+    public static void main(String[] args) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        for (int i = 0; i < 10; i++) {
+            new Thread(() -> {
+                try {
+                    log.debug("{}", sdf.parse("2014-2-1"));
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+    }
+}
+```
+
+`SimpleDateFormat`类并不是线程安全的类，运行这段代码会出错`java.lang.NumberFormatException`。
+
+### 不可变对象
+
+针对上方可能会出错的例子，可以使用不可变类来进行优化`DateTimeFormatter`
+
+```java
+@Slf4j(topic = "Immutable")
+public class ImmutableDemo {
+    public static void main(String[] args) {
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        for (int i = 0; i < 10; i++) {
+            new Thread(() -> {
+                log.debug("{}", dtf.parse("2014-02-01"));
+            }).start();
+        }
+    }
+}
+```
+
+🔵不可变对象的设计
+
+对于需要修改原来对象的情况下，不可变类会使用保护性拷贝来进行保护。
+
+### final原理
+
+
+
 ## 并发设计模式
 
 ### 两阶段终止设计模式
@@ -1574,3 +1751,16 @@ public void start(){
 }
 ```
 
+### 享元模式
+
+当需要重用数量有限的同一类对象时。在很多包装类`Integer,Boolean,Byte,Character`等包装类提供了`valueOf()`方法。
+
+```java
+public static Long valueOf(long l) {
+    final int offset = 128;
+    if (l >= -128 && l <= 127) { // will cache
+        return LongCache.cache[(int)l + offset];
+    }
+    return new Long(l);
+}
+```
