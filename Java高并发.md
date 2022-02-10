@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=200) P200
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=230) P230
 
 ## 多线程
 
@@ -1521,7 +1521,167 @@ public class ImmutableDemo {
 
 ### final原理
 
+## 并发工具
 
+### 自定义线程池
+
+线程池就时为了省去创建线程的开销，提前创建线程，使用的时候拿出来，不用的时候再放回去，避免过多的上下文切换的开销耗费。
+
+![image-20220206222255958](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220206222255958.png)
+
+### JDK线程池ThreadPoolExecutor
+
+🔵线程池状态
+
+ThreadPoolExecutor使用一个int数字来存储线程的信息：高三位表示线程池的状态，低29位表示线程的数量。
+
+| 状态       | 高3位 | 接受新任务 | 处理阻塞任务 | 说明                                                 |
+| ---------- | ----- | ---------- | ------------ | ---------------------------------------------------- |
+| RUNNING    | 111   | Y          | Y            |                                                      |
+| SHUTDOWN   | 000   | N          | Y            | 温和打断线程执行，不接收任务但会处理阻塞队列中的任务 |
+| STOP       | 001   | N          | N            | 暴力打断线程执行，并且抛弃阻塞队列的任务             |
+| TIDYING    | 010   | -          | -            | 任务全部执行完毕，即将终结                           |
+| TERMINATED | 011   | -          | -            | 终结状态                                             |
+
+🔵构造方法解析：
+
+```java
+public ThreadPoolExecutor(int corePoolSize,					// 核心线程数目
+                   int maximumPoolSize,				// 最大线程数
+                   long keepAliveTime,				// 生存时间，针对救急线程
+                   TimeUnit unit,					//
+                   BlockingQueue<Runnable> workQueue,// 阻塞队列
+                   ThreadFactory threadFactory,		// 线程工厂，为线程创建好名字
+                   RejectedExecutionHandler handler)// 拒绝策略
+```
+
+JDK中的线程分为核心线程`corePoolSize`和救急线程，其中救急线程就是最大线程数家去核心线程数的数目。
+
+如果任务的并发量很多，首先分配核心线程，还有任务则分配到阻塞队列中进行等待，如果还有任务就交给救急线程，救急线程是有生存时间限制的（**核心线程没有生存时间**），执行任务完毕就进入结束状态。如果核心线程和救急线程都放满了，就执行拒绝策略。
+
+> 存在救急状态的情况是，你选择的阻塞队列是有界队列（即有容量大小限制的队列），才会有救急队列，斗则是没有救急队列的。
+
+JDK中拒绝策略的实现：
+
+![image-20220210122130667](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220210122130667.png)
+
+* `AbortPolicy`让调用者抛出异常（默认）
+* `CallerRunsPolicy`是让调用者运行任务
+* `DiscardOldestPolicy`是放弃队列中最早的任务，本任务取而代之。
+* `DiscardPolicy`是放弃本次任务
+
+🔵线程池的工厂方法
+
+1. `newFixedThreadPool`固定大小线程池：
+
+   ```java
+   public static ExecutorService newFixedThreadPool(int nThreads) {
+       return new ThreadPoolExecutor(nThreads, nThreads,
+                                     0L, TimeUnit.MILLISECONDS,
+                                     new LinkedBlockingQueue<Runnable>());
+   }
+   ```
+
+   使用的是无界队列
+
+2. `newCachedThreadPool`缓冲线程池
+
+   ```java
+   public static ExecutorService newCachedThreadPool() {
+       return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                     60L, TimeUnit.SECONDS,
+                                     new SynchronousQueue<Runnable>());
+   }
+   ```
+
+   核心线程为0，意味着全是救急线程，`SynchronousQueue`的特点就是，在没有线程来取的情况下是不能放进去队列的，会阻塞在存放的方法上。
+
+   适合任务数比较密集而且任务执行时间较短的情况。
+
+3. `newSingleThreadPool` 单线程池
+
+   ```java
+   public static ExecutorService newSingleThreadExecutor() {
+       return new FinalizableDelegatedExecutorService
+           (new ThreadPoolExecutor(1, 1,
+                                   0L, TimeUnit.MILLISECONDS,
+                                   new LinkedBlockingQueue<Runnable>()));
+   }
+   ```
+
+   选择的是`LinkedBlockingQueue`无界阻塞队列
+
+   自己创建一个单线程的话不能处理异常，并且执行失败没有任何的补救措施。这个单线程池对于`ThreadPoolExecutor`还进行了一层包装，同`newFixedThreadPool(1)`还有所不同，使用的是装饰器模式
+
+🔵提交任务
+
+```java
+void execute(Runnable thread);	// 执行任务
+<T> Future<T> submit(Callable<T> task);	// 用于接收线程返回的结果
+
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks);
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit);	// 超时会停掉后面的任务
+
+<T> T invokeAny(Collection<? extends Callable<T>> tasks);
+<T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit);
+```
+
+`invokeAny`是执行所有的任务，如果其中有一个任务返回，就作为整体的返回结果，其他线程会被取消。
+
+submit：
+
+```java
+@Slf4j(topic = "JDKPool")
+public class JDKPool {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        Future<String> submit = service.submit(() -> {
+            log.debug("Wait");
+            Thread.sleep(1000);
+            return "Good";
+        });
+
+        log.info("{}", submit.get());   // 这里会阻塞
+    }
+}
+```
+
+🔵线程结束：
+
+`shutdown()`方法是温和结束，停止接收任务，等待任务队列都结束后线程池才停止，状态改为`SHUTDOWN`。
+
+`shutdownNow()`方法是暴力结束，停止接收任务并且将队列中的任务全部返回，状态改为`STOP`。并且返回在任务队列中的任务。
+
+### 任务调度线程池
+
+希望任务延时/定时执行，使用`newScheduledThreadPool`。
+
+延时：
+
+```java
+@Slf4j(topic = "JDKPool")
+public class JDKPool {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        ScheduledExecutorService pool = Executors.newScheduledThreadPool(2);
+        pool.schedule(() -> {	// 延时
+            log.debug("try");
+        }, 1, TimeUnit.SECONDS);
+
+        pool.scheduleAtFixedRate(()->{	// 定时：500ms执行一次
+            log.debug("FIxed RATE");
+        }, 1000,500,TimeUnit.MILLISECONDS);
+        
+        pool.scheduleWithFixedDelay(() -> {
+            log.debug("FIxed Delay");
+            Thread.sleep(2000);
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+}
+```
+
+注意：这里的`scheduleAtFixedRate`定时会被任务本身的执行时间所延长，不会使的任务同一时间执行两次。
+
+`scheduleWithFixedDelay`定时是每一次任务执行结束后之间所间隔时间的定时，从上次任务结束时间开始计算。
 
 ## 并发设计模式
 
@@ -1764,3 +1924,25 @@ public static Long valueOf(long l) {
     return new Long(l);
 }
 ```
+
+### 异步模式之工作线程
+
+让有限数量的工作线程来轮流异步处理无限多的任务。
+
+工作线程可能会出现一种“饥饿”现象，这里的饥饿现象是由于线程数量不足造成的。举个例子假如一个线程流程是先做A请求另一个线程做B，如果只有两个核心线程同时执行，两个线程会因为没有其他线程做B导致同时卡在A的情况。
+
+解决方法：需要做好任务分工解决，不同任务交给不同的角色。
+
+🔵创建多少线程池合适？
+
+过小会导致不能充分利用系统资源，容易导致运算。过大会导致更多上下文切换导致开销过大。
+
+* 对于CPU密集型运算，通常采用**CPU核数+1**个线程池。
+
+* IO密集型（比如Web），经验公式为：
+
+  `线程数=CPU核数*期望CPU利用率*总时间(CPU计算时间+等待时间)/CPU计算时间`
+
+* 
+
+  
