@@ -2,7 +2,11 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=230) P230
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=238) P238
+
+[ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ)
+
+> 备注：这个课程后面还有disrupt、guava、异步编程、非共享模型、并行编程
 
 ## 多线程
 
@@ -1682,6 +1686,164 @@ public class JDKPool {
 注意：这里的`scheduleAtFixedRate`定时会被任务本身的执行时间所延长，不会使的任务同一时间执行两次。
 
 `scheduleWithFixedDelay`定时是每一次任务执行结束后之间所间隔时间的定时，从上次任务结束时间开始计算。
+
+### Fork/Join
+
+> Fork/Join对于的处理类必须要继承`RecursiveTask`或者`RecursiveAction`，有返回值使用前者，无返回值使用后者
+
+```java
+@Slf4j(topic = "ForkJoinDemo")
+public class ForkJoin {
+    public static void main(String[] args) {
+        ForkJoinPool pool = new ForkJoinPool(4);
+        System.out.println(pool.invoke(new MyTask(5)));
+    }
+}
+
+@Slf4j(topic = "MyTask")
+class MyTask extends RecursiveTask<Integer> {
+
+    private int n;
+
+    public MyTask(int n) {
+        this.n = n;
+    }
+
+    @Override
+    public String toString() {
+        return "{" + n + '}';
+    }
+
+    @Override
+    protected Integer compute() {
+        if (n == 1) return 1;
+        MyTask t1 = new MyTask(n - 1);
+
+        t1.fork();  // 执行任务
+        log.debug("Fork {} + {}", n, t1);
+        int res = t1.join() + n;
+        log.debug("Join {} + {}", n, t1);
+        return res;   // Join 获取任务结果
+    }
+}
+```
+
+> 5+MyTask(4), 4+MyTask(3), ...
+
+输出信息：
+
+```
+12:51:41.526 [ForkJoinPool-1-worker-1] DEBUG MyTask - Fork 2 + {1}
+12:51:41.526 [ForkJoinPool-1-worker-5] DEBUG MyTask - Fork 4 + {3}
+12:51:41.526 [ForkJoinPool-1-worker-7] DEBUG MyTask - Fork 3 + {2}
+12:51:41.548 [ForkJoinPool-1-worker-1] DEBUG MyTask - Join 2 + {1}
+12:51:41.526 [ForkJoinPool-1-worker-3] DEBUG MyTask - Fork 5 + {4}
+12:51:41.548 [ForkJoinPool-1-worker-7] DEBUG MyTask - Join 3 + {2}
+12:51:41.549 [ForkJoinPool-1-worker-5] DEBUG MyTask - Join 4 + {3}
+12:51:41.549 [ForkJoinPool-1-worker-3] DEBUG MyTask - Join 5 + {4}
+15
+```
+
+可以看出执行任务确实是并行执行加和的。
+
+## JUC工具包
+
+### AQS原理
+
+全称是AbstractQueuedSychronizer，是阻塞式锁和相关同步器工具的框架。
+
+特点：
+
+* 用state属性来表示资源的状态（独占模式，共享模式），子类需要定义如何维护这个状态，控制如何获得锁和维护锁。
+  * getState获取状态，setState设置状态，compareAndSetState乐观锁设置state状态。
+  * 独占模式是只有一个线程能够访问资源，共享模式允许多个
+* 提供了基于FIFO的等待队列，类似Monitor中EntryList
+* 条件变量来实现等待、唤醒机制、支持多个条件变量，类似Monitor中WaitSet
+
+🔵使用AQS实现一个自定义锁
+
+即借助`AbstractQueuedSynchronizer`类来进行实现。
+
+```java
+/**
+ * 自定义锁（不可重入）
+ */
+@Slf4j(topic = "MyLock")
+class MyLock implements Lock {
+
+    class MySync extends AbstractQueuedSynchronizer {
+        @Override
+        protected boolean tryAcquire(int arg) {
+            // 尝试获取锁
+            if (compareAndSetState(0, 1)) {
+                setExclusiveOwnerThread(Thread.currentThread());
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        protected boolean tryRelease(int arg) {
+            // 尝试释放锁
+            setExclusiveOwnerThread(null);
+            /**
+             * 因为State是Volatile修饰的，而exclusiveOwnerThread不是
+             * 因此对volatile写操作应该放在最后，将线程工作内存中的数据写入主存
+             */
+            setState(0);
+            return true;
+        }
+
+        @Override
+        protected boolean isHeldExclusively() {
+            // 是否持有独占锁
+            return getState() == 1;
+        }
+
+        public Condition newCondition() {
+            return new ConditionObject();
+        }
+    }
+
+    private MySync sync = new MySync();
+
+    @Override
+    public void lock() {
+        // 加锁
+        sync.acquire(1);
+    }
+
+    @Override
+    public void lockInterruptibly() throws InterruptedException {
+        // 可打断
+        sync.acquireInterruptibly(1);
+    }
+
+    @Override
+    public boolean tryLock() {
+        // 尝试加锁
+        return sync.tryAcquire(1);
+    }
+
+    @Override
+    public boolean tryLock(long time, @NotNull TimeUnit unit) throws InterruptedException {
+        return sync.tryAcquireNanos(1, unit.toNanos(time));
+    }
+
+    @Override
+    public void unlock() {
+        sync.release(1);
+    }
+
+    @NotNull
+    @Override
+    public Condition newCondition() {
+        return sync.newCondition();
+    }
+}
+```
+
+### ReentrantLock实现原理
 
 ## 并发设计模式
 
