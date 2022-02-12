@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=238) P238
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) P248
 
 [ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ)
 
@@ -1844,6 +1844,146 @@ class MyLock implements Lock {
 ```
 
 ### ReentrantLock实现原理
+
+![image-20220212110733206](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220212110733206-16446352623611.png)
+
+🔵加锁解锁流程
+
+加锁成功的话会使用CAS将AQS中的state从0修改为1。
+
+加锁失败的话会调用`tryAcquire()`方法来获取锁，获取失败进入Monitor中的WaitSet中添加到队列的尾部，并且将前驱节点的waitStatus改为-1（表示前驱节点有责任唤醒后继节点），竞争失败然后进入park阻塞状态。
+
+如果当前正在执行的线程执行完毕之后，前驱节点调用`unparkSuccessor()`方法来唤醒后继节点。对于非公平竞争，此时恰好也有一个线程创建并且在waitSet中的线程没有竞争过，则会重新加入waitSet队列中。
+
+```java
+final boolean acquireQueued(final Node node, int arg) {
+    boolean interrupted = false;
+    try {
+        for (;;) {
+            final Node p = node.predecessor();
+            if (p == head && tryAcquire(arg)) {
+                setHead(node);
+                p.next = null; // help GC
+                return interrupted;
+            }
+            if (shouldParkAfterFailedAcquire(p, node))
+                interrupted |= parkAndCheckInterrupt();
+        }
+    } catch (Throwable t) {
+        cancelAcquire(node);
+        if (interrupted)
+            selfInterrupt();
+        throw t;
+    }
+}
+```
+
+🔵可重入原理
+
+当线程进入时，如果没有线程执行则将state(0->1)，如果此时这个线程下又需要加锁，就成为了可重入锁，会将state做一个累加自增(1->2)，如果可重入锁释放的时候即将state减一。
+
+🔵可打断原理
+
+一般情况下都是**不可打断模式**，即使线程调用`interrupt()`方法，其依然还会驻留在AQS队列中，当他获取到锁的时候还会继续运行，只是将打断标记设置为true。
+
+在可打断模式，使用抛出异常的方式打断循环，从AQS队列中停止执行。
+
+```java
+public final void acquireInterruptibly(int arg)
+        throws InterruptedException {
+    if (Thread.interrupted())
+        throw new InterruptedException();
+    if (!tryAcquire(arg))	// 未获得锁进入方法
+        doAcquireInterruptibly(arg);
+}
+
+private void doAcquireInterruptibly(int arg)
+    throws InterruptedException {
+    final Node node = addWaiter(Node.EXCLUSIVE);
+    try {
+        for (;;) {
+            final Node p = node.predecessor();
+            if (p == head && tryAcquire(arg)) {
+                setHead(node);
+                p.next = null; // help GC
+                return;
+            }
+            if (shouldParkAfterFailedAcquire(p, node) &&
+                parkAndCheckInterrupt())
+                throw new InterruptedException();	// 不会继续等待，这里抛出异常
+        }
+    } catch (Throwable t) {
+        cancelAcquire(node);
+        throw t;
+    }
+}
+```
+
+🔵条件变量的实现原理
+
+条件变量对应的类是`ConditionObject`.
+
+### 读写锁
+
+🔵ReentrantReadWriteLock
+
+当读操作远远多于写操作的时候，就可以使用读写锁，让读-读操作可以并发。
+
+如果是读-读操作，如果加锁就不会阻塞；如果是读-写或者写-写操作就会阻塞。
+
+注意：
+
+* 读锁不支持条件变量（因为不需要）
+* 读锁时获取写锁会导致写锁永久阻塞，有写锁情况下可以获取读锁。
+
+```java
+@Slf4j(topic = "RWLock")
+public class RWLock {
+    private int data;
+    private ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
+    private ReentrantReadWriteLock.ReadLock readLock = rwlock.readLock();
+    private ReentrantReadWriteLock.WriteLock writeLock = rwlock.writeLock();
+
+    public int read() {
+        log.debug("Get read Lock");
+        readLock.lock();
+        try {
+            log.debug("Read");
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return data;
+        } finally {
+            log.debug("Release Read Lock");
+            readLock.unlock();
+        }
+    }
+
+    public void write(int data) {
+        log.debug("Get Write Lock");
+        writeLock.lock();
+        try {
+            log.debug("Write");
+        } finally {
+            log.debug("Release Write Lock");
+            writeLock.unlock();
+        }
+    }
+
+    public static void main(String[] args) {
+        RWLock o = new RWLock();
+        new Thread(() -> {
+            o.read();
+        }).start();
+
+        new Thread(() -> {
+            o.read();
+        }).start();
+    }
+}
+```
 
 ## 并发设计模式
 

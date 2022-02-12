@@ -2,6 +2,8 @@
 
 [TOC]
 
+[Java函数式编程](https://www.bilibili.com/video/BV1Gh41187uR?p=29)
+
 ## Java基础
 
 ### 输入
@@ -1846,6 +1848,227 @@ class MakeUp implements Runnable{
 ```
 
 ### 线程通信协作（生产者消费者模型）
+
+## 函数式编程
+
+为什么要学习函数式编程？
+
+* 效率更高
+* 消除嵌套地狱
+* 可读性更高
+* 易于并发编程
+
+### Lambda表达式
+
+一个函数的参数是`interface`，如果这个接口的方法只有一个函数，则可以使用lambda表达式进行代替。简单的形式在上节已经介绍过，这次主要是进阶的。
+
+🔵lambda表达式的省略规则
+
+1. 参数类型可以省略，只有一个参数的时候小括号也可以省略
+2. 方法体中只要一句话的时候，返回值对于的大括号和return都可以省略
+
+### Stream流
+
+> Stream流**必须**要有终结操作，否则可能中间操作可能不会调用到
+
+案例：
+
+```java
+public static void main(String[] args) {
+    List<Author> authors = getAuthors();
+    authors.stream()
+            .distinct()                     // 去重
+            .filter(author -> author.getAge() <= 18)    // 筛选出小于18岁的
+            .forEach(System.out::println);  // 每个打印
+}
+```
+
+🔵创建流：
+
+单列集合：
+
+```java
+List<Author> authors = getAuthors();
+authors.stream()
+```
+
+数组：
+
+```java
+Integer a[] = {8,1,1,5,6,3,2,3,3};
+
+Arrays.stream(a)    // 类型是IntStream
+        .distinct()
+        .filter(i->i>2)
+        .forEach(System.out::println);
+
+Stream.of(a)        // 类型是Stream<Integer>
+        .distinct()
+        .filter(i->i>2)
+        .forEach(System.out::println);
+```
+
+> 注意：如果类型是基本类型`int`的话，使用`of`方法就可能无法使用`distinct()`和`filter()`方法了
+
+双列集合：
+
+> 双列对象需要转为`EntrySet`才能够使用stream
+
+```java
+Map<String, Integer> map = new HashMap<>();
+map.put("1", 1);
+map.put("3", 4);
+map.put("2", 2);
+
+val stream = map.entrySet().stream();
+stream.filter(e -> e.getValue() > 2)
+        .forEach(System.out::println);
+```
+
+🔵中间操作：
+
+* `filter()`筛选符合条件的对象，删去不符合条件的对象
+
+  ```java
+  Arrays.stream(a)
+          .filter(i->i>2)
+          .forEach(System.out::println);
+  ```
+
+* `map()`操作，将数据元素进行操作或者转换
+
+  返回将所有作者年龄加5的结果，可以多个map叠加。类型变换的时候Ideaj会有提示。
+
+  ```java
+  authors.stream()
+          .map(author -> author.getAge() + 5)
+          .forEach(System.out::println);
+  ```
+
+* `distinct()`方法，其依靠的是Object的`Equals()`方法来进行比对
+
+  ```java
+  Arrays.stream(a)
+          .distinct()	// 去重
+          .forEach(System.out::println);
+  ```
+
+* `sorted()`方法
+
+  ```java
+  authors.stream()
+          .sorted((a, b) -> a.getAge() - b.getAge())
+          .forEach(System.out::println);
+  ```
+
+  按年龄大小排序（升序）。
+
+  如果调用空参`sorted`方法将需要对应的类取实现`Comparable`接口。
+
+* `limit()`方法
+
+  用来限制流的最大长度，超过的部分会被截取掉。
+
+  这里设置最大长度为3.
+
+  ```java
+  authors.stream()
+          .limit(3)
+          .forEach(System.out::println);
+  ```
+
+* `skip(int n)`方法
+
+  跳过流中的前n个元素，返回后面的元素流
+
+  这里忽略了前三个元素
+
+  ```java
+  authors.stream()
+          .skip(3)
+          .forEach(System.out::println);
+  ```
+
+* `flatMap()`方法
+
+  可以将一个对象转化为流中的多个对象
+
+  ```java
+  authors.stream()
+          .flatMap(author -> author.getBooks().stream())	// Books也是List
+          .distinct()
+          .forEach(i->System.out.println(i.getName()));
+  ```
+
+* `peek()`方法
+
+  用来遍历元素并且插入中间操作
+
+  ```java
+  long count = authors.stream()
+          .flatMap(author -> author.getBooks().stream())
+          .distinct()
+          .peek(System.out::println)
+          .count();
+  ```
+
+🔵终结操作
+
+* `forEach()`方法
+
+  对流中的对象进行遍历
+
+  ```java
+  authors.stream()
+          .forEach(System.out::println);
+  ```
+
+* `count()`方法
+
+  用处如其名
+
+  ```java
+  authors.stream()
+          .count();
+  ```
+
+* `max/min`
+
+  返回的结果是`Optional`类型的
+
+  ```java
+  Optional<Integer> max = authors.stream()
+          .map(author -> author.getAge())
+          .max((o1, o2) -> o1 - o2);
+  
+  System.out.println(max.get());
+  ```
+
+* `collect()`方法
+
+  将当前的流转化为集合
+
+  ```java
+  List<Integer> collect = authors.stream()
+          .map(Author::getAge)
+          .collect(Collectors.toList());
+  ```
+
+  转化为set：`Collectors.toSet()`
+
+  转化成map:
+
+  > 注意：如果转成map的话，Key不能重复，如果重复会抛出异常`IllegalStateException`，如果需要考虑并发情况的话使用`toConcurrentMap`
+
+  ```java
+  Map<Long, String> map = authors.stream()
+          .distinct()
+          .collect(Collectors.toMap(Author::getId, Author::getName));
+  ```
+
+* 
+
+* 
 
 ## Maven
 
@@ -5258,8 +5481,6 @@ void testRedis(){
 
 [Spring Security | FULL COURSE - YouTube](https://www.youtube.com/watch?v=her_7pa0vrg)
 
-https://youtu.be/her_7pa0vrg?t=6898
-
 ### startup
 
 1. spring security intro
@@ -5438,7 +5659,7 @@ public Set<SimpleGrantedAuthority> getGrantedAuthorities(){
 .antMatchers(HttpMethod.POST, "/api/v1/*").hasAuthority(COURSE_READ.getPermission())
 ```
 
-<h4>注解形式</h4>
+<h4>注解形式鉴权</h4>
 
 需要在实现`WebSecurityConfigurerAdapter`的安全设置类上添加注解`@EnableGlobalMethodSecurity(prePostEnabled = true)`
 
@@ -5457,6 +5678,45 @@ public Student getStudent(@PathVariable("studentId") Integer studentId){
             .orElseThrow(() -> new IllegalStateException("Student: " + studentId + " is not exists"));
 }
 ```
+
+### CSRF
+
+> 简单的身份验证只能保证请求是发自某个用户的浏览器，却不能保证请求本身是用户自愿发出的
+
+默认情况下，Spring Security会产生CSRF TOKEN
+
+配置：
+
+```java
+http.csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+        .and()
+```
+
+### Auth 方式
+
+之前学习的方式都是`Basic auth`方式，但是不能退出登录。大部分网站使用的是以表单(`form auth`)的形式进行提交。
+
+默认情况下，Spring Security也是使用的`formLogin()`
+
+```java
+http
+        .csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+        .and()
+        .authorizeRequests()
+        .antMatchers("/", "index", "/css/*", "/js/*").permitAll()
+        .anyRequest()
+        .authenticated()
+        .and()
+        .formLogin();
+```
+
+###  OAuth2
+
+第三方认证
+
+
+
+
 
 ## 资料
 
