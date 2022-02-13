@@ -1869,7 +1869,7 @@ class MakeUp implements Runnable{
 
 ### Stream流
 
-> Stream流**必须**要有终结操作，否则可能中间操作可能不会调用到
+> Stream流**必须**要有终结操作，否则可能中间操作可能不会调用到；并且Stream流只能使用一次；不会修改源数据
 
 案例：
 
@@ -2066,9 +2066,111 @@ stream.filter(e -> e.getValue() > 2)
           .collect(Collectors.toMap(Author::getId, Author::getName));
   ```
 
-* 
+* `anyMatch()`是否存在一个元素满足条件，`allMatch()`是否所有元素满足条件，`noneMatch()`是否所有元素都不满足条件，
 
-* 
+  ```java
+  boolean b = authors.stream()
+          .anyMatch(a -> a.getAge() > 29);
+  System.out.println(b);
+  
+  boolean b = authors.stream()
+      .allMatch(a -> a.getAge() < 50);
+  System.out.println(b);
+  ```
+
+* `findAny()`寻找任意一个元素(不一定是第一个元素)，`findFirst()`返回第一个元素
+
+* `reduce()`
+
+  将上个元素计算的结果作为参数与下个流的元素做运算。
+
+  > `reduce()`函数有三种形式：可以设置result的初值(idnetity)。
+  >
+  > MapReduce思想类似
+
+  ```java
+  // 求和
+  authors.stream()
+          .map(Author::getAge)
+          .reduce((r, e) -> r + e);
+  
+  // 求最大值
+  authors.stream()
+      .map(Author::getAge)
+      .reduce((r, e) -> r > e ? r : e);
+  ```
+
+### Optional
+
+为了防止空指针异常过多冗余的判断，使用Optional优雅的处理异常。
+
+🔵创建Optional对象
+
+可以使用`ofNullable()`方法接收空值。如果**确定**绝对不是空的话，就使用`of`方法。
+
+```java
+public static void main(String[] args) {
+    List<Author> authors = TestStream.getAuthors();
+    Author author = authors.get(0);
+
+    Optional<Author> author1 = Optional.ofNullable(author);
+    author1.ifPresent(System.out::println);
+}
+```
+
+安全消费获得的值使用方法`ifPresent()`方法，或者`get()`方法，后者遇到`null`值会抛出异常。
+
+```java
+System.out.println(author1.orElseGet(Author::new));
+System.out.println(author1.orElse(new Author()));
+```
+
+更安全的获取可以使用方法`orElseGet`或者`orElse`来处理null值时候的默认值。
+
+🔵Optional也支持`filter(),map()`方法。
+
+### 函数式接口
+
+常见函数式接口：
+
+* `Consumer`，只接受处理，不返回，`BiConsumer`可以接收两个参数
+* `Function<T,R>`，传入一种参数，返回一种参数，`BiFunction<T,R,U>`，可以接收两个参数
+* `Predict<T>`判断型接口，返回结果为bool类型，`BiPredict`类似。
+* `Supplier<T>`，生产者接口，不接收，只返回。
+
+对于`Predict`接口，支持`and`和`or`方法连接，用于条件判断：
+
+这个一般用在两个接口直接的使用，不适用实现类的直接调用。
+
+```java
+authors.stream()
+        .filter(((Predicate<Author>) author -> author.getAge() > 18).and(author -> author.getId() > 2))
+        .forEach(System.out::println);
+```
+
+### 方法引用
+
+进一步简化代码`::`，使用两个代码。
+
+如果lambda表达式中只有一个方法一行代码，并且无参数或者参数对应的数量是相同的时候。
+
+### 基本类型优化
+
+对于基本类型会有自动装箱和拆箱的开销。
+
+jdk提供了`mapToInt,mapToDouble`等方法来进行转化
+
+### 并行流
+
+```java
+authors.stream()
+        .parallel()
+        .peek((r)->{
+            System.out.println("Cur"+Thread.currentThread().getName());
+        })
+        .filter(author -> author.getAge() > 18)
+        .forEach(System.out::println);
+```
 
 ## Maven
 

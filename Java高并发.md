@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) P248
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) P266
 
 [ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ)
 
@@ -1984,6 +1984,92 @@ public class RWLock {
     }
 }
 ```
+
+🔵原理
+
+读写锁的state与普通的可重入锁的state不同，写锁使用的是state的低16位，读锁使用的是state的高16位。
+
+🔵StampedLock
+
+ReentrantReadWriteLock对于读读之间的锁性能还是不够优秀，底层还是走的AQS流程。StampedLock是配合一个【戳】，他支持乐观读，在乐观读之后通过验证戳是否有效，有过有效则读取成功，无效则需要手工重新加读锁。
+
+```java
+@Slf4j(topic = "StampedLock")
+public class StampedLockDemo {
+    private static volatile int data;
+    private static StampedLock lock = new StampedLock();
+
+    public static void main(String[] args) {
+        new Thread(() -> {
+            long stamp = lock.writeLock();
+            try {
+                data = 1;
+            } finally {
+                lock.unlockWrite(stamp);
+            }
+        }).start();
+
+        new Thread(() -> {
+            long stamp = lock.tryOptimisticRead();
+            if (lock.validate(stamp)) {
+                log.debug("Optimistic Read Success: {}", data);
+                return;
+            }
+            log.debug("Optimistic read failed, update to lock..");
+            stamp = lock.readLock();
+            try {
+                log.debug("Lock read data: {}", data);
+            } finally {
+                lock.unlockRead(stamp);
+            }
+        }).start();
+    }
+}
+```
+
+**缺点：**
+
+* 不支持条件变量
+* 不支持可重入锁
+
+### 缓存更新策略
+
+当对数据重新进行修改的时候，是先清空缓存还是先更新数据库？
+
+* 当先清除缓存的时候，还没更新数据库之前有一个请求发送过来，从数据库中查询到的还是旧数据，查到之后由于缓存被清除因此重新写入缓存，导致后面的查询到的数据还是旧值，问题严重。
+* 先更新数据库的话，在清空缓存的之前有一个请求发送过来，请求还是会拿到旧数据。但是之后就会清除缓存，后续会纠正过来，问题就比较轻。
+
+如果想要保证数据库和缓存之间的严格一致性，就需要对这个过程进行加读写锁。可以配合双重检查锁保证减少数据库的查询次数。
+
+### Semaphore信号量
+
+> 用于限制同时访问共享资源的上限即限制的只是线程的数量。
+>
+> 可以用来高峰限流，但只能单机使用。
+
+```java
+@Slf4j(topic = "TestSemaphore")
+public class SemaphoreDemo {
+    public static void main(String[] args) {
+        Semaphore semaphore = new Semaphore(3);
+        for (int i = 0; i < 10; i++) {
+            new Thread(() -> {
+                try {
+                    semaphore.acquire();
+                    log.debug("Running");
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                log.debug("End");
+                semaphore.release();
+            }, "t" + i).start();
+        }
+    }
+}
+```
+
+有点类似于go中的`WaitGroup`。
 
 ## 并发设计模式
 
