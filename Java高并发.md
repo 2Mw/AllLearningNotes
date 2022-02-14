@@ -2,11 +2,11 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) P266
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) Over
 
-[ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ)
+[ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ) Over
 
-> 备注：这个课程后面还有disrupt、guava、异步编程、非共享模型、并行编程
+> 备注：还有disrupt、guava、异步编程、并行编程未涉及。
 
 ## 多线程
 
@@ -2069,7 +2069,172 @@ public class SemaphoreDemo {
 }
 ```
 
-有点类似于go中的`WaitGroup`。
+有点类似于go中的`WaitGroup`，但是不能修改数量。
+
+### CountdownLatch
+
+用来进行线程同步写作，等待所有线程完成倒计时。
+
+```java
+@Slf4j(topic = "CountdownLock")
+public class CountdownLock {
+    public static void main(String[] args) throws InterruptedException {
+        CountDownLatch lock = new CountDownLatch(2);
+
+        new Thread(() -> {
+            log.debug("begin...");
+            Thread.sleep(1000);
+            lock.countDown();
+            log.debug("Over ...");
+        }).start();
+
+        new Thread(() -> {
+            log.debug("begin...");
+            Thread.sleep(2000);
+            lock.countDown();
+            log.debug("Over ...");
+        }).start();
+
+
+        log.debug("Wait countdown");
+        lock.await();   // 减为0的时候唤醒
+        log.debug("Over All");
+    }
+}
+```
+
+### CyclicBarrier
+
+`CyclicBarrier`相比于`CountdownLatch`是可以重用的，当使用完数量变为0时候，会重置为初始值。
+
+> 需要注意的是这里的线程池的线程数需要和`CyclicBarrier`的数量一致，否则可能会产生某些线程失效。
+
+```java
+@Slf4j(topic = "BarrierDemo")
+public class CyclicBarrierDemo {
+    public static void main(String[] args) {
+        ExecutorService service = Executors.newFixedThreadPool(2);
+        CyclicBarrier cb = new CyclicBarrier(2, () -> {
+            log.debug("All task over");
+        });
+
+        for (int i = 0; i < 3; i++) {
+            service.submit(() -> {
+                log.debug("Start 1");
+                try {
+                    Thread.sleep(1000);
+                    cb.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            service.submit(() -> {
+                log.debug("Start 2");
+                try {
+                    Thread.sleep(2000);
+                    cb.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+        service.shutdown();
+    }
+}
+```
+
+### 线程安全集合类
+
+有三种线程安全类
+
+1. 历史遗留的安全集合类：`Hashtable, Vector`，其每个方法都是由`Synchronized`修饰，效率低（不推荐使用）。
+
+2. 修饰的安全类：在`Collections`包下面由对应的内部类的线程安全实现，比如`Map-> Collections.SychronizedMap`，使用方法`Collections.synchronizedMap(Map map)`将其进行转换，其余有`SychronizedList`等等（也不怎么推荐）。
+
+3. JUC线程安全类：分别是`BlockingXXX,CopyOnWriteXXX,ConcurrentXXX`类.
+
+   Blocking大部分基于锁，并且提供阻塞的方法
+
+   CopyOnWrite使用的是修改时候使用Copy的方法来防止不一致，修改开销大。
+
+   Concurrent内部大多采用cas优化，较高吞吐量。但是存在弱一致性（遍历、求集合大小、读取都可能是旧的）。
+
+非安全类在遍历时候发生了修改会抛出`ConcurrentModificationException`，不能继续遍历。
+
+🔵`ConcurrentHashMap`类
+
+```java
+ConcurrentHashMap<String, LongAdder> map = new ConcurrentHashMap<>();
+LongAdder obj = map.computeIfAbsent("a", (k)-> new LongAdder());
+obj.increment();
+```
+
+`computeIfAbsent()`方法是用来处理当map中不存在这个键值对的时候，创建并且初始化一个值，并且返回对应的值；如果存在只返回对应的值。
+
+🔵原理
+
+* `HashMap`存在扩容时候的并发死链问题（JDK7），JDK8中又存在Hashmap中扩容数据丢失的问题。
+
+🔵`LinkedBlockingQueue`类
+
+提供锁的类，`put()`是阻塞方法，`offer()`是非阻塞方法（即如果队列已满会返回false）。`take`阻塞，`poll()`是非阻塞方法。
+
+🔵`CopyOnWriteArrayList`类
+
+不会影响读-读，读-写操作，只会在**写写**操作上加锁。适合读多写少情况，但是存在弱一致性的问题。
+
+## 非共享模型——ThreadLocal
+
+`ThreadLocal`类可以实现资源对象的线程隔离，让每个线程各用各的对象，避免资源争用引发的线程安全问题。并且`ThreadLocal`实现了线程内的资源共享。
+
+使用`get()`方法来获取当前线程对应`ThreadLocal`的资源，`set()`方法用来设置。其原理就是线程内维护一个`ThreadLocalMap`的成员变量，get，set方法就是以当前线程为key，对应的资源为value。
+
+一般情况下使用static修饰`ThreadLocal`的成员变量。
+
+```java
+@Slf4j(topic = "ThreadLocalDemo")
+public class ThreadLocalDemo {
+    public static void main(String[] args) {
+        new Thread(() -> {
+            Object obj = Util.getObj();     // 1:java.lang.Object@24441c8
+            log.info("1:{}", obj);
+            Object obj2 = Util.getObj();    // 1:java.lang.Object@24441c8
+            log.info("1:{}", obj2);
+        }).start();
+
+        new Thread(() -> {
+            Object obj = Util.getObj();     // 2:java.lang.Object@3c87d91f
+            log.info("2:{}", obj);
+        }).start();
+    }
+}
+
+class Util {
+    private static final ThreadLocal<Object> tl = new ThreadLocal<>();
+
+    public static Object getObj() {
+        Object obj = tl.get();
+        if (obj == null) {
+            obj = new Object();
+            tl.set(obj);
+        }
+        return obj;
+    }
+}
+```
+
+**问题**：
+
+* 为什么ThreadLocal要使用弱引用？
+
+  在Map中如果key设置为强引用的话，jvm无法回收内存。弱引用方便jvm进行回收。
+
+* 对于强引用的value，怎么进行释放？
+
+  1. 获取key的时候发现key为null，顺便把value清除
+  2. 设置key的时候，使用启发式扫描，清除临近的null的key
+  3. remove的时候
 
 ## 并发设计模式
 
