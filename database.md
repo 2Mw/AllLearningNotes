@@ -393,7 +393,7 @@ show grants for root;							-- 查看授权给root的信息
 grant select on demo_db.demo_table to jack;		-- 授予jack在demo_db数据库demo_table上查询权限
 grant all on demo_db.* to 'jack'@'%';			-- 授予jack在demo_db数据库上所有权限
 grant all on *.* to 'jack'@'%';					-- 授予jack所有权限
-revoke all on *.* to 'jack'@'%';				-- 撤销jack所有权限
+revoke all on *.* f 'jack'@'%';				-- 撤销jack所有权限
 SET PASSWORD FOR 'username'@'host' = PASSWORD('newpassword');	-- 更改用户密码
 ```
 
@@ -449,6 +449,13 @@ id, select_type, `table`, partitions, type,  possible_keys, `key`, key_len, ref,
 
 索引的数据结构：二叉树、红黑树、Hash表、B树、**B+树**。
 
+🔵B树与B+树的对比：
+
+* B树是从上到下构建树的，B+树是从下到上构建树的
+* B+树的叶子节点包含所有的数据信息，支持顺序读取。
+* B+树的非叶子节点只存储其子树中的最大值，因此B+树在相同大小的磁盘中能存储更多的索引。
+* B+树方便取出某个范围的数据，而B树不方便。
+
 非B树存储当数据变多的时候树会变得非常高。
 
 hash表无法进行范围查询，否则要进行挨个查询。
@@ -472,7 +479,10 @@ MySQL中的B+树索引：
 
 ### 聚簇索引和非聚簇索引
 
-- 聚簇索引：将数据存储与索引放到了一块，找到索引也就找到了数据
+- 聚簇索引：数据是和索引存放在一起的，找到索引也就找到了数据。主键索引的叶节点存储的是行数据，二级索引的叶节点存放的是对于存储行的主键值。
+
+  当使用二级索引查找数据的时候，查找到叶节点拿到对应行的主键索引，再通过主键索引查找对应的行(**回表**)
+
 - 非聚簇索引：将数据存储于索引分开结构，索引结构的叶子节点指向了数据的对应行，myisam通过key_buffer把索引先缓存到内存中，当需要访问数据时（通过索引访问数据），在内存中直接搜索索引，然后通过索引找到磁盘相应数据，这也就是为什么索引不在key buffer命中时，速度慢的原因
 
 <img src="https://i.loli.net/2021/08/02/nZDXrkofUjGv2I5.png" alt="image-20210802223248752" style="zoom:67%;" />
@@ -485,9 +495,11 @@ MySQL中的B+树索引：
 
   id, name, age, gender. 其中id为自增主键索引，name为普通索引。
 
-  `select * from user where name = "john"`。这个表有两个B+树。首先根据name查其B+树得到对应的id值，在根据id值查询id对应的B+树来检索对应的数据记录，这个过程叫做回表。**尽可能避免回表操作**。`select id from user where name = "john"`，无需回表。
+  `select * from user where name = "john"`。这个表有两个B+树。首先根据name查其B+树得到对应主键id值，在根据id值查询id对应的B+树来检索对应的数据记录，这个过程叫做回表。**尽可能避免回表操作**。`select id from user where name = "john"`，无需回表。
 
 * **索引覆盖**：
+
+  > 更简单理解就是：使用二级索引查询的时候，想要查询的恰好是主键，因此无需回表，这是索引覆盖。
 
   `select id, name from user where name = "john"`。此操作根据name的值去查询name对应的B+树，能获取到id的值，不需要获取到所有列的值，因此不需要回表，这个过程叫做索引覆盖。使用`explain`会有`using index`的提示，**推荐使用**。
 
@@ -784,3 +796,5 @@ MySQL默认的事务隔离级别是RR可重复读。
 [面试官:讲讲mysql表设计要注意啥? - 知乎](https://zhuanlan.zhihu.com/p/73260510)
 
 [MySQL 面试题](https://www.jishuchi.com/read/mysql-interview/2791)
+
+[大众点评订单系统分库分表实践](https://tech.meituan.com/2016/11/18/dianping-order-db-sharding.html)

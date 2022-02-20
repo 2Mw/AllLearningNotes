@@ -386,7 +386,7 @@ public static void m2(){
 }
 ```
 
-对于方法`m2()`，在调用之前有`m1()`调用已经加锁，在`m2`中同样加了锁，但是这是可以在同一个线程中进行的操作，因此`m2`加的锁是**重入锁**，在锁记录中会有两条记录，当两条记录全部解除之后才会对obj对象解除占用。
+对于方法`m2()`，在调用之前有`m1()`调用已经加锁，在`m2`中同样加了锁，但是这是可以在同一个线程中进行的操作，因此`m2`加的锁是**重入锁**即是轻量级锁，在锁记录中会有两条记录，当两条记录全部解除之后才会对obj对象解除占用。
 
 🔵锁膨胀
 
@@ -400,13 +400,15 @@ public static void m2(){
 
 🔵自旋优化
 
+> 自旋可以认为是一个轮询等待上锁的过程。
+
 重量级锁竞争的时候，还可以使用自旋来进行优化，如果当前的进程自旋成功（即这时候持锁线程已经退出了同步锁，释放了锁），这是当前的进程就可以避免阻塞。
 
 自旋成功：
 
 <img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126093351358.png" alt="image-20220126093351358" style="zoom:67%;" />
 
-自选失败：
+自旋失败：
 
 <img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126093410822.png" alt="image-20220126093410822" style="zoom:67%;" />
 
@@ -414,7 +416,7 @@ public static void m2(){
 
 🔵偏向锁
 
-轻量级锁在没有竞争的时候，每次冲入仍然需要执行CAS操作。
+轻量级锁在没有竞争的时候，每次重入仍然需要执行CAS操作。
 
 偏向锁就是将线程的ID设置到锁对象的头中，之后如果发现这个线程的ID是自己的就表示没有竞争。
 
@@ -440,7 +442,7 @@ Java中默认会开启偏向锁，对象头后三位是`101`。
 
 ### wait/notify
 
-当一个线程调用`wait`方法的时候，线程会变为`WAITING`状态，进入monitor中的`Waitset`队列中（阻塞的线程放在`EntryList`中），但是**前提是**必须先获得锁。
+当一个线程调用`wait`方法的时候，线程会变为`WAITING`状态，进入monitor中的`Waitset`队列中（阻塞的线程放在`EntryList`中），但是**前提**是必须先获得锁。
 
 ```java
 @Slf4j(topic = "wait demo")
@@ -507,8 +509,6 @@ public class WaitDemo {
   	}
   }
   ```
-
-  
 
 * 分别使用不同的锁
 
@@ -648,7 +648,7 @@ public class LiveLock {
 * 可以设置公平锁，防止出现饥饿的现象。
 * 支持多个条件变量
 
-基本语法：
+基本语法规范：
 
 ```java
 reentrantLock.lock();
@@ -853,7 +853,7 @@ public static void main(String[] args) throws InterruptedException {
 
 这里一秒后程序并不会停下来。
 
-> 注意里面没有代码。停下来可能是在while里面加了println吧，因为println是一个线程安全的方法 ，底层有synchronized，而synchronized保证了可见性，不会一直循环。
+> 注意里面没有代码。但是如果在while里面加了`println`会停下来，因为`println`是一个线程安全的方法 ，底层有synchronized，而synchronized保证了可见性，不会一直循环。
 
 🔵为什么线程没有停下来？
 
@@ -862,7 +862,7 @@ public static void main(String[] args) throws InterruptedException {
 **解决方法**：
 
 * 对变量修饰`volatile`关键字，设置变量不允许在缓存中读取。
-* 或者使用`synchronized`关键字进行包围。在Java内存模型中，synchronized规定，线程在加锁时， 先清空工作内存→在主内存中拷贝最新变量的副本到工作内存 →执行完代码→将更改后的共享变量的值刷新到主内存中→释放互斥锁。
+* 或者使用`synchronized`关键字进行包围。在Java内存模型中，`synchronized`规定，线程在加锁时， 先清空工作内存→在主内存中拷贝最新变量的副本到工作内存 →执行完代码→将更改后的共享变量的值刷新到主内存中→释放互斥锁。
 
 🔵使用`volatile`的注意事项：
 
@@ -1039,7 +1039,7 @@ t2 ->> t2 : 40 : 使用对象
 t1 ->> t1 : 21 : invokespecial(调用构造方法)
 ```
 
-> `synchronized`只保证代码的有序性即java代码一句一句执行，不保证jvm指令的重排。如果不加此关键字，两种情况代码交错和指令交错都是有可能发生的。
+> `synchronized`只保证代码的有序性即java代码一句一句执行，不保证jvm字节码指令的重排。如果不加此关键字，两种情况代码交错和指令交错都是有可能发生的。
 
 这里的`sychronized`代码块中的`instance = new Singleton()`指令可能会发生重排，因此在这种情况下，可能先进行类初始化后并未调用构造方法，然后对`instance`变量进行赋值，此时另一个多线程已经获取到这个`instance`变量，然而此时的`instance`变量是一个未经过调用构造方法初始化的变量，因此直接使用可能会出现问题。
 
@@ -1443,7 +1443,7 @@ public static void main(String[] args) throws NoSuchFieldException, IllegalAcces
 }
 ```
 
-jdk11以上加入了直接调用（但是不能在自己的方法中用，还得使用反射的方式）：
+<del>jdk11以上加入了直接调用</del>（但是不能在自己的方法中用，还得使用反射的方式）：
 
 ```java
 Unsafe unsafe = Unsafe.getUnsafe();
