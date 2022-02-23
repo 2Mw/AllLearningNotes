@@ -1,6 +1,6 @@
 # JVM
 
-[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP)
+[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP?p=65) p65
 
 ## JVM内存结构
 
@@ -221,4 +221,147 @@ System.gc();
 ### 判断垃圾
 
 🔵引用计数法
+
+当存在别的对象对一个对象引用的时候，就会让引用的计数加一，如果为0的时候就可以进行垃圾回收了。
+
+对于引用计数法存在一个问题，对于两个循环引用的对象，A引用B，B引用A时，两个各自引用计数都是1，因此就不能进行回收。
+
+Java因此不采用这种方法，python以前使用的是这种方法。
+
+🔵可达性分析算法
+
+Java采用的算法，Java首先需要判断根对象，jvm判断每个对象是否被根对象所引用，如果被引用则不可以被垃圾回收，未被引用则表示可以被回收。
+
+什么是根对象（GC root）？
+
+对于分析内存泄漏可以使用Eclipse开发的[Memory Analyzer(MAT)](https://www.eclipse.org/mat/)工具，来发现哪些对象可以作为GCRoot。
+
+```sh
+jps # 查看java进程id
+jmap -dump:format=b,live,file=1.bin 21384	# 输出堆内存快照文件
+jmap -dump:format=b,live,file=2.bin 21384	# 输出将指针设置为空后的快照
+# 然后使用mat软件打开两个快照文件，查看gc root
+```
+
+![image-20220223111525676](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111525676.png)
+
+🔵Java中的四种引用
+
+引用的接口类为`Reference`，其他分别为`StrongReference, SoftReference, WeakReference, PhantomReference`.
+
+![image-20220223111636024](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111636024.png)
+
+图中的实现为强引用，虚线为其他引用。
+
+1. 强引用
+
+   只有所有的强引用连接全部断开，才会进行垃圾回收。
+
+2. 软引用
+
+   当A2都没有被强引用直接或者间接引用的时候，在内存不足的时候，都有可能被回收。
+
+3. 弱引用
+
+   当A3都没有被强引用直接或者间接引用的时候，不管内存够不够，都有可能被回收。可以配合引用队列进行使用。
+
+4. 虚引用
+
+   其**必须**配合引用队列进行使用，比如在回收ByteBuffer对象的时候，也需要回收其对应的直接内存。
+
+5. 终结器引用
+
+   使用对象都会继续`Object`父类，调用`finalize()`时，但是不推荐调用这个方法。
+
+使用软引用代码：`-Xmx20m -XX:+PrintGCDetails -verbose:gc`
+
+```java
+@Slf4j(topic = "SoftReference")
+public class SoftReferenceDemo {
+    private static final int _4MB = 1024 * 1024 * 4;
+
+    public static void main(String[] args) throws IOException {
+        soft();
+    }
+
+    public static void soft() throws IOException {
+        System.in.read();
+        List<SoftReference<byte[]>> list = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            SoftReference<byte[]> ref = new SoftReference<>(new byte[_4MB]);
+            log.info("{}", ref);
+            list.add(ref);
+            log.info("{}", list.size());
+        }
+
+        log.debug("循环结束");
+        for (SoftReference ref : list) {
+            log.info("{}", ref);
+        }
+        System.in.read();
+    }
+}
+```
+
+对于软引用可能会被垃圾回收的情况，可以将`SoftReference`关联到`ReferenceQueue`对象上，当被回收的时候可以通过检测来删除对象。
+
+### 垃圾回收算法
+
+🔵标记清除法
+
+![image-20220223135714269](E:\Notes\Java\JVM\JVM知识.assets\image-20220223135714269.png)
+
+首先将GCroot未进行引用的地址进行标记，然后进行清除。
+
+优点就是速度快，但是会产生很多空间不连续会导致很多的空间碎片。
+
+🔵标记整理法
+
+在标记清除算法的基础上，在进行一个“紧凑”操作。
+
+不会产生碎片，但是需要考虑到系统对象引用的修改，缺点就是速度较慢。
+
+🔵复制算法
+
+![image-20220223140204820](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140204820.png)
+
+复制回收算法使用于存活的内存区域较少的情况，即将内存区域分为两块FROM区域和TO区域。将原先FROM区域中存活的内存复制到TO区域中，清除FROM区域。最终交换两个区域，FROM区域变为TO区域，TO区域变为FROM区域。
+
+缺点就是需要划分两倍的内存。
+
+### 分代回收算法
+
+![image-20220223140915693](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140915693.png)
+
+在具体的java垃圾回收算法中，不会只是用某一种算法，而是将几种算法有机的结合在一起。
+
+Java的回收算法将内存区分为两个区域：新生代和老年代。
+
+有的对象需要长时间进行使用，就放入到老年代中；对于用完就可以丢弃的，就放入到新生代中。
+
+🔵回收流程
+
+首次进行垃圾回收，会将对象存入到新生代的伊甸园中，一直存放到伊甸园满为止。当伊甸园已经存放不了下一个对象的时候就会触发一次垃圾回收，将GC ROOT引用的对象复制到幸存区TO区域，将伊甸园中的其余未引用的对象进行清除，然后将幸存区的对象进行设置生命周期加1，最后将FROM区域和TO区域的进行交换。
+
+![image-20220223142103931](E:\Notes\Java\JVM\JVM知识.assets\image-20220223142103931.png)
+
+当存放在幸存区中的寿命超过阈值15的时候，会将对应的内存晋升到老年代中。之前的GC操作可以称为`Minor GC`。如果新生代和老年代两个区域都放不下新的内存区域的时候，就会触发新的`Full GC`操作，会对新生代和老年代两个区域都进行垃圾回收。
+
+`Minor GC`会触发Stop The World操作，即发生垃圾回收的时候，会暂停其他的用户线程，等待垃圾回收操作完成之后，才会进行恢复用户线程。因为在进行垃圾回收的时候，会发生内存地址发生变化的情况，如果不暂停线程的话会导致地址混乱的情况。
+
+`Full GC`也会触发Stop The World操作，并且时间较长。
+
+### 相关的vm参数
+
+|       含义        |                            参数                             |
+| :---------------: | :---------------------------------------------------------: |
+|    堆初始大小     |                            -Xms                             |
+|    堆最大大小     |                            -Xmx                             |
+|    新生代大小     |                            -Xmn                             |
+| 幸存区比例(动态)  | -XX:InitialSurvivorRatio=ratio / -XX:+UseAdaptiveSizePolicy |
+|    幸存区比例     |                   -XX:SurvivorRatio=ratio                   |
+|     晋升阈值      |             -XX:MaxTenuringThreshold=threshold              |
+|     晋升详情      |               -XX:+PrintTenuringDistribution                |
+|      GC详情       |               -XX:+PrintGCDetails -verbose:gc               |
+| Full GC前Minor GC |                  -XX:ScavengeBeforeFullGC                   |
 
