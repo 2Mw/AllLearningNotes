@@ -2363,7 +2363,7 @@ int coinChange(vector<int>& coins, int amount) {
 
 ​	**最优子结构**：一个问题的最优解包含其子问题的最优解
 
-​	**重叠子问题**：在递归求解的过程中，很多子问题会被重复计算。例如斐波那契数列会多次求相同的子问题
+​	**重叠子问题**：例如斐波那契数列会多次求相同的子问题
 
 ​    **无后效性**：与后续阶段无关
 
@@ -4619,6 +4619,82 @@ int main(){
 欲求$\displaystyle\sum_{i=l}^ra_i$，设$S_n=\displaystyle\sum_{i=0}^na_i$，则$\displaystyle\sum_{i=l}^ra_i=S_r-S_{l-1}$。
 
 扩展二维矩阵和。
+
+## 树状数组和线段树
+
+**树状数组**：
+
+应用（单点修改和区间查询）：
+
+* $O(\log n)$快速求前缀和。
+* 在某个位置的数，加上一个数
+
+![image-20220223162823400](E:\Notes\algorithm\algorithm.assets\image-20220223162823400.png)
+
+树状数组的层数是有对应位置数字二进制末尾几个零决定。
+
+树状数组有三个必要操作：`lowbit(x), add(), query()`，分别表示特定计算，对某个元素添加一个值以及查询前缀和。其中$\text{lowbit(x)}=x\&-x$。其查询前缀和以及进去区间修改的时间复杂度为$O(\log n)$
+
+求位置索引`x`之前序列前缀和：
+
+```c
+for(int i=x;i>0;i-=lowbit(i))res+=c[i];
+```
+
+在位置索引`x`添加数值`v`后需要进行的序列修改：
+
+```c
+for(int i = x; i <= n; i += lowbit(x))c[i]+=v;
+```
+
+[模板题](https://www.acwing.com/problem/content/1266/)：
+
+```c++
+#include "iostream"
+#include "cstdio"
+#include "algorithm"
+
+using namespace std;
+
+typedef long long ll;
+
+const int N = 100010;
+int n, m;
+int tr[N];
+
+int lowbit(int x) {
+    return x & -x;
+}
+
+void add(int t, int x) {
+    for (int i = t; i <= n; i += lowbit(i)) tr[i] += x;
+}
+
+ll query(int t) {
+    ll ans = 0;
+    for (int i = t; i > 0; i -= lowbit(i)) {
+        ans += tr[i];
+    }
+    return ans;
+}
+
+int main() {
+    cin >> n >> m;
+    for (int i = 1; i <= n; ++i) {
+        int item;
+        scanf("%d", &item);
+        add(i, item);
+    }
+    int k, a, b;
+    while (m--) {
+        scanf("%d%d%d", &k, &a, &b);
+        if (k) add(a, b);
+        else cout << query(b) - query(a - 1) << endl;
+    }
+}
+```
+
+
 
 ## 背包问题专题
 
