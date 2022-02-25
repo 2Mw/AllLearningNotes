@@ -1,6 +1,6 @@
 # JVM
 
-[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP?p=65) p65
+[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP?p=65) p119
 
 ## JVM内存结构
 
@@ -453,3 +453,174 @@ Oracle 建议新生代设置的大小为堆大小的25%-50%之间，新生代的
 * CMS的老年代内存越大越好
 * 先不进行调优，如果没有出现 Full GC 就挺好了，否则先尝试调优新生代。
 * 调试完新生代之后还会发生 Full GC 的时候，将老年代的大小调大 1/3 或者 1/4。
+
+## 类加载和字节码
+
+### 类文件结构
+
+简单的 Hello World 样例编译后的字节码文件：
+
+![image-20220225115051013](E:\Notes\Java\JVM\JVM知识.assets\image-20220225115051013.png)
+
+```
+CA FE BA BE 00 00 00 37 00 22 0A 00 06 00 14 09
+```
+
+🔵版本信息：前8个字节
+
+* `CA FE BA BE` cafebabe 是用来标识的是java的class文件
+* `00 00 00 37` 标识JDK的版本，这里标识JDK11，34标识jdk8
+
+🔵常量池信息：
+
+第8-9个字节：`00 22` 标识有多少个常量。
+
+第 #1 常量：`0A 00 06 00 14`，0A表示Method信息，00 06 和 00 14 表示其引用了常量池中 #6 和 #20 项来获取这个方法的**所属类**和**方法名**。
+
+第 #2 常量：`09 00 15 00 16`，09 表示Field属性类型，后面`00 15` 以及 `00 16` 表示引用了常量 #23 和 #24 的常量信息。
+
+对于字符串常量：`01 00 0B 48 65 6C 6C 6F 20 57 6F 72 6C 64 `，其中 01 表示 utf8串，`00 0B`表示字符串的长度，`48 65 6C 6C 6F 20 57 6F 72 6C 64` 就表示的是`Hello World`。
+
+其余类似。
+
+🔵类的访问标识
+
+```
+00 21 00 05 00 06 00 00 00 00 00 02 00 01 00 07
+```
+
+`00 21` 表示是一个公共的类，`00 05` 表示类全限定名称 #5，`00 06` 表示父类的全限定名称 #6，`00 00` 表示接口的数量信息，`00 00` 表示属性信息，`00 02` 表示方法的数量。
+
+对于类中的方法属性，其中还有字节码会标识**Java源码**中对应的行号。
+
+更详情的内容可以参考书籍《The Java® Virtual Machine Specification》中的第四章The class File Format。
+
+### 字节码指令
+
+java提供javap指令来进行反编译：`javap -v xxx.class`
+
+样例分析：
+
+```java
+public class First {
+    public static void main(String[] args) {
+        int a = 10;
+        int b = a++ + ++a + a--;
+        System.out.println(a);  // 11
+        System.out.println(b);  // 34
+    }
+}
+```
+
+对应的字节码：
+
+```
+0: bipush        10
+2: istore_1
+3: iload_1
+4: iinc          1, 1
+7: iinc          1, 1
+10: iload_1
+11: iadd
+12: iload_1
+13: iinc          1, -1
+16: iadd
+17: istore_2
+18: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+21: iload_1
+22: invokevirtual #3                  // Method java/io/PrintStream.println:(I)V
+25: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+28: iload_2
+29: invokevirtual #3                  // Method java/io/PrintStream.println:(I)V
+32: return
+```
+
+样例分析二：
+
+```java
+private static void t1() {
+    int i = 0, x = 0;
+    while (i < 10) {
+        x = x ++;
+        i++;
+    }
+    System.out.println(x + " " + i);    // 0 10
+}
+```
+
+对于x一直为0有字节码：
+
+    10: iload_2
+    11: iinc          2, 1
+    14: istore_2
+
+JVM先将LocalVariableTable中slot为2的`x`进行操作栈，然后对LocalVariableTable中的x进行自增变为1，执行到`istore_2` 的时候又将操作栈中的值重新赋值给slot中的数据，因此数值还是为0。
+
+对应字节码：
+
+```
+0: iconst_0
+1: istore_1
+2: iconst_0
+3: istore_2
+4: iload_1
+5: bipush        10
+7: if_icmpge     21
+10: iload_2
+11: iinc          2, 1
+14: istore_2
+15: iinc          1, 1
+18: goto          4
+21: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+24: iload_2
+25: iload_1
+26: invokedynamic #3,  0              // InvokeDynamic #0:makeConcatWithConstants:(II)Ljava/lang/String;
+31: invokevirtual #4                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+34: return
+```
+
+🔵static：
+
+```java
+public class StaticDemo {
+    static int i = 1;
+
+    static { i = 2; }
+
+    static { i = 3; }
+}
+```
+
+在JDK8中会将静态代码块和静态变量的赋值全部按照上下顺序合并为`<cinit>`方法。
+
+🔵非静态成员变量和代码块
+
+```java
+package com.jvm.bytecode;
+
+public class Constructor {
+    private int a = 1;
+
+    {
+        b = 3;
+    }
+
+    private int b = 2;
+
+    {
+        a = 4;
+    }
+
+    public Constructor(int a, int b) {
+        this.a = a;
+        this.b = b;
+    }
+
+    public static void main(String[] args) {
+        Constructor ins = new Constructor(9, 99);
+        System.out.println(ins.a + " " + ins.b);    // 9 99
+    }
+}
+```
+
+对于非静态代码块和属性中的赋值，jvm会将其重新整合成一个新的构造器，然后将人工构造器的代码放在新的构造器之后。
