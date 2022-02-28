@@ -756,3 +756,204 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 * switch-enum：使用了一个合成类，根据枚举的`ordinal()`来判断
 * try-with-resource，可以自动关闭资源，简化资源关闭，`try(is = FileInputStream) {}`
 * 匿名内部类
+
+## 类加载
+
+![image-20220228101037159](E:\Notes\Java\JVM\JVM知识.assets\image-20220228101037159.png)
+
+类加载即将类的字节码载入方法区，内存采用的是C++的 instanceKlass 来描述java类，他的主要field有：
+
+* _java_mirror 即java的类镜像，起到桥梁的作用
+
+🔵链接：
+
+准备：为static变量分配内存空间，其存储在`_java_mirror`的末尾。对于静态变量，准备是在编译的时候进行，赋值实在类的构造方法中进行。
+
+对于不创建对象的`static final`变量，赋值是直接在编译的时候进行，对于创建对象的是要在运行时赋值。
+
+🔵解析：
+
+将常量池中的引用解析为直接引用。比如在类加载的时候采用的是懒加载的模式，如果不使用到对应的类，则其就不会加载。
+
+🔵初始化的情况
+
+### 类加载器
+
+类加载器的分类：
+
+|          名称           |       加载的类        |            说明             |
+| :---------------------: | :-------------------: | :-------------------------: |
+|  Bootstrap ClassLoader  |   JAVA_HOME/jre/lib   |        无法直接访问         |
+|  Extension ClassLoader  | JAVA_HOME/jre/lib/ext | 上级为Bootstrap，显示为null |
+| Application ClassLoader |       classpath       |       上级为Extension       |
+|      自定义加载器       |        自定义         |      上级为Application      |
+
+🔵启动类加载器Bootstrap
+
+启动设置参数：`-XBootclasspath/a:.`
+
+```java
+public class BootstrapDemo {
+    public static void main(String[] args) throws ClassNotFoundException {
+        Class<?> aClass = Class.forName("com.jvm.classloader.F");
+        System.out.println(aClass.getClassLoader());
+        // null
+    }
+}
+
+class F {
+    static {
+        System.out.println("Bootstrap F init");
+    }
+}
+```
+
+输出为null
+
+🔵应用类加载器：
+
+对于上述不添加参数，默认输出：`jdk.internal.loader.ClassLoaders$AppClassLoader@1f89ab83`
+
+🔵扩展类加载器
+
+在jdk8中，如果将应用类jar包放入`jre/lib/ext`目录下，就会输出`ExtClassLoader`
+
+### 双亲委派模式
+
+指的是调用类加载器的classloader方法时候查找类的规则。这里的双亲其实是上级的意思，因为其并没有继承的关系。
+
+如果应用类加载器未找到对应的类，向上到扩展类加载器找，扩展类中未找到就向上到启动类加载器中查询。如果都为找到就到自身的加载器中查询，都未找到就到自定义的类加载器中查询。
+
+## 运行期优化
+
+> 新版可以使用graalvm直接运行编译为二进制文件运行即可。
+
+### JIT即时编译器
+
+JIT优化Demo
+
+```java
+public class Demo {
+    public static void main(String[] args) {
+        for (int i = 0; i < 400; i++) {
+            long l = System.nanoTime();
+            for (int j = 0; j < 1000; j++) {
+                new Object();
+            }
+            System.out.printf("%d\t%d\n", i, System.nanoTime() - l);
+        }
+    }
+}
+```
+
+对应的输出：
+
+```
+0	35900
+1	28000
+2	25100
+3	26400
+........		// 中间省略
+60	27100
+61	30600
+62	29600
+63	28800
+64	10500
+65	6800
+66	6400
+67	6500
+68	6300
+........		// 中间省略
+200	9200
+201	57300
+202	6900
+203	300
+204	300
+205	300
+........		// 中间省略
+394	300
+395	300
+396	300
+397	400
+398	300
+399	300
+```
+
+> 使用graalvm的编译为本地字节码文件后，可以直接达到300纳秒左右，即使存在逃逸对象。
+
+可以看到对于热点代码，执行速度首先是提升了两倍，执行纳秒降到了4位数，然后又将为了3位数。
+
+JVM将执行阶段分为了5段：
+
+* 第0层是解释运行
+* 第1层是使用C1编译器编译执行（不带Profiling）
+* 第2层是使用C1编译器编译执行（带基本的Profiling）
+* 第3层是使用C1编译器编译执行（带完全Profiling）
+* 第4层是使用C2编译器编译执行
+
+JIT编译器会将热点代码直接编译为机器码，放到 code cache 中，下次遇到直接执行无需编译。
+
+### 方法内联inline
+
+有点类似C中的`inline`关键字，即将短而且热点代码直接将方法体代码嵌入调用方法中。
+
+### 字段优化
+
+如果想要优化使用变量的话尽量使用局部变量，而不是全局变量。
+
+```java
+public class {
+    
+    private int[] arr;
+    
+    // ....
+    
+    public void t1() {
+        for(int i = 0; i < arr.length; i++) doSome(arr[i]);
+    }
+
+    public void t2() {
+        int []tmp = arr;
+        for(int i = 0; i < tmp.length; i++) doSome(tmp[i]);
+    }
+}
+```
+
+后者的执行效率要比前者要高，前者每次都需要寻找成员中的变量，后者不需要。
+
+### 反射优化
+
+```java
+public class ReflectDemo {
+    public static void main(String[] args) throws Exception {
+        Method t1 = ReflectDemo.class.getMethod("t1");
+        for (int i = 0; i < 500; i++) {
+            long start = System.nanoTime();
+            t1.invoke(null);
+            System.out.println(System.nanoTime() - start);
+        }
+    }
+
+    public static void t1() {
+        System.out.print("Test");
+    }
+}
+```
+
+前十几次（`inflationThreshold`）调用耗时较高效率低，之后效率就会变高。
+
+## JMM内存模型
+
+即定义了一套在多线程读写共享数据的时候，对于数据的可见性、有序性和原子性的一套规则和保障。
+
+### 原子性
+
+jvm中使用的是叫做`Monitor`的数据结构来进行锁的使用，当线程使用的资源未加锁的时候会将此线程加入到Owner中，当资源以及加锁的时候会将此线程加入EntryList中，睡眠或者wait的时候会加入到WaitSet中。
+
+### 可见性
+
+见Java多线程，volatile
+
+### 有序性
+
+写屏障和读屏障。
