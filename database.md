@@ -555,13 +555,13 @@ set autocommit = 0;		-- 0表示off，1表示on
 
 可参考：[深入学习MySQL事务：ACID特性的实现原理](https://www.cnblogs.com/kismetv/p/10331633.html)
 
-🔵原子性（Atomic）：由undolog实现
+🔵原子性（Atomic）：即指事务是一个不可分割的单位，其中的操作要么全部执行，要么就都不执行。其实现是基于undolog(有了undo就能够回滚)。
 
-🔵一致性（Consistency）：由其他三个特性共同实现，是最**根本**的。
+🔵一致性（Consistency）：数据库的完整性约束没有被破坏，事务执行前后都是合法的数据状态。其实现是**基于其他三个特性**。
 
-🔵隔离性（Isolation）：由MVCC实现
+🔵隔离性（Isolation）：保证事务的执行尽量不受其他事务的影响。其实现是基于锁机制和MVCC。
 
-🔵持久性（Durability）：由redolog实现，二阶段提交，WAL(write ahead log)，先写日志，再写数据。
+🔵持久性（Durability）：证事务提交之后不会因为宕机等其他因素的影响而导致数据丢失。由redolog实现，二阶段提交，WAL(write ahead log)，先写日志，再写数据。
 
 ### 并发事务的四个问题：
 

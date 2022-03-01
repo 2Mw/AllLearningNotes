@@ -10,7 +10,7 @@ Redis(==Re==mote ==Di==ctionary ==S==erver)远程服务字典
 
 1. 首先有java环境，最好在CentOS系统下
 
-2. 下载Redis文件，以及看看是否有`make`命令，没有则使用`yum install gcc-c++`
+2. 下载Redis文件，以及看看是否有`make`命令，没有则使用`yum install gcc-c++`或者`sudo apt-get install build-essential`
 
 3. 解压redis文件后进入输入`make`命令，得到一个`src`目录。进行`make install`
 
@@ -514,7 +514,7 @@ redis-sentinel sentinel.conf
 
 >某个key为热点，不停扛着高并发，在key失效瞬间，会击穿缓存，直接访问数据库。
 
-Redis无大量的key过期，服务器平稳运行，数据库崩溃。redis某个key过期，而对于此key的访问激增，Redis数据库均未命中。相当于对某个点集中打击。
+Redis个别key过期，服务器平稳运行，数据库崩溃。redis某个key过期，而对于此key的访问激增，Redis数据库均未命中。相当于对某个点集中打击。
 
 问题分析：单个key为高热数据，key过期
 
@@ -546,3 +546,5 @@ Redis无大量的key过期，服务器平稳运行，数据库崩溃。redis某�
 * 过期时间采用固定时间+随机值的形式，稀释集中过期的key数量
 * 超热数据使用永久的key+定期维护
 * 加锁
+
+> 击穿与雪崩的区别就是失效key的数量。
