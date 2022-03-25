@@ -832,7 +832,7 @@ public class TestEventLoop {
 
 2. 之前的简单案例相当于单线程多路复用，当在处理客户端的 IO 请求的时候如果处理事件过长就会影响其他客户端 IO 请求操作的执行。因此对于重量级 IO 请求，模型应该改为单线程多路复用+多线程 IO 操作的模型。在 Netty 中也支持这样的操作，在进行流水线处理的时候默认指定的就是 NIO 自己对应的 NioEventLoopGroup，也可以指定用户自己创建的 NioEventLoopGroup。
 
-   需要注意的一点就是 pipline 之间 handler 信息的传输需要设置 `ctx.fireChannelRead()`，否则下一个 handler 接收不到对应的消息。
+   需要注意的一点就是 pipline 之间 handler 信息的传输需要设置 `ctx.fireChannelRead()` / `super.channelRead(ctx, msg)`，否则下一个 handler 接收不到对应的消息。
 
    ```java
    EventLoopGroup group = new DefaultEventLoopGroup();
@@ -1022,3 +1022,190 @@ static void testPromise() throws ExecutionException, InterruptedException {
     System.out.println(promise.get());
 }
 ```
+
+🔵 Handler & Pipeline
+
+ChannelHandler 用来处理 Channel 上的各种事件，分为入站(读)和出站(写)两种操作，所有的 Handler 连成一起就是 Pipeline。
+
+* 入站一般要继承 ChannelInboundHandlerAdapter 的子类，主要用于读取客户端数据，写回结果。
+* 出站一般要继承 ChannelOutboundHandlerAdapter 的子类，主要对写回结果进行加工。
+
+在添加 Pipeline 的 Handler 的时候，Netty 会自动添加两个 Handler ： Head 和 Tail Handler。
+
+Pipeline 的执行顺序：
+
+* 入站的操作是正序执行，出站的操作逆序执行
+
+对于入站 Handler 之间的消息传递，需要调用 `super.channelRead()` / `ctx.fireChannelRead()` 操作才能传递给下一个 Handler，如果下一个 Handler 没有收到消息，就**不会执行**和继续向下传递消息了。入站和出站之间的 Handler 之间不需要进行信息传递。
+
+![image-20220325093944922](E:\Notes\netty\netty.assets\image-20220325093944922.png)
+
+Channel.writeAndFlush() 和 ctx.writeAndFlush() 的区别：
+
+* 前者是将信息流写入 tail Handler，数据流要通过所有的出站 Handler
+* 后者是将信息流写入当前的 Handler，数据流直接向前传找出站的 Handler
+
+Netty 中为了调试 Pipeline 方便，提供了 EmbeddedChannel 类来进行调试。
+
+### 3. ByteBuf
+
+🔵创建
+
+Netty 中的 ByteBuf 是可以动态扩容的。读写分为两个指针，不用像 ByteBuffer 切换读写模式
+
+```java
+public static void main(String[] args) {
+    // 创建，默认是直接内存
+    ByteBuf buf = ByteBufAllocator.DEFAULT.buffer();
+    buf.writeBytes("Hello world".getBytes(StandardCharsets.UTF_8));
+    log.info("{}", buf);
+    // 分为直接内存和 Java 堆内存
+    ByteBufAllocator.DEFAULT.heapBuffer();
+    ByteBufAllocator.DEFAULT.directBuffer();
+    // io.netty.buffer.PooledUnsafeDirectByteBuf
+}
+```
+
+ByteBuf 也是支持分配直接内存和 Java 堆内存的，默认情况下 ByteBuf 分配的是系统的直接内存。
+
+⭐一般情况下创建 ByteBuf 实在 pipeline 中创建，因此**强烈推荐**以下创建方法：
+
+```java
+ctx.alloc().buffer(32);
+```
+
+🔵池化
+
+池化的最大意义就是在可以重用 ByteBuf，在高并发的情况下，池化的功能更节约内存，也可以减少内存溢出的可能。Netty 4.1 之后默认会开启池化功能。可以通过设置系统的环境变量来进行设置：
+
+```
+-Dio.netty.allocator.type={unpooled | pooled}
+```
+
+🔵读取和写入
+
+ByteBuf 的写入支持多种类型。
+
+```java
+public static void main(String[] args) {
+    ByteBuf buf = ByteBufAllocator.DEFAULT.buffer();
+    buf.writeInt(6);
+    buf.writeBytes("aka. QZQ".getBytes(StandardCharsets.UTF_8));
+    // 读取
+    log.info("{}", buf.toString(StandardCharsets.UTF_8));
+    log.info("{}", buf);
+    log.info("{}", buf.readInt());
+    int left = buf.writerIndex() - buf.readerIndex();
+    log.info("{}", buf.readBytes(left).toString(Charset.defaultCharset()));
+}
+```
+
+输出：
+
+```
+11:03:53.496 [main] INFO Buffer -    aka. QZQ
+11:03:53.496 [main] INFO Buffer - PooledUnsafeDirectByteBuf(ridx: 0, widx: 12, cap: 256)
+11:03:53.496 [main] INFO Buffer - 6
+11:03:53.496 [main] INFO Buffer - aka. QZQ
+```
+
+🔵内存回收
+
+未池化的 Java 堆内存由 JVM 来进行回收，直接内存由系统来进行回收；池化的 ByteBuf 回收机制较为复杂，由ByteBuf 池来进行回收，基本规则就是谁是 ByteBuf 的最后使用者，谁负责回收 release。
+
+🔵Slice 数据切片
+
+```java
+public static void main(String[] args) {
+    ByteBuf buf = ByteBufAllocator.DEFAULT.buffer(10);
+    buf.writeBytes("abcdefghij".getBytes(StandardCharsets.UTF_8));
+
+    ByteBuf f1 = buf.slice(0, 5);
+    ByteBuf f2 = buf.slice(5, 5);
+    f1.setByte(2, 'q');
+
+    log.info("{}", buf.toString(Charset.defaultCharset()));
+    log.info("{}", f1.toString(Charset.defaultCharset()));
+    log.info("{}", f2.toString(Charset.defaultCharset()));
+}
+```
+
+输出：
+
+```
+11:17:31.621 [main] INFO Buffer - abqdefghij
+11:17:31.621 [main] INFO Buffer - abqde
+11:17:31.621 [main] INFO Buffer - fghij
+```
+
+其底层使用的是零拷贝的思想，切片之后的 ByteBuf 并未发送任何的内存复制，使用的还是原始 ByteBuf 的内存，切片后维护堵路的 read，write 指针。
+
+**注意**：切片后的产生新的 ByteBuf 有使用限制，比如不能增加长度等；如果原有的 ByteBuf 释放内存后，新的 ByteBuf 也会受到影响，可以使用 `retain()` 方法让引用数量加一，不被回收内存。
+
+![image-20220325111855649](E:\Notes\netty\netty.assets\image-20220325111855649.png)
+
+其他方法：
+
+* duplicate() 还是零拷贝，使用的还是原有的内存数据。(感觉没什么用)
+* copy() 是深拷贝，与原有的数据无关了
+
+##  三. Netty 进阶
+
+### 1. 粘包半包
+
+由于 TCP 协议存在的问题，并且由于滑动窗口的存在，窗口大小决定了数据包的大小，因此会产生粘包和半包的问题。
+
+🔵产生原因：（TCP 是流式协议，无消息边界）
+
+粘包：
+
+* 现象：发送 abc def 两个数据包，接收到 abcdef 合在一起的数据包
+* 原因：
+  * 应用层接收方设置的 ByteBuf 过大
+  * TCP 层面可能由于接收方处理不及时且滑动窗口较大，多个消息会一并缓冲在窗口中
+  * Nagle 算法优化，发送方数据包过小
+
+半包：
+
+* 现象：发送 abcdef，接收到 abc def 两个数据包
+* 原因：
+  * 应用层接收方的 ByteBuf 设置过小
+  * TCP 发送方的报文大于滑动窗口剩余大小，只能发送前部分，后部分放到下一个数据包发
+  * MSS 的限制：发送数据包大小超过 MSS 限制之后，会对数据包进行切分 （MTU - 40）
+
+🔵解决方法：
+
+1. 短连接（❌）：
+
+   发送一次数据包就建立一次连接，发送完毕即关闭连接，缺点就是效率太低，不能解决半包问题
+
+   ```java
+   @Override
+   public void channelActive(ChannelHandlerContext ctx) throws Exception {
+       // channel 连接建立触发
+       ByteBuf buffer = ctx.alloc().buffer(16);
+       buffer.writeBytes("abcdefghijklmnop".getBytes(StandardCharsets.UTF_8));
+       ch.writeAndFlush(buffer);
+       super.channelActive(ctx);
+       // 关闭
+       ctx.channel().close();
+   }
+   ```
+
+2. 定长解码器（❌）：
+
+   每次发送一个数据包，发送固定长度的数据，如果小于固定长度就使用 padding，大小固定长度就切分。
+
+   缺点就是浪费空间。使用的类： `FixedLengthFrameEncoder`
+
+3. 行编码器（❌）：
+
+   就是使用行分隔符来解决，缺点就是需要转移，并且效率较低，需要扫描对应的分割字符。
+
+   使用的类：`LineBasedFrameEncoder` / `DelimiterBasedFrameEncoder`
+
+4. 基于 head 和 body 的编码器：
+
+   类似 Http 协议，有 Content-Length 来标注数据包的大小，也有类似 headers 等数据头。
+
+   使用的类：`LengthFiledFrameDecoder`
