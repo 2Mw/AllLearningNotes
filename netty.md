@@ -2,7 +2,7 @@
 
 2022-03-22
 
-[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=75) P75
+[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=108) P108
 
 Reactor 原理
 
@@ -1209,3 +1209,136 @@ public static void main(String[] args) {
    类似 Http 协议，有 Content-Length 来标注数据包的大小，也有类似 headers 等数据头。
 
    使用的类：`LengthFiledFrameDecoder`
+
+### 2. 协议的设计与解析
+
+Netty 的内部集成了很多协议，可以使用 Netty 自带的协议来编写高性能的网络编程。
+
+🔵 HTTP 协议
+
+这个是一个搭建 HTTP 服务器的小 Demo，服务器和客户端之间的信息的编码解码使用 `HttpServerCodec` 类来进行处理，它看可以 Inbound 也是 Outbound 信息处理。
+
+在接收 HTTP 的请求之后，会获得两个消息，一个是 `HttpRequest` 请求头的信息，另一个是 `HttpContent` 请求体的数据，需要判断获取消息的类型来进行处理。
+
+也可以使用 `SimpleChannelInboundHandler` 类来进行消息处理，其是根据泛型指定的类型来进行消息处理，如果是对应的类型则处理，如果不是则处理交给下一个 Handler 来进行处理。
+
+```java
+@Slf4j(topic = "TestHttp")
+public class TestHttp {
+    public static void main(String[] args) {
+        NioEventLoopGroup boss = new NioEventLoopGroup(1);
+        NioEventLoopGroup worker = new NioEventLoopGroup();
+        ChannelFuture cf = new ServerBootstrap()
+                .group(boss, worker)
+                .channel(NioServerSocketChannel.class)
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel ch) throws Exception {
+                        ChannelPipeline pl = ch.pipeline();
+                        pl.addLast(new LoggingHandler());
+                        pl.addLast(new HttpServerCodec());
+                        pl.addLast(new SimpleChannelInboundHandler<HttpRequest>() {
+                            // HttpRequest 是处理请求头
+                            @Override
+                            protected void channelRead0(ChannelHandlerContext ctx, HttpRequest req) throws Exception {
+                                log.info("请求URI: {}", req.uri());
+                                DefaultFullHttpResponse rsp = new DefaultFullHttpResponse(req.protocolVersion(), HttpResponseStatus.OK);
+                                byte[] msg = "<h2>hello world</h2>".getBytes(StandardCharsets.UTF_8);
+                                rsp.headers().setInt(CONTENT_LENGTH, msg.length);
+                                rsp.content().writeBytes(msg);
+                                ctx.writeAndFlush(rsp);
+                            }
+                        });
+                    }
+                }).bind(80);
+    }
+}
+```
+
+🔵 自定义协议的要素
+
+* 魔数，用来第一事件判定是否未无效的数据包，比如 Java 字节码文件开头是 `CA FE`
+* 版本号，可以支持协议的升级
+* 序列化算法，消息正文到底采用的是那种序列化和发序列化的方式
+* 指令的类型，是登录、注册、单聊、群聊等根业务相关。
+* 请求序号，为了双工通信，提供异步能力
+* 正文长度
+* 消息正文
+
+Demo:
+
+```java
+// ByteBuf 与 指定类之间的转换
+@Slf4j
+public class MessageCodec extends ByteToMessageCodec<Message> {
+    private final byte[] MAGIC = {0xF, 0xA, 0xD, 0xE};
+
+    @Override
+    protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf buf) throws Exception {
+        buf.writeBytes(MAGIC);  // Magic Number
+        buf.writeByte(1);   // Version
+        // Serialize algorithm. JDK-0, JSON-1
+        buf.writeByte(0);
+        // message type
+        buf.writeByte(msg.getMessageType());
+        // Request order
+        buf.writeInt(msg.getSequenceId());
+        // Nonsense, for padding
+        buf.writeByte(0xff);
+        // Content length
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
+        oos.writeObject(msg);
+        byte[] bytes = bos.toByteArray();
+        buf.writeInt(bytes.length);
+        // Content
+        buf.writeBytes(bytes);
+    }
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> list) throws Exception {
+        int magic = buf.readInt();
+        byte version = buf.readByte();
+        byte serialType = buf.readByte();
+        byte msgType = buf.readByte();
+        int reqOrder = buf.readByte();
+        buf.readByte();
+        int len = buf.readInt();
+        byte[] content = new byte[len];
+        buf.readBytes(content, 0, len);
+        Message msg = null;
+        if (serialType == 0) {
+            ByteArrayInputStream bis = new ByteArrayInputStream(content);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            msg = (Message) ois.readObject();
+            log.info("{}", msg);
+
+        }
+        // Netty 约定解析出来的数据需要加入 list，给下一个 handler 使用
+        list.add(msg);
+    }
+}
+```
+
+测试代码：
+
+```java
+EmbeddedChannel chan = new EmbeddedChannel(
+        new LengthFieldBasedFrameDecoder(1024, 12, 4, 0, 0),
+        new LoggingHandler(),
+        new MessageCodec()
+);
+```
+
+`LengthFieldBasedFrameDecoder` 用来解决粘包半包的问题。
+
+🔵 复用 Handler
+
+对于多个 Channel，如果想要复用某个 Handler，能不能只创建一个实例，然后多个 Channel 复用呢？
+
+有些 Handler 是可以进行复用的，比如 `LoggingHandler` 是充分考虑了线程安全性的，`LengthFieldBasedFrameDecoder` 却并未考虑，因为前者只是使用打印数据信息，后者需要存储数据来防止出现粘包半包现象的出现，如果后者复用，就会让多个 Channel 获取到的信息混在一起，分不清楚信息的边界。
+
+在 Netty 中有注解 `@Sharable` 标注的 Handler 就表示可以进行多个 Handler 复用，只需要创建一个实例即可。
+
+### 3. 聊天实战Demo
+
