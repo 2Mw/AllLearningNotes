@@ -2,11 +2,13 @@
 
 2022-03-22
 
-[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=108) P108
+[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=122) P139
 
 Reactor 原理
 
 部分图片来源于黑马程序员讲义。
+
+[TOC]
 
 ## 一. NIO 基础
 
@@ -1341,4 +1343,136 @@ EmbeddedChannel chan = new EmbeddedChannel(
 在 Netty 中有注解 `@Sharable` 标注的 Handler 就表示可以进行多个 Handler 复用，只需要创建一个实例即可。
 
 ### 3. 聊天实战Demo
+
+服务器空闲检测：
+
+```java
+serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        log.info("Channel info: {}", ch);
+        ChannelPipeline pl = ch.pipeline();
+        // 空闲检测，用来判断是不是读空闲时间过长或者是写时间过长
+        // 如果5秒内没有受到 Channel 的数据，就会触发一个 IdleState.READER_IDLE 事件
+        pl.addLast(new IdleStateHandler(5, 0, 0));
+        pl.addLast(new ChannelDuplexHandler() {
+            @Override
+            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+                IdleStateEvent event = ((IdleStateEvent) evt);
+                if (event.state().equals(IdleState.READER_IDLE)) {
+                    log.debug("已经5s未受到数据了");
+                }
+            }
+        });
+        // ...
+    }
+});
+```
+
+客户端心跳数据包：
+
+```java
+bootstrap.handler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        ChannelPipeline pl = ch.pipeline();
+        pl.addLast(new ProtocolFrameDecoder());
+        pl.addLast(LOGGING_HANDLER);
+        pl.addLast(MESSAGE_CODEC);
+        pl.addLast(new IdleStateHandler(0,3,0));
+        pl.addLast(new ChannelDuplexHandler() {
+            @Override
+            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+                IdleStateEvent event = (IdleStateEvent) evt;
+                if (event.state().equals(IdleState.WRITER_IDLE)) {
+                    log.debug("3s没有向服务器写数据了");
+                    // 向服务器写入数据....
+                }
+            }
+        });
+    }
+}
+```
+
+### 4. 序列化算法
+
+```java
+public interface Serializer {
+    <T> T deserialize(Class<T> clazz, byte[] bytes);
+
+    <T> byte[] serialize(T obj);
+
+    enum Algorithm implements Serializer {
+        JSON {
+            @Override
+            public <T> T deserialize(Class<T> clazz, byte[] bytes) {
+                String json = new String(bytes, StandardCharsets.UTF_8);
+                return new Gson().fromJson(json, clazz);
+            }
+
+            @Override
+            public <T> byte[] serialize(T obj) {
+                String s = new Gson().toJson(obj);
+                return s.getBytes(StandardCharsets.UTF_8); 
+            }
+        }
+    }
+}
+```
+
+### 5. 参数优化
+
+对于客户端和服务器端，都可以对某些参数进行指定。可以使用方法 `option()` 或者 `childOption()`来进行指派。
+
+对于客户端，`option` 时用于给 SocketChannel 来进行配置。对于服务器端 `option` 时用于给 ServerSocketChannel 进行配置参数，`childOption` 用于给 SocketChannel 进行配置参数。
+
+🔵CONNECT_TIMEOUT_MILLIS
+
+用于客户端建立连接时如果在指定毫秒内未建立连接，则抛出异常。
+
+```java
+new Bootstrap()
+        .group(group)
+        .channel(NioSocketChannel.class)
+        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+```
+
+🔵SO_BACKLOG
+
+用于服务器端，用于控制 linux 下半连接队列和全连接队列。
+
+半连接队列大小通过在 `/proc/sys/net/ipv4/tcp_max_syn_backlog` 进行指定
+
+全连接队列大小在 `/proc/sys/net/core/somaxconn` 进行指定，在使用 listen 函数时，内核会根据传入的 backlog 函数与系统中的参数比较取较小值，如果全连接队列满了，server 会发送一个拒绝连接的错误信息到 clent。
+
+在 linux 不仅需要在 Netty 中进行设置，还需要再系统文件中进行配置，否则就会取最小值。
+
+```java
+new ServerBootstrap()
+        .group(boss, worker)
+        .channel(NioServerSocketChannel.class)
+        .option(ChannelOption.SO_BACKLOG, 1024);
+```
+
+🔵TCP_NODELAY
+
+是否开启 Nagle 算法，默认开启(false)。
+
+🔵SO_SNDBUF & SO_REVBUF
+
+属于 SocketChannel 参数，指定发送缓冲区和接收缓冲区的大小，现在系统会自动调整，尽量不需要指定。
+
+🔵ALLOCATOR
+
+属于 SocketChannel 参数，用于分配 ByteBuf。
+
+一般分配的类型就是池化的直接内存(PooledUnsafeDirectedByteBuf)
+
+🔵RCVBUF_ALLOCATOR
+
+属于 SocketChannel 参数，对于 IO 类的 ByteBuf 强制使用直接内存，用于控制 netty 控制缓冲区的大小。
+
+### 6. RPC 框架
+
+## 四 netty源码
 
