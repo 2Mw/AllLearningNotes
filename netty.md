@@ -2,9 +2,11 @@
 
 2022-03-22
 
-[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=122) P139
+[BV1py4y1E7oA](https://www.bilibili.com/video/BV1py4y1E7oA?p=139) P139
 
 Reactor 原理
+
+[Reactor Netty Reference Guide](https://projectreactor.io/docs/netty/release/reference/index.html#_metrics_7)
 
 部分图片来源于黑马程序员讲义。
 
@@ -1049,6 +1051,37 @@ Channel.writeAndFlush() 和 ctx.writeAndFlush() 的区别：
 
 Netty 中为了调试 Pipeline 方便，提供了 EmbeddedChannel 类来进行调试。
 
+🔵ChannelHandlerContext
+
+1. Context.close() 和 Channel.close() 的区别：
+
+   ```java
+   ChannelPipeline p = ...;
+   p.addLast("A", new SomeHandler());
+   p.addLast("B", new SomeHandler());
+   p.addLast("C", new SomeHandler());
+   ...
+   
+   public class SomeHandler extends ChannelOutboundHandlerAdapter {
+       @Override
+       public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+           ctx.close(promise);
+       }
+   }
+   ```
+
+   * `Channel.close()` 会触发 `C.close()` , `B.close()`, `A.close()`, 然后再关闭 channel
+   *  `C.close()` 会触发  `B.close()`, `A.close()`, 然后再关闭 channel
+   * 以此类推
+
+   主动关闭 Channel 之后触发 Inbound 事件 `channelUnregistered()`
+
+2. 
+
+
+
+
+
 ### 3. ByteBuf
 
 🔵创建
@@ -1474,5 +1507,93 @@ new ServerBootstrap()
 
 ### 6. RPC 框架
 
-## 四 netty源码
+## 四 Netty 应用
+
+### 1. 自动重连
+
+Netty 连接到断开事件：REGISTERED -> ACTIVE -> READ COMPLETE -> INACTIVE -> UNREGISTERED
+
+实现客户端在与服务器端断连后自动重新连接：
+
+根据上述事件触发时间点来看，应该在 `channelUnregistered` 事件触发后进行重连操作。
+
+Client：
+
+```java
+@Slf4j(topic = "c.UptimeClient")
+public class UptimeClient {
+    private static final Bootstrap client = new Bootstrap();
+
+    public static void main(String[] args) {
+        EventLoopGroup group = new NioEventLoopGroup();
+        client.group(group)
+                .channel(NioSocketChannel.class)
+                .remoteAddress("localhost", 20001)
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        p.addLast(new IdleStateHandler(10, 0, 0));
+                        p.addLast(new UptimeClientHandler());
+                    }
+                });
+        client.connect();
+    }
+
+    public static void connect() {
+        client.connect().addListener((ChannelFutureListener) future -> {
+            if (future.cause() != null) {
+                log.error("Failed to connect server, err", future.cause());
+            }
+        });
+    }
+}
+```
+
+Handler：
+
+```java
+@Slf4j(topic = "c.UptimeClient")
+public class UptimeClientHandler extends ChannelInboundHandlerAdapter {
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        log.debug("Connected to server: {}", ctx.channel().remoteAddress());
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.debug("Disconnected to server: {}", ctx.channel().remoteAddress());
+
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        log.debug("Channel Unregistered");
+        ctx.channel().eventLoop().schedule(UptimeClient::connect, 5, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof IdleStateEvent) {
+            IdleStateEvent event = (IdleStateEvent) evt;
+            if (event.state() == IdleState.READER_IDLE) {
+                System.out.println("Disconnecting server due to READER_IDLE");
+                ctx.close();
+            }
+        }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+重连过程：
+
+​		首先连接到服务器，如果客户端在指定时间内未收到客户端的消息，则触发 `IdleStateEvent` 的 `READER_IDLE` 信号，信号触发 `userEventTriggered` 事件，在这个事件中进行 channel 关闭，等待 Channel Inactive，之后再等待 ChannelUnregisterd 事件触发与 eventLoopGroup 注销之后，重新进行连接。
+
+
 
