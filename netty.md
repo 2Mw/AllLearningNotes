@@ -1031,8 +1031,9 @@ static void testPromise() throws ExecutionException, InterruptedException {
 
 ChannelHandler 用来处理 Channel 上的各种事件，分为入站(读)和出站(写)两种操作，所有的 Handler 连成一起就是 Pipeline。
 
-* 入站一般要继承 ChannelInboundHandlerAdapter 的子类，主要用于读取客户端数据，写回结果。
-* 出站一般要继承 ChannelOutboundHandlerAdapter 的子类，主要对写回结果进行加工。
+* 入站一般要继承 ChannelInboundHandlerAdapter 的类，主要用于读取客户端数据，写回结果。
+* 出站一般要继承 ChannelOutboundHandlerAdapter 的类，主要对写回结果进行加工。
+* 双向数据一般要继承 ChannelDuplexHandler 的类，用于双向数据传输处理加工。
 
 在添加 Pipeline 的 Handler 的时候，Netty 会自动添加两个 Handler ： Head 和 Tail Handler。
 
@@ -1375,59 +1376,7 @@ EmbeddedChannel chan = new EmbeddedChannel(
 
 在 Netty 中有注解 `@Sharable` 标注的 Handler 就表示可以进行多个 Handler 复用，只需要创建一个实例即可。
 
-### 3. 聊天实战Demo
-
-服务器空闲检测：
-
-```java
-serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
-    @Override
-    protected void initChannel(SocketChannel ch) throws Exception {
-        log.info("Channel info: {}", ch);
-        ChannelPipeline pl = ch.pipeline();
-        // 空闲检测，用来判断是不是读空闲时间过长或者是写时间过长
-        // 如果5秒内没有受到 Channel 的数据，就会触发一个 IdleState.READER_IDLE 事件
-        pl.addLast(new IdleStateHandler(5, 0, 0));
-        pl.addLast(new ChannelDuplexHandler() {
-            @Override
-            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-                IdleStateEvent event = ((IdleStateEvent) evt);
-                if (event.state().equals(IdleState.READER_IDLE)) {
-                    log.debug("已经5s未受到数据了");
-                }
-            }
-        });
-        // ...
-    }
-});
-```
-
-客户端心跳数据包：
-
-```java
-bootstrap.handler(new ChannelInitializer<SocketChannel>() {
-    @Override
-    protected void initChannel(SocketChannel ch) throws Exception {
-        ChannelPipeline pl = ch.pipeline();
-        pl.addLast(new ProtocolFrameDecoder());
-        pl.addLast(LOGGING_HANDLER);
-        pl.addLast(MESSAGE_CODEC);
-        pl.addLast(new IdleStateHandler(0,3,0));
-        pl.addLast(new ChannelDuplexHandler() {
-            @Override
-            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-                IdleStateEvent event = (IdleStateEvent) evt;
-                if (event.state().equals(IdleState.WRITER_IDLE)) {
-                    log.debug("3s没有向服务器写数据了");
-                    // 向服务器写入数据....
-                }
-            }
-        });
-    }
-}
-```
-
-### 4. 序列化算法
+### 3. 序列化算法
 
 ```java
 public interface Serializer {
@@ -1453,7 +1402,7 @@ public interface Serializer {
 }
 ```
 
-### 5. 参数优化
+### 4. 参数优化
 
 对于客户端和服务器端，都可以对某些参数进行指定。可以使用方法 `option()` 或者 `childOption()`来进行指派。
 
@@ -1505,15 +1454,13 @@ new ServerBootstrap()
 
 属于 SocketChannel 参数，对于 IO 类的 ByteBuf 强制使用直接内存，用于控制 netty 控制缓冲区的大小。
 
-### 6. RPC 框架
-
 ## 四 Netty 应用
 
 ### 1. 自动重连
 
 Netty 连接到断开事件：REGISTERED -> ACTIVE -> READ COMPLETE -> INACTIVE -> UNREGISTERED
 
-实现客户端在与服务器端断连后自动重新连接：
+实现客户端在与服务器端断连后自动重新连接（空闲检测）：
 
 根据上述事件触发时间点来看，应该在 `channelUnregistered` 事件触发后进行重连操作。
 
@@ -1595,5 +1542,241 @@ public class UptimeClientHandler extends ChannelInboundHandlerAdapter {
 
 ​		首先连接到服务器，如果客户端在指定时间内未收到客户端的消息，则触发 `IdleStateEvent` 的 `READER_IDLE` 信号，信号触发 `userEventTriggered` 事件，在这个事件中进行 channel 关闭，等待 Channel Inactive，之后再等待 ChannelUnregisterd 事件触发与 eventLoopGroup 注销之后，重新进行连接。
 
+### 2. TLS 加密
+
+参考：
+
+1. [SSL/TLS应用示例](https://www.jianshu.com/p/710f70a99cbc)
+2. [SSL / TLS 工作原理和详细握手过程 ](https://segmentfault.com/a/1190000021559557)
+
+![img](E:\Notes\netty\netty.assets\webp.webp)
+
+客户端和服务器端握手协议（双向认证）：
+
+1. ClientHello——客户端发送所支持的 SSL/TLS 的最高协议版本号和所支持的加密算法集合给服务器端
+2. ServerHello——服务器端选定双方都支持的 SSL/TLS 协议版本和加密方法及压缩方法返回客户端。
+3. SendCertificate——服务器端发送服务器端证书给客户端
+4. RequestCertificate——（双向）服务器端请求客户端证书
+5. ServerHelloDone——服务器端通知客户端初始协商结束
+6. ResponseCertificate——（双向）客户端向服务器端发送客户端证书
+7. ClientKeyExchange——客户端使用服务器端公钥，对客户端的公钥和密钥种子进行加密后发送给服务器
+8. CerticateVerify——（双向）客户端用私钥生成数字签名发送给服务器端，让其通过客户端公钥进行验证
+9. CreateSecretKey——通讯双方基于密钥种子等信息生成通讯密钥
+10. ChangeCipherSpec——客户端通知服务器端已将通讯方式切换为加密模式
+11. Finished——客户端已做好加密通讯的准备
+12. ChangeCipherSpec——服务器端通知客户端已将通讯方式切换为加密模式
+13. Finished——服务器端已做好加密通讯的准备
+14. Encrypted / Decrypted Data——双方使用客户端密钥，通过对称加密算法对通讯内容加密
+15. ClosedConnection——通信结束，断开连接
+
+🔵数字证书：在进行非对称加密通信中，不能直接传输公钥，如果被公钥被中间人拦截或者篡改还是会造成信息泄密。因此在传输的时候需要使用数字签名，使用服务器端的私钥对证书中的信息进行加密得到数字签名，然后将证书和数字签名一并发给客户端，客户端通过证书中的公钥解密数字签名，然后对比解密结果和证书中的信息进行比对证书是否受到篡改。
+
+🔵生成证书：
+
+1. 创建CA根证书管理员
+
+   ```sh
+   openssl genrsa -aes256 -out ca.key 2048	# 生成 CA 管理员私钥
+   openssl req -sha256 -new -x509 -days 3650 -key ca.key -out ca.crt -subj "/C=CN/ST=SHANGHAI/O=2MW/CN=2Mw"	# 生成证书
+   ```
+
+   需要设置 CA 密钥的密码，在生成证书的时候还需要使用
+
+   DN 字段：C 表示 country，ST 表示州或者省，L 表示城市，O 表示证书持有者组织，CN 证书持有者姓名
+
+2. 为服务器生成证书申请：
+
+   ```sh
+   openssl genrsa -aes256 -out server.key 2048	# 生成服务器端私钥
+   openssl rsa -in server.key -out server_unsecure.key	# (可选)导出无密码的私钥
+   openssl req -sha256 -new -key server.key -subj "/C=CN/ST=Shang\Hai/O=2MwOrg/CN=2MwServer" -out server.csr	# 生成证书申请文件
+   ```
+
+   为服务器生成证书申请文件，交给CA来进行签名。也可以使用自己的 key 进行签名。
+
+3. CA 为服务器证书进行签名：
+
+   ```sh
+   openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -out server.crt
+   ```
+
+4. 由于 netty 4 不支持 pkcs12 格式的私钥，所以需要将其转为 pkcs8 格式的私钥
+
+   ```sh
+   openssl pkcs8 -topk8 -in server.key -out server.pk8 -nocrypt
+   ```
+
+   
+
+🔵Netty 配置：
+
+将 CA 证书、服务器证书和服务器密钥移动到 resource 目录下：
+
+服务器端配置（服务器端需要配置三个文件）：
+
+```java
+@Slf4j(topic = "c.SecureServer")
+public class SecureChatServer {
+
+    private static SelfSignedCertificate ssc = null;
+    private static SslContext sslCtx;
+
+    static {
+        try {
+            // 获取 resource 目录
+            String path = SecureChatServer.class.getClassLoader().getResource("").getPath();
+            File cert = new File(path + "server.crt");
+            File key = new File(path + "server.pk8");
+            File root = new File(path + "ca.crt");
+            ssc = new SelfSignedCertificate();
+            sslCtx = SslContextBuilder.forServer(cert, key) // 设置服务器公钥和私钥
+                    .trustManager(root) // 设置 CA 证书
+                    .clientAuth(ClientAuth.NONE).build();   // 设置单向认证
+        } catch (CertificateException | SSLException e) {
+            e.printStackTrace();
+        }
+    }
 
 
+    public static void main(String[] args) {
+        EventLoopGroup boss = new NioEventLoopGroup();
+        EventLoopGroup worker = new NioEventLoopGroup();
+        ServerBootstrap server = new ServerBootstrap()
+                .group(boss, worker)
+                .channel(NioServerSocketChannel.class)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        p.addLast(sslCtx.newHandler(ch.alloc()));
+                        p.addLast(new DelimiterBasedFrameDecoder(8192, Delimiters.lineDelimiter()));
+                        p.addLast(new StringDecoder());
+                        p.addLast(new StringEncoder());
+                        p.addLast(new SecureChatServerHandler());
+                    }
+                });
+        try {
+            ChannelFuture future = server.bind(20001).sync();
+            future.channel().closeFuture().sync();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            boss.shutdownGracefully();
+            worker.shutdownGracefully();
+        }
+    }
+}
+```
+
+客户端配置（客户端只需要配置ca证书）：
+
+```java
+@Slf4j(topic = "c.SecureClient")
+public class SecureChatClient {
+    static SslContext sslCtx;
+
+    static {
+        try {
+            String path = SecureChatClient.class.getClassLoader().getResource("").getPath();
+            File root = new File(path + "ca.crt");
+            sslCtx = SslContextBuilder.forClient()
+                    .trustManager(root).build();
+        } catch (SSLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) {
+        NioEventLoopGroup group = new NioEventLoopGroup();
+        Bootstrap client = new Bootstrap().group(group)
+                .channel(NioSocketChannel.class)
+                .remoteAddress("localhost", 20001)
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        p.addLast(sslCtx.newHandler(ch.alloc()));
+                        p.addLast(new DelimiterBasedFrameDecoder(8192, Delimiters.lineDelimiter()));
+                        p.addLast(new StringDecoder());
+                        p.addLast(new StringEncoder());
+                        p.addLast(new SecureChatClientHandler());
+                    }
+                });
+
+        try {
+            ChannelFuture cf = client.connect().sync();
+
+            Channel channel = cf.channel();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+
+            while (true) {
+                String s = reader.readLine();
+                if ("bye".equalsIgnoreCase(s)) {
+                    channel.close();
+                    break;
+                }
+                channel.writeAndFlush(s + "\n");
+            }
+
+            channel.closeFuture().sync();
+        } catch (InterruptedException | IOException e) {
+            e.printStackTrace();
+        } finally {
+            group.shutdownGracefully();
+        }
+    }
+}
+```
+
+### 3. 服务器群发
+
+可以维护一个 ChannelGroup 的类，当有连接进来的时候将 channel 加入 group，当发送消息的时候只需每个遍历 writeAndFlush 即可。
+
+```java
+@Slf4j(topic = "c.SecureServer")
+public class SecureChatServerHandler extends SimpleChannelInboundHandler<String> {
+
+    static final ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        ctx.pipeline().get(SslHandler.class).handshakeFuture().addListener(future -> {
+            String hostName = InetAddress.getLocalHost().getHostName();
+            String cipherSuite = ctx.pipeline().get(SslHandler.class).engine().getSession().getCipherSuite();
+            ctx.writeAndFlush("Welcome to " + hostName + " secure chat service\n");
+            ctx.writeAndFlush("Protected by " + cipherSuite + "\n");
+            channels.add(ctx.channel());
+        });
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.debug("有一个用户断开 : {}", ctx.channel().remoteAddress());
+        channels.remove(ctx.channel());
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, String s) throws Exception {
+        // Send msg to other channels
+        log.debug("[{}]: {}", ctx.channel().remoteAddress(), s);
+        for (Channel c : channels) {
+            StringBuilder sb = new StringBuilder("[");
+            if (c != ctx.channel()) sb.append(ctx.channel().remoteAddress());
+            else sb.append("YOU");
+            sb.append("]").append(s).append("\n");
+            c.writeAndFlush(sb.toString());
+        }
+
+        if ("bye".equals(s.toLowerCase(Locale.ROOT))) {
+            ctx.close();
+        }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
