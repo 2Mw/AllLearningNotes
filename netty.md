@@ -1780,3 +1780,56 @@ public class SecureChatServerHandler extends SimpleChannelInboundHandler<String>
     }
 }
 ```
+
+### 4. UDP 数据报和组播
+
+使用的 Channel 是 NioDatagramChannel，并且如果需要使用多播的话需要添加 Option - SO_BROADCAST，来开启 IP 多播。发送和接收到的数据包为 DatagramPacket。
+
+bind(0) 的话是随意绑定一个端口。
+
+发送方：
+
+```java
+@Slf4j(topic = "c.UdpClient")
+public class UdpClient {
+    public static void main(String[] args) {
+        EventLoopGroup group = new NioEventLoopGroup();
+        Bootstrap client = new Bootstrap()
+                .group(group)
+                .channel(NioDatagramChannel.class)
+                .option(ChannelOption.SO_BROADCAST, true)
+                .handler(new SimpleChannelInboundHandler<DatagramPacket>() {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, DatagramPacket msg) throws Exception {
+                        String resp = msg.content().toString(StandardCharsets.UTF_8);
+                        if (resp.startsWith("QOTM: ")) {
+                            log.debug("{}", resp.substring(6));
+                            ctx.close();
+                        }
+                    }
+                });
+
+        try {
+            Channel channel = client.bind(0).sync().channel();
+            ByteBuf buffer = channel.alloc().buffer();
+            buffer.writeCharSequence("QOTM?", StandardCharsets.UTF_8);
+            InetSocketAddress recipient = SocketUtils.socketAddress("255.255.255.255", 20001);
+            channel.writeAndFlush(new DatagramPacket(buffer, recipient)).sync();
+            if (!channel.closeFuture().await(5000)) {
+                log.error("Failed to get message from server: {}", "Timeout");
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+接收方和发送方都是使用的 `Bootstrap` 而不是 `ServerBootstrap` 。都需要绑定 NioDatagramChannel ，并且设置多播的 Option。
+
+### 5. HTTP 协议
+
+<a href="#2. 协议的设计与解析">详见</a>
+
+## 五 Netty 源码
+
