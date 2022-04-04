@@ -1610,3 +1610,53 @@ classDiagram
 举例：
 
 在tomcat中，`HttpServletRequest`分别由两个子类`RequestFacade`和`Request`，并且`RequestFacade`聚合了`Request`。
+
+### 6. 组合模式
+
+> 组合模式（Composite Pattern）又名部分整体模式，用于把一组相似的对象当作一个单一的对象。组合模式依据属性结构来进行组合对象，用来表示部分以及整体的层次，创建了对象组的树形结构。
+
+结构中主要分为三个角色：
+
+* 抽象根节点（Component）：定义系统各层次对象的共有方法和属性，可以预先定义一些默认行为和属性。
+* 树枝节点（Composite）：定义树枝节点的行为，可以存储子节点，组合树枝节点和叶子节点的树形结构。
+* 叶子节点（Leaf）：叶子节点对象，其下再无分支，是系统层次遍历的最小单位。
+
+案例（软件菜单）：
+
+​		在访问管理系统时候，经常可以看到菜单，一个菜单可以包含子菜单项，也可以包含具有子菜单项的菜单。类似于文件管理的结构。目的就是给定一个菜单，打印其所有子菜单项。
+
+```mermaid
+classDiagram
+	class MenuComponent {
+		+String name
+		+int level
+		+add(MenuComponent menu) void
+		+remove() void
+		+getChild()
+	}
+	
+	class Menu{
+		-List<MenuCompoent> menuList
+		+add(MenuComponent menu) void
+		+remove() void
+		+getChild() MenuComponent
+	}
+	
+	class MenuItem {
+		+MenuItem(String name, int level)
+	}
+	MenuComponent <|-- Menu
+	Menu o-- MenuComponent
+	MenuComponent <|-- MenuItem
+	MenuComponent <-- Client
+	
+```
+
+组合模式又可以分为两类，一个是透明组合模式，另一个是安全组合模式。
+
+但是透明组合模式是不够安全，叶子对象与树枝节点有着本质的区别，因为叶子节点不能进行添加和删除节点。
+
+特点：
+
+* 组合模式可以清晰的定义分层次的复杂对象
+* 在组合模式中添加节点都很方便，符合开闭原则
