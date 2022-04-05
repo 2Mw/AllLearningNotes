@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU) P70
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=91) P91
 
 ## 初识
 
@@ -1660,3 +1660,59 @@ classDiagram
 
 * 组合模式可以清晰的定义分层次的复杂对象
 * 在组合模式中添加节点都很方便，符合开闭原则
+
+### 7. 享元模式
+
+> 享元模式(Flyweight)，运用共享模式来有效的支持大量细粒度对象的复用。通过共享已经存在的对象来大幅度减少需要创建对象的数量，避免大量相似对象的开销，提高系统资源的利用率。
+
+享元模式中存在以下两种状态：
+
+1. 内部状态，不会随着环境的改变而改变的共享部分
+2. 外部状态，随环境改变而改变的私有部分。
+
+享元模式中的角色：
+
+* 抽象享元角色（Flyweight）：通常是一个接口或者抽象类，在抽象享元类中声明了享元类的公共方法，向外界提供享元对象的内部数据，也可以设置外部状态。
+* 具体享元角色（Concrete Flyweight）：实现抽象享元类；在具体享元类中为内部状态提供了存储空间。可以结合单例模式来设计具体享元类，为每个具体享元类提供唯一的享元对象。
+* 非享元角色（Non-sharable Flyweight）：不共享的数据部分
+* 享元工厂（Flyweight Factory）：负责创建和管理享元角色。创建享元对象的时候，工厂应该检查系统中是否存在要求的对象，如果存在则之间返回；不存在则创建新的享元对象。
+
+案例（俄罗斯方块）：
+
+​	对于俄罗斯方块，有L型，左L型，正方形，I型等方块。
+
+```mermaid
+classDiagram
+	class AbstractBox{
+		+getShape() String
+		+display(String color) void
+	}
+	
+	class BoxFactory {
+		-HashMap map
+		+getInstance() BoxFactory
+		+getBox(String key) AbstractBox
+	}
+	
+	AbstractBox <|-- IBox
+	AbstractBox <|-- LBox
+	AbstractBox <|-- SBox
+	BoxFactory o-- AbstractBox
+	AbstractBox <-- Client
+	BoxFactory <-- Client
+```
+
+优缺点：
+
+* 极大的减少了内存中相似或者相同对象的数目，节约了系统资源，提高系统性能
+* 享元模式的外部状态独立，不影响内部状态
+
+Integer 类中在-128~127之间的数字就使用了享元模式。自动装箱和拆箱就使用了 `valueOf` 方法
+
+```java
+public static Integer valueOf(int i) {
+    if (i >= IntegerCache.low && i <= IntegerCache.high)
+        return IntegerCache.cache[i + (-IntegerCache.low)];
+    return new Integer(i);
+}
+```
