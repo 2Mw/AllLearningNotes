@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=91) P91
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=96) P96
 
 ## 初识
 
@@ -1716,3 +1716,56 @@ public static Integer valueOf(int i) {
     return new Integer(i);
 }
 ```
+
+## 设计模式—行为型模式
+
+用于描述多个类和对象之间协作共同完成任务。
+
+### 1. 模板方法模式
+
+> 模板方法(Template Method)模式，在设计系统时候已经直到算法所需的关键步骤，而且确定了执行顺序，但是某些步骤的具体实现还是未知，或者某些步骤的实现与具体的环境相关。
+
+即在子类可以不改变算法结构的基础上重定义该算法的某些特定步骤。
+
+结构：
+
+* 抽象(Abstract)类：负责给出算法的轮廓和骨架，有模板方法和若干基本方法构成。
+  * 模板方法：定义了算法的骨架
+  * 基本方法：是模板方法的组成部分，有可以分为三类
+    * 抽象方法sad
+    * 钩子方法，在抽象类中已经实现，用于判断的逻辑方法和需要子类重写的空方法
+* 具体(Concrete)子类：实现定义的模板方法和钩子方法，是实现顶级逻辑的基础。
+
+案例：
+
+​	炒菜的步骤是固定的，分为倒油、热油、倒蔬菜、调理品、翻炒等步骤。
+
+```mermaid
+classDiagram
+	class AbstractClass{
+		+cook() void
+		+pourOil() void
+		+heatOil() void
+		+useVegetable() void
+		+fry()
+	}
+	
+	class CookPotato{
+		+useVegetable() void
+	}
+	
+	class CookTomato{
+		+useVegetable() void
+	}
+	
+	AbstractClass <|-- CookPotato
+	AbstractClass <|-- CookTomato
+```
+
+特点：
+
+1. 提高了代码的复用性
+2. 实现了反转控制，即可以通过父类来调用子类的操作，符合开闭原则。
+3. 会导致子类的个数增加
+
+在 JDK 中 InputStream 类就使用了模板方法的模式。
