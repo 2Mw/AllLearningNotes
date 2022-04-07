@@ -2374,7 +2374,7 @@ C:.
 
 ### 生命周期和插件
 
-<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210810083851187.png" alt="image-20210810083851187" style="zoom:67%;" />
+<img src="Java笔记.assets/image-20210810083851187.png" alt="image-20210810083851187" style="zoom:67%;" />
 
 ## Spring
 
@@ -5048,7 +5048,7 @@ public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionR
 
 🔵Spring Initializr
 
-<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
+<img src="Java笔记.assets/image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
 
 
 

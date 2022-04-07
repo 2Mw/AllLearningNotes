@@ -181,7 +181,7 @@ KOI文件：编码转换相关配置文件
 
    查看nginx的master和worker进程`ps -ef | grep `
 
-   <img src="E:\Notes\nginx\nginx.assets\image-20210914000625498.png" alt="image-20210914000625498" style="zoom: 67%;" />
+   <img src="nginx.assets/image-20210914000625498.png" alt="image-20210914000625498" style="zoom: 67%;" />
 
    nginx的信号：
 

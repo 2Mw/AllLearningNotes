@@ -78,7 +78,7 @@ LinkedList：底层是数据结构是双向链表，插入删除速度快，占�
 
 ### JVM内存结构
 
-![image-20220302154931513](exp.assets\image-20220302154931513.png)
+![image-20220302154931513](exp.assets/image-20220302154931513.png)
 
 对于Java代码首先需要编译为Java字节码文件，然后通过java命令执行程序将对应的类加载进子系统。将类的方法信息加载到JVM中的方法区。创建好的实例对象存储到堆中，局部变量和方法参数引用都是存储到虚拟机栈中(JVM stacks)，对于一些特殊方法比如`hashcode()`需要存放到本地方法栈中。
 
@@ -110,7 +110,7 @@ GC的要点：
 - 灰色：该对象已经被标记过了，但该对象下的属性没有全被标记完。（GC需要从此对象中去寻找垃圾）
 - 白色：该对象没有被标记过。（对象垃圾）
 
-![img](exp.assets\modb_20211010_4a3e36c4-296f-11ec-bd3f-38f9d3cd240d.png)
+![img](exp.assets/modb_20211010_4a3e36c4-296f-11ec-bd3f-38f9d3cd240d.png)
 
 ## Redis
 
@@ -118,7 +118,7 @@ GC的要点：
 
 参考：[15张图解：Redis的快可不是吹吹的](https://mp.weixin.qq.com/s/0R0Evh1QX5BPOQt9233vpQ)
 
-<img src="E:\Notes\intern\exp.assets\640.png" alt="图片" style="zoom:50%;" />
+<img src="exp.assets/640.png" alt="图片" style="zoom:50%;" />
 
 1. redis是基于内存实现的数据库，数据就存储在内存当中，减少了与磁盘之间的IO操作，因此速度很快。
 2. 底层使用了高效的数据结构：比如双端链表、压缩列表、哈希表以及跳跃表等，使得数据存储的效率更高。
