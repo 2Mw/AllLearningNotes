@@ -280,7 +280,28 @@
 
 🔵Factorization Machines⭐
 
+![image-20220407175147534](PaperReading.assets/image-20220407175147534.png)
+
 原文：RENDLE S. Factorization machines[C]//2010 IEEE International conference on data mining.IEEE,2010:995-1000. 
+
+简介：Factorization Machines 是使用分解参数的预测方法，可以在十分稀疏的数据上完成预测的模型。FM 模型能以线性时间复杂度的情况下计算得出结果。FM 模型也是经典的算法，后续的很多算法模型比如 Wide & Deep ，DeepFM，xDeepFM都是基于 FM 模型而来。
+
+关键词：推荐算法；FM 模型；CTR 预测；
+
+解决的问题：
+
+1. SVM 在十分稀疏的数据的情况下会导致预测失败，FM 可以解决稀疏的问题。
+2. 作者将 FM 模型的计算时间复杂度从 $O(kn^2)$ 降到 $O(kn)$，极大提高了计算效率。
+
+数据集：
+
+1. 无
+
+我的评价：
+
+1. 十分经典的奠基型论文
+
+🔵DCN
 
 ## RS-Wiki
 
