@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=96) P96
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=100) P100
 
 ## 初识
 
@@ -1769,3 +1769,43 @@ classDiagram
 3. 会导致子类的个数增加
 
 在 JDK 中 InputStream 类就使用了模板方法的模式。
+
+### 2. 策略模式
+
+> 策略(Strategy)模式，该模式定义了一系列的算法，是他们之间可以相互切换，且算法的变换不会影响使用算法的用户。策略模式属于对象行为模式，它提高对算法进行封装，吧使用的算法责任和实现分割，并委派给不同的对象对这些算法进行管理。
+
+系统需要动态的选择某个算法时使用策略模式。
+
+结构：
+
+* 抽象策略(Strategy)模式：接口或者抽象类。
+* 具体策略(Concrete Strategy)：实现接口，提供具体的算法实现和行为。
+* 环境(Context)类：持有一个策略类的应用，最终给客户端进行使用。
+
+案例：
+
+​	促销互动，公司针对不同的节日推出不同的促销活动，由促销员将活动展示给用户。
+
+```mermaid
+classDiagram
+	class Strategy {
+		+show() void
+	}
+	
+	Strategy <|-- StrategyA
+	Strategy <|-- StrategyB
+	Strategy <|-- StrategyC
+	class SalesMan{
+		-Strategy strategy
+		+saleManShow() void
+	}
+	
+	SalesMan o-- Strategy
+```
+
+特点：
+
+* 策略类之间可以自由切换，易于扩展
+* 客户端必须知道所有的策略类，可以通过使用享元模式类减少对象的数量。
+
+JDK 中的 Comparator 类。
