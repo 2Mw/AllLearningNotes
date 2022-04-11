@@ -303,6 +303,35 @@
 
 🔵DCN
 
+![image-20220411114831845](PaperReading.assets/image-20220411114831845.png)
+
+原文：WANG R, FU B, FU G, et al. Deep & cross network for ad click predictions[C]//Proceedings of the ADKDD'17.2017:1-7. 
+
+简介：DCN 推荐算法模型全称 Deep & Cross Network，作者提出了新的 CrossNet 来捕捉各个特征之间的交叉特征(Cross Features)，能够在指定范围的n阶特征上进行高效的计算。并且结合了 DNN 来捕捉更加隐性的高阶特征。该推荐算法模型无需先前工作中大量耗时费力的特征工程，并且计算时间复杂度也只是随输入数据的长度线性增加，计算更加高效。
+
+关键词：推荐算法；CTR 预测；Deep & Cross
+
+解决的问题：
+
+1. 无需做大量耗时费力的特征工程，计算更高效。
+2. 使用 CrossNet 和 DNN 来捕捉低阶和高阶的特征信息，以及捕捉不易发现的隐性特征。
+3. FM 或者 FFM 模型在扩展到高阶特征的时候，参数数量会随着输入量的增加而成倍的增加，计算复杂度高。
+
+数据集：
+
+1. criteo 数据集
+
+我的评价：
+
+1. 相比于之前的 wide & deep 模型，deep 部分几乎没有什么差别，主要区别是 wide 部分和 cross 部分。 wide & deep 是直接将输入数据进行点积就进行计算输出了，cross 部分是将各个特征之间进行点积并且和一个标量权重进行相乘和 Deep 部分的网络参数一起进行训练优化。
+2. 与 DCN 较为相似的是 DeepFM 模型，deep 部分同样类似。两者之间的主要区别就是对于特定阶特征的计算部分，对于 DeepFM 比如对于二阶特征 i 和 j 的权重 $w_{ij}$ 分解为两个权重向量之间的点积 $<v_i,v_j>$，而 DCN 部分两交叉项(cross term)之间相乘的权重是对应一个矩阵中的标量，并且可以参数共享，相比与FM部分计算更高效。
+
+🔵DCN v2
+
+![image-20220411122952753](PaperReading.assets/image-20220411122952753.png)
+
+原文：Wang R, Shivanna R, Cheng D, et al. DCN V2: Improved deep & cross network and practical lessons for web-scale learning to rank systems[C]//Proceedings of the Web Conference 2021. 2021: 1785-1797.
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
@@ -343,6 +372,7 @@
 
 * [MovieLens 数据集](https://grouplens.org/datasets/movielens/)
 * [Book-Crossing Dataset](http://www2.informatik.uni-freiburg.de/~cziegler/BX/)
+* [criteo 数据集](https://www.kaggle.com/datasets/mrkmakr/criteo-dataset)
 
 ## 其他
 
