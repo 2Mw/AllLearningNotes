@@ -45,6 +45,7 @@
 我的评价：
 
 1. 梦开始的地方，第一个复现（未复现完）的算法。
+1. 缺点就是部分还需要特征工程。
 2. 从这篇文章开始，了解到 embedding 的方方面面，以及当前将知识图谱转为 Embedding 的几种方法。
 3. 还接触到了注意力机制，以及怎么用，虽然不知道具体的用途。
 4. 文章中还存在几处我觉得在 2022 年可以进行改进的地方：
@@ -155,7 +156,26 @@
 
 🔵KGAT
 
+![image-20220413162742252](PaperReading.assets/image-20220413162742252.png)
+
 原文：WANG X, HE X, CAO Y, et al. Kgat: Knowledge graph attention network for recommendation[C]//Proceedings of the 25th ACM SIGKDD international conference on knowledge discovery & data mining.2019:950-958. 
+
+简介：KGAT 算法是使用注意力机制基于知识图谱的端对端推荐算法，其不仅能够挖掘图谱中的低阶信息，还能够挖掘数据中的高阶隐晦的特征信息。其通过从邻居节点迭代传播 embedding 从而提炼中节点的 embedding，并且能够区分邻居节点的重要程度。
+
+关键词：
+
+解决的问题：
+
+1. FM 的方法不能完全从用户一系列行为中充分挖掘出用户之间协同信号。
+2. 先前的基于知识图谱的的方法存在无法充分捕捉数据之间高阶联系的问题。
+
+数据集：
+
+1. Amazon-book
+2. Last-FM
+3. Yelp2018
+
+我的评价：
 
 
 
@@ -332,6 +352,26 @@
 
 原文：Wang R, Shivanna R, Cheng D, et al. DCN V2: Improved deep & cross network and practical lessons for web-scale learning to rank systems[C]//Proceedings of the Web Conference 2021. 2021: 1785-1797.
 
+简介：DCN v2 是在 DCN 的基础上进行改进而来的推荐算法模型，在原有模型的基础上提高了计算效率，并且相比于之前的模型，DCN v2 成功应用在谷歌的实时 rank 排名系统上。并且 DCN v2 引入了矩阵低秩分解的方法来高效计算算法，能够在保证准确度的基础上提高模型的计算速度。文章作者也使用实验数据证明传统的基于 ReLU 的神经网络在学习高阶特征交叉的时候效率更低。
+
+关键词：推荐算法；Rank 算法；DCN；实时系统；
+
+解决的问题：
+
+1. 初代 DCN 算法在大规模网页流量的基础上无法进行实时运算，计算效率较低。
+2. 初代 DCN 在计算输入数据的特征特定的维度处理，不支持任意长度的输入。
+3. 该模型不仅在离线模型上取得了 SOTA 的成果，也在在线模型上成功进行实验，能够满足在线推荐的实时性要求。
+
+数据集：
+
+1. criteo 数据集
+2. movielens 数据集
+
+我的评价：
+
+1. 很多文章中都使用到了多项式逼近(polynomial approximation)的思想，可以学习一下
+2. DCN 和 DCN v2 都是同一个作者，DCN v2 在原先的基础上改进了 CrossNet 的部分并且加入了矩阵低秩分解的点，将 DCN 网络推向了新的高峰。
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
@@ -401,6 +441,8 @@
    **最开始的时候阅读论文，最好能细致一点，把论文之间的引用关系理清楚，把近几年的发展脉络理清楚。**我当年开始第一个工作的时候，就是把我论文需要引用的二十多篇论文的主要思想、方法都写了下来，把引用关系画成了一个DAG图。**当你入门之后，你需要有快速阅读一篇文章并掌握其核心贡献点的能力**，而不要再花费很多时间来标注。
 
 3. [Recommender Systems  (d2l.ai)](http://d2l.ai/chapter_recommender-systems/index.html)
+
+3. [推荐系统论文阅读 - 简书 (jianshu.com)](https://www.jianshu.com/u/720c6853ff98)
 
 ### 传统推荐算法
 
