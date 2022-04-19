@@ -321,7 +321,7 @@
 
 1. 十分经典的奠基型论文
 
-🔵DCN
+🔵DCN⭐
 
 ![image-20220411114831845](PaperReading.assets/image-20220411114831845.png)
 
@@ -346,7 +346,7 @@
 1. 相比于之前的 wide & deep 模型，deep 部分几乎没有什么差别，主要区别是 wide 部分和 cross 部分。 wide & deep 是直接将输入数据进行点积就进行计算输出了，cross 部分是将各个特征之间进行点积并且和一个标量权重进行相乘和 Deep 部分的网络参数一起进行训练优化。
 2. 与 DCN 较为相似的是 DeepFM 模型，deep 部分同样类似。两者之间的主要区别就是对于特定阶特征的计算部分，对于 DeepFM 比如对于二阶特征 i 和 j 的权重 $w_{ij}$ 分解为两个权重向量之间的点积 $<v_i,v_j>$，而 DCN 部分两交叉项(cross term)之间相乘的权重是对应一个矩阵中的标量，并且可以参数共享，相比与FM部分计算更高效。
 
-🔵DCN v2
+🔵DCN v2⭐
 
 ![image-20220411122952753](PaperReading.assets/image-20220411122952753.png)
 
@@ -371,6 +371,43 @@
 
 1. 很多文章中都使用到了多项式逼近(polynomial approximation)的思想，可以学习一下
 2. DCN 和 DCN v2 都是同一个作者，DCN v2 在原先的基础上改进了 CrossNet 的部分并且加入了矩阵低秩分解的点，将 DCN 网络推向了新的高峰。
+
+🔵FFM
+
+![image-20220419131344991](PaperReading.assets/image-20220419131344991.png)
+
+原文：Juan Y, Zhuang Y, Chin W S, et al. Field-aware factorization machines for CTR prediction[C]//Proceedings of the 10th ACM conference on recommender systems. 2016: 43-50.
+
+简介：在 FM 因子分解机的基础上添加了域(field)的概念，
+
+关键词：推荐算法；CTR 预测；FM 因子分解机；
+
+解决的问题：
+
+1. FM 中特征交叉的方式没有考虑到不同特征之间的共性（同域）和差异性（异域）的问题。
+
+数据集：
+
+1. criteo 数据集
+2. avazu 数据集
+
+我的评价：
+
+1. FFM 相比于 FM 模型精确度更高，特征刻画更加精细
+2. 但是 FFM 模型时间复杂度更高，并且参数较多，必须设置正则化和早停训练策略。
+3. Bi-FFM 相比之下参数更少。
+
+参考：
+
+1. [深入FFM原理与实践](https://tech.meituan.com/2016/03/03/deep-understanding-of-ffm-principles-and-practices.html)
+2. [FM及FFM算法](https://codeantenna.com/a/ZFbApvJVQH)
+3. [推荐系统系列（二）：FFM 算法理论与实践](https://www.6aiq.com/article/1590363925275)
+
+🔵Autoint
+
+原文：Song W, Shi C, Xiao Z, et al. Autoint: Automatic feature interaction learning via self-attentive neural networks[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 1161-1170.
+
+
 
 ## RS-Wiki
 
@@ -442,11 +479,9 @@
 
 3. [Recommender Systems  (d2l.ai)](http://d2l.ai/chapter_recommender-systems/index.html)
 
-3. [推荐系统论文阅读 - 简书 (jianshu.com)](https://www.jianshu.com/u/720c6853ff98)
+4. [推荐系统论文阅读 - 简书](https://www.jianshu.com/u/720c6853ff98)
 
-### 传统推荐算法
-
-![preview](PaperReading.assets\v2-24be035b4ae5fab573a09dcee0c16893_r-16490769970172.jpg)
+3. [推荐算法文章 - alg](https://www.6aiq.com/member/alg)
 
 ## 参考文献
 
