@@ -385,6 +385,7 @@
 解决的问题：
 
 1. FM 中特征交叉的方式没有考虑到不同特征之间的共性（同域）和差异性（异域）的问题。
+1. FM 中的特征交叉不够细粒度。
 
 数据集：
 
@@ -403,11 +404,35 @@
 2. [FM及FFM算法](https://codeantenna.com/a/ZFbApvJVQH)
 3. [推荐系统系列（二）：FFM 算法理论与实践](https://www.6aiq.com/article/1590363925275)
 
-🔵Autoint
+#### Autoint
+
+![image-20220421093927071](PaperReading.assets/image-20220421093927071.png)
 
 原文：Song W, Shi C, Xiao Z, et al. Autoint: Automatic feature interaction learning via self-attentive neural networks[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 1161-1170.
 
+简介：AutoInt 算法是基于注意力机制的端到端推荐算法模型，可以用于自动显式建模特征之间的高阶和低阶的关联，并且该算法模型相比于之前的模型有着较好的可解释性。作者将注意力机制引入推荐算法领域，根据多头自注意力机制提出了新的 Interacting Layer，既能够将高维稀疏的输入数据映射到低维子空间中，也能够将各个不同的特征融合起来构成高阶特征信息共同训练，并且无需大量手工费时的特征工程。
 
+关键词：推荐系统；CTR 预测；注意力机制；可解释模型
+
+解决的问题：
+
+1. 对于推荐系统的原始数据存在数据过于稀疏并且维度高的问题，大多数据是离散型或者分类型(categorical)的数据，不易处理和建模，容易导致过拟合。
+2. 对于高阶信息，大多 DNN 的算法模型(Wide & Deep, DeepFM)都是隐式建模高阶，可解释性较差
+3. 显式建模高阶特征信息的模型(DCN, xDeepFM)不能够很好解释哪些交叉特征是有用的。
+4. 作者使用多头注意力机制既能显式建模低阶和高阶信息，并且能够将高维稀疏的向量映射到低维子空间中。
+
+数据集：
+
+1. Criteo 数据集
+2. avazu 数据集
+3. KDD 12 数据集
+4. MovieLens-1M 数据集
+
+我的评价：
+
+1. 所见的基于协同过滤算法中使用注意力机制来替代全连接层深度神经网络来进行建模和训练。
+2. 这个模型也是基于协同过滤中具有可解释性特点的模型
+3. 建议复现
 
 ## RS-Wiki
 
