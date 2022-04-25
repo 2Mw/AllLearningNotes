@@ -329,7 +329,7 @@
 
 简介：DCN 推荐算法模型全称 Deep & Cross Network，作者提出了新的 CrossNet 来捕捉各个特征之间的交叉特征(Cross Features)，能够在指定范围的n阶特征上进行高效的计算。并且结合了 DNN 来捕捉更加隐性的高阶特征。该推荐算法模型无需先前工作中大量耗时费力的特征工程，并且计算时间复杂度也只是随输入数据的长度线性增加，计算更加高效。
 
-关键词：推荐算法；CTR 预测；Deep & Cross
+关键词：推荐算法；CTR 预测；Deep & Cross；多项式近似
 
 解决的问题：
 
@@ -345,6 +345,7 @@
 
 1. 相比于之前的 wide & deep 模型，deep 部分几乎没有什么差别，主要区别是 wide 部分和 cross 部分。 wide & deep 是直接将输入数据进行点积就进行计算输出了，cross 部分是将各个特征之间进行点积并且和一个标量权重进行相乘和 Deep 部分的网络参数一起进行训练优化。
 2. 与 DCN 较为相似的是 DeepFM 模型，deep 部分同样类似。两者之间的主要区别就是对于特定阶特征的计算部分，对于 DeepFM 比如对于二阶特征 i 和 j 的权重 $w_{ij}$ 分解为两个权重向量之间的点积 $<v_i,v_j>$，而 DCN 部分两交叉项(cross term)之间相乘的权重是对应一个矩阵中的标量，并且可以参数共享，相比与FM部分计算更高效。
+2. 作者使用 Weierstrass approximation 多项式近似进行了理论分析。
 
 #### DCN v2⭐
 
@@ -475,6 +476,13 @@
 * [MovieLens 数据集](https://grouplens.org/datasets/movielens/)
 * [Book-Crossing Dataset](http://www2.informatik.uni-freiburg.de/~cziegler/BX/)
 * [criteo 数据集](https://www.kaggle.com/datasets/mrkmakr/criteo-dataset)
+
+### 3. 什么是pairwise？
+
+参考：
+
+1. [pairwise、pointwise 、 listwise算法是什么?怎么理解？主要区别是什么？](https://blog.csdn.net/pearl8899/article/details/102920628)
+2. [Pointwise vs. Pairwise vs. Listwise Learning to Rank](https://medium.com/@nikhilbd/pointwise-vs-pairwise-vs-listwise-learning-to-rank-80a8fe8fadfd)
 
 ## 其他
 
