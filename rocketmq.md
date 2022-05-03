@@ -67,7 +67,7 @@ RocketMQ 中角色介绍：
 1. NameServer：NameServer 是 Broker 的管理者，Broker 需要主动上报自己的信息到 NameServer
 2. Broker：用于暂存和传输消息。Broker Master主要负责写操作，Slave 主要负责写操作。
 3. Producer：主要职责是发送消息，首先询问 NameServer 找到对应的 Broker，然后向 Broker 发送消息。
-4. Consumer：主要职责是接收消息，询问 NameServer 找到对应的 Broker，然后向 Broker 拿去消息。
+4. Consumer：主要职责是接收消息，询问 NameServer 找到对应的 Broker，然后向 Broker 拿去消息。消费者分为拉取式消费(Pull Consumer)和推动式消费(Push Consumer)。拉取式消费式应用主动调用 Consumer 中的从 broker 中拿取消息，主动权式由应用控制；推动式消费是 Broker 收到消息后主动推送给消费端，这种消费消息一般实时性较高。
 5. Topic：消息的种类。
 6. Message Queue：相当于是 Topic 的分区，用于并行消息发送和消息处理。
 
@@ -271,6 +271,65 @@ java -jar target/rocketmq-dashboard-1.0.1-SNAPSHOT.jar
 
 然后进入网页 [localhost:8080](http://localhost:8080/#/) 即可访问查看 dashboard。
 
+### 6. RocketMQ 消息可靠性
+
+RocketMQ 支持消息的高可靠性，影响消息可靠性的几种情况：
+
+1. Broker 的非正常关闭
+2. Broker 异常 Crash
+3. OS Crash
+4. 机器断电，但是能立即恢复供电
+5. 机器无法开机（可能是 CPU、主板、内存等关键设备损坏）
+6. 磁盘设备损坏
+
+其中前四种情况属于硬件资源可立即恢复的情况，RocketMQ 在这四种情况下能保证消息不丢失，或者丢失少量数据（依赖的刷盘方式是同步还是异步）。后两种情况属于单点故障并且无法恢复，一旦发生在单点上的消息全部丢失。RocketMQ 在这两种情况下，通过异步复制，可以保证 99% 的数据不跌是，但是仍然会存在极少量消息的跌势。通过同步双写技术可以完全避免单点，同步双写势必影响性能，适合对消息可靠性极高的场合，例如与 Monkey 相关的应用。（RocketMQ 3.0 之后开始支持同步双写）
+
+### 7. 消息重试与消息重投
+
+🔵消息重试（针对消费组）
+
+Consumer 消费消息失败之后，要提供一种重试机制，让消息再消费一次。Consumer 消费消息失败通常可以认为有以下几种情况：
+
+1. 消息本身原因：例如反序列化失败，消息数据本身无法处理（例如花费充值中当前消息的手机号被注销等）。这种错误通常需要跳过这条消息然后再消费其他消息，如果立即重试消费，99% 也不会成功，所以最好提供一种定时重试机制，即过 10s 后再重试。
+2. 由于依赖的下游应用服务不可用，例如db连接不可用，外系统网络不可达等情况。遇到这种错误，即使跳过当前失败的消息，消费其他消息同样会报错。这种情况建议应用 sleep 30s 左右再消费下一条消息，可以减轻 Broker 重试消息的压力。
+
+RocketMQ 会为每个消费组都设置一个 Topic 名称为 `%RETRY% + consumerGroup` 的重试队列用于暂时保存因为各种异常导致 Consumer 端无法消费的消息。不同的重试队列有着不同的重试级别，重试次数越多投递延时越大。RocketMQ 对于消息重试的处理先保存到 Topic 名称为 `SCHEDULE_TOPIC_XXXX` 的延时队列中，后台定时任务会按照对应事件进行延时后重新保存到 `%RETRY% + consumerGroup` 重试队列中。
+
+🔵消息重投（针对生产者）
+
+生产者在发送消息的时候，同步消息失败会重投，异步消息有重试，oneway 没有任何保证。消息重投是保证消息尽可能发送成功并且不丢失，但可能会造成消息重复，消息重复在 RocketMQ 中是无法避免的问题。消息重复在一般情况下是不会发生的，当出现消息量大、网络抖动，消息重复就会是大概率的事件。另外生产者主动重发、consumer 负载的变化也会导致消息重复。如下可以设置消息重试的策略：
+
+1. retryTimesWhenSendFailed：同步发送失败重投次数，默认为2。生产者不会选择上次失败的 broker，会尝试向其他的 broker 发送，最大程度保证消息不丢失。超过重投次数会抛出异常，由客户端来保证消息不丢失。
+2. retryTimesWhenSendAsyncFailed:异步发送失败重试次数，异步重试不会选择其他broker，仅在同一个broker上做重试，不保证消息不丢。
+3. retryAnotherBrokerWhenNotStoreOK:消息刷盘（主或备）超时或slave不可用（返回状态非SEND_OK），是否尝试发送到其他broker，默认false。十分重要消息可以开启。
+
+### 8. 流量控制
+
+流量控制分为生产者流控和消费组流控。生产者流控是因为 broker 的处理能力达到了瓶颈，消费组流控是因为消费能力达到了瓶颈。
+
+生产者流控：
+
+- commitLog文件被锁时间超过osPageCacheBusyTimeOutMills时，参数默认为1000ms，返回流控。
+- 如果开启transientStorePoolEnable == true，且broker为异步刷盘的主机，且transientStorePool中资源不足，拒绝当前send请求，返回流控。
+- broker每隔10ms检查send请求队列头部请求的等待时间，如果超过waitTimeMillsInSendQueue，默认200ms，拒绝当前send请求，返回流控。
+- broker通过拒绝send 请求方式实现流量控制。
+
+注意，生产者流控，不会尝试消息重投。
+
+消费者流控：
+
+- 消费者本地缓存消息数超过pullThresholdForQueue时，默认1000。
+- 消费者本地缓存消息大小超过pullThresholdSizeForQueue时，默认100MB。
+- 消费者本地缓存消息跨度超过consumeConcurrentlyMaxSpan时，默认2000。
+
+消费者流控的结果是降低拉取频率。
+
+### 9. 死信队列
+
+死信队列是用于处理无法被正常消费的消息，当一条消息初次消费失败的时候，消息队列会自动进行消息重试；达到最大重试次数之后，若消费依然失败，则表明消费组在正常情况下无法正确的消费该消息，此时消息队列不会立即丢弃该消息，而是将这个消息发送的该消费者对应的特殊队列中。
+
+RocketMQ 将这种在正常情况下无法被消费的消息称为死信消息(Dead-Letter Message)，这个特殊队列称为死信队列(Dead-Letter Queue)。在 RocketMQ 中可以通过使用 console 控制台对死信队列中的消息进行重发来是的消费者实例再次进行消费。
+
 ## 二. RocketMQ 消息发送
 
 首先需要导入maven依赖：
@@ -409,9 +468,15 @@ java -jar target/rocketmq-dashboard-1.0.1-SNAPSHOT.jar
 
 ### 2. 顺序消息
 
-参考：[Order Message](https://rocketmq.apache.org/docs/order-example/)
+参考：
 
-保证消息的发送和消费顺序是一致的。
+1. [Order Message](https://rocketmq.apache.org/docs/order-example/)
+2. [消息顺序 - Github](https://github.com/apache/rocketmq/blob/master/docs/cn/features.md#2-消息顺序)
+
+消息有序指的是进行消息消费的时候，能够按照发送的顺序来进行消费。顺序消息分为两类，全局顺序消息和分区顺序消息。
+
+* 全局顺序是对于指定的一个 Topic，所有消息按照严格的 FIFO 顺序进行发布和消费。
+* 分区顺序是对于指定的一个 Topic，所有消息根据 sharding key 进行区块分区。同一分区内的消息按照严格的 FIFO 顺序进行发布和消费。其中 Sharding key 是顺序消息中用来区分不同分区的关键字段，和普通消息的 Key 是完全不同的概念。
 
 ![image-20220429150054360](rocketmq.assets/image-20220429150054360.png)
 
@@ -499,6 +564,369 @@ public static void main(String[] args) throws Exception {
 当然发送批量消息的时候还需要注意，发送消息的大小超过4MB的时候，最好将消息进行分割。
 
 可以参考官网的代码：[Batch Example - Apache RocketMQ](https://rocketmq.apache.org/docs/batch-example/)
+
+```java
+public class ListSplitter implements Iterator<List<Message>> {
+    private final int SIZE_LIMIT = 1024 * 1024 * 4;
+    private final List<Message> messages;
+    private int currIndex;
+
+    public ListSplitter(List<Message> messages) {
+        this.messages = messages;
+    }
+
+    @Override
+    public boolean hasNext() {
+        return currIndex < messages.size();
+    }
+
+    @Override
+    public List<Message> next() {
+        int startIndex = getStartIndex();
+        int nextIndex = startIndex;
+        int totalSize = 0;
+        for (; nextIndex < messages.size(); nextIndex++) {
+            Message msg = messages.get(nextIndex);
+            int tmpSize = calcMessageSize(msg);
+            if (tmpSize + totalSize > SIZE_LIMIT) break;
+            else totalSize += tmpSize;
+        }
+        List<Message> subList = messages.subList(startIndex, nextIndex);
+        currIndex = nextIndex;
+        return subList;
+    }
+
+    private int getStartIndex() {
+        Message currMsg = messages.get(currIndex);
+        int tmpSize = calcMessageSize(currMsg);
+        while (tmpSize > SIZE_LIMIT) {  // 遇到大于 SIZE_LIMIT 的消息直接扔掉
+            currIndex += 1;
+            Message msg = messages.get(currIndex);
+            tmpSize = calcMessageSize(msg);
+        }
+        return currIndex;
+    }
+
+    private int calcMessageSize(Message msg) {
+        int tmpSize = msg.getTopic().length() + msg.getBody().length;
+        Map<String, String> properties = msg.getProperties();
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+            tmpSize += entry.getKey().length() + entry.getValue().length();
+        }
+        tmpSize += 20;
+        return tmpSize;
+    }
+}
+```
+
+### 5. 发送过滤消息
+
+分为两种过滤方式：Tag过滤和SQL过滤。
+
+1. Tag过滤：
+
+   ```java
+   consumer.subscribe("DelayTopic", "TagA || TagC || TagD");
+   ```
+
+   如果想要全部接收该Topic下的所有tag，则使用 `*` 进行匹配。
+
+2. SQL过滤：
+
+   RocketMQ只定义了一些基本语法来支持这个特性。你也可以很容易地扩展它。
+
+   - 数值比较，比如：**>，>=，<，<=，BETWEEN，=；**
+   - 字符比较，比如：**=，<>，IN；**
+   - **IS NULL** 或者 **IS NOT NULL；**
+   - 逻辑符号 **AND，OR，NOT；**
+
+   常量支持类型为：
+
+   - 数值，比如：**123，3.1415；**
+   - 字符，比如：**'abc'，必须用单引号包裹起来；**
+   - **NULL**，特殊的常量
+   - 布尔值，**TRUE** 或 **FALSE**
+
+   SQL 过滤需要在 properties 文件配置，默认是不支持 SQL92
+
+   ```properties
+   #是否支持根据属性过滤 如果使用基于标准的sql92模式过滤消息则改参数必须设置为true
+   enablePropertyFilter=true
+   ```
+
+   生产者对消息进行标识：
+
+   ```java
+   Message msg = new Message("FilterTopic", "tag", msg);
+   msg.putUserProperty("a", String.valueOf(i));
+   ```
+
+   消费者对消息进行过滤：
+
+   ```java
+   consumer.subscribe("FilterTopic", MessageSelector.bySql("a between 2 and 5"));
+   ```
+
+### 6. 事务消息
+
+参考：[rocketmq 事务消息](https://github.com/apache/rocketmq/blob/master/docs/cn/design.md#5-事务消息)
+
+![img](rocketmq.assets/rocketmq_design_10.png)
+
+对于生产者没有提交的消息，消费者是短暂不可见的，只要事务被提交之后，消费者才可见。
+
+事务消息大致方案分为两个流程：正常事务的发送以及提交，事务消息的补偿流程。
+
+* 事务消息的发送以及提交
+  1. 发送 half 消息
+  2. 服务端响应 half 消息并且写入结果
+  3. 根据发送结果执行本地事务，如果执行失败，此时 half 消息对业务不可见，本地逻辑不执行
+  4. 根据本地事务的状态执行 commit 或者 rollback
+* 事务消息的补偿流程
+  1. 对于没有 commit 或者 rollback 的事务消息(pending 状态的消息)，向服务器端发送一次**回查**
+  2. Producer 收到回查消息，检查回查消息对应本地事务的状态
+  3. 根据本地事务状态，重新 commit 或者 rollback
+
+事务消息共有三种状态，提交状态、回滚状态、中间状态：
+
+- TransactionStatus.CommitTransaction: 提交事务，它允许消费者消费此消息。
+- TransactionStatus.RollbackTransaction: 回滚事务，它代表该消息将被删除，不允许被消费。
+- TransactionStatus.Unknown: 中间状态，它代表需要检查消息队列来确定状态。
+
+事务生产者：
+
+事务生产者需要添加事务监听器，当事务得到 broker 对于 half 消息回应时候以及回查的时候进行处理。
+
+```java
+public class TProducer {
+    public static void main(String[] args) throws Exception {
+        TransactionListener listener = new TransactionListenerImpl();
+        TransactionMQProducer producer = new TransactionMQProducer("TG1");
+        producer.setNamesrvAddr(Config.getNameServersString());
+        ExecutorService service = new ThreadPoolExecutor(2, 5, 100,
+                TimeUnit.SECONDS, new ArrayBlockingQueue<>(2000), r -> {
+                    Thread thread = new Thread(r);
+                    thread.setName("client-transaction-msg-check-thread");
+                    return thread;
+                });
+        producer.setExecutorService(service);
+        producer.setTransactionListener(listener);
+        producer.start();
+
+        String[] tags = new String[] {"TagA", "TagB", "TagC", "TagD", "TagE"};
+        for (int i = 0; i < 10; i++) {
+            try {
+                Message msg = new Message("TopicTest1234", tags[i % tags.length], "KEY" + i,
+                                ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET));
+                SendResult sendResult = producer.sendMessageInTransaction(msg, null);
+                System.out.printf("%s%n", sendResult);
+                Thread.sleep(10);
+            } catch (MQClientException | UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+        }
+        for (int i = 0; i < 100000; i++) {
+            Thread.sleep(1000);
+        }
+        producer.shutdown();
+    }
+}
+```
+
+生产者监听器：
+
+需要对两个事件进行实现，`executeLocalTransaction` 是用于事务执行的，分为以下三种情况：
+
+* `LocalTransactionState.UNKNOW`，对事件进行不处理，之后会收到 broker 的回查
+* `LocalTransactionState.COMMIT_MESSAGE`，对事件进行 commit
+* `LocalTransactionState.ROLLBACK_MESSAGE`，对事件进行 rollback
+
+`checkLocalTransaction` 是用于对 broker 回查事件的回应。
+
+```java
+public class TransactionListenerImpl implements TransactionListener {
+    private AtomicInteger tIndex = new AtomicInteger(0);
+    private ConcurrentHashMap<String, Integer> localTrans = new ConcurrentHashMap<>();
+
+    // 对某个事务进行执行
+    @Override
+    public LocalTransactionState executeLocalTransaction(Message message, Object o) {
+        int value = tIndex.getAndIncrement();
+        int status = value % 3;
+        localTrans.put(message.getTransactionId(), status);
+        return LocalTransactionState.UNKNOW;
+    }
+
+    // 回查
+    @Override
+    public LocalTransactionState checkLocalTransaction(MessageExt msg) {
+        Integer status = localTrans.get(msg.getTransactionId());
+        if (null != status) {
+            switch (status) {
+                case 0:
+                    return LocalTransactionState.UNKNOW;
+                case 1:
+                    return LocalTransactionState.COMMIT_MESSAGE;
+                case 2:
+                    return LocalTransactionState.ROLLBACK_MESSAGE;
+            }
+        }
+        return LocalTransactionState.COMMIT_MESSAGE;
+    }
+}
+```
+
+## 三. RocketMQ 设计
+
+### 1. 消息存储
+
+![img](rocketmq.assets/rocketmq_design_1.png)
+
+消息存储时 RocketMQ 中最为复杂而且最为重要的一部分。
+
+🔵消息存储的整体架构
+
+消息存储架构图主要由以下三个消息存储相关的文件构成：
+
+1. CommitLog：是消息主题以及元数据的存储主题，存储 Producer 端写入的消息内容，消息内容不是定长的。单个文件大小默认为1G，文件名长度为20位，左边补零，剩余为其实偏移量，比如00000000000000000000表示第一个文件，起始偏移量为0，文件大小为1G=1073741824；当第一个文件写满第二个文件为00000000001073741824，其实偏移量为1073741824，以此类推。消息主要是顺序写入日志文件，当文件写满后继续写入下一个文件。
+2. ConsumeQueue：消息消费队列，目的是要提高消息消费的性能。由于 RocketMQ 是基于 topic 的订阅模式，消息消费是针对 topic 进行的，如果遍历 CommitLog 文件中根据 topic 检索信息是低效的。消费者是 根据 ConsumeQueue 来查找带消费的消息。其中 ConsumeQueue 作为消费消息的索引，其保存了指定 Topic 下队列消息在 CommitLog 中的起始物理偏移量 offset、消息大小 size 和消息 tag 的 HashCode。ConsumeQueue文件可以看作是基于 topic 的 CommitLog 索引文件。因此 consumequeue 文件夹的组织目录如下，有 topic/queue/file 三层组织结构，具体的存储路径为 $HOME/store/consumequeue/{topic}/{queueid}/{fileName}。同样 consumequeue 文件采取定长设计，每一个条目共 20 字节，分别为 8 字节的 commitLog物理偏移量、4字节的消息长度、8字节的 tag hashcode，单文件由 30w 个条目组成，可以像数组一样随机访问每一个条目，每个consumequeue 文件大小约为5.72M。
+3. IndexFile：即索引文件，其提供了可以通过 key 或者时间区间来查询消息的方法。index具体的存储路径为 $HOME/store/index/{fileName}，文件名的创建是根据时间戳命名的，固定的单个 IndexFile 文件大小约为 400M，一个 IndexFile 可以保存2000W个索引，IndexFile 的底层存储设计为在文件系统中的 HashMap 结构，因此 RocketMQ 索引文件的底层实现为 hash 索引。
+
+可以看出 RocketMQ 采用的是混合型存储结构，多个 Topic 的消息实体内容都存储于一个CommitLog中，即为 Broker 单个实例下所有的队列公用一个日志数据文件(CommitLog)来存储。这种混合存储结构针对 Producer 和 Consumer 分别采用了数据和索引部分相分离的存储结构，Producer 发送消息至 Broker，然后 Broker 通过使用同步或者异步的方式对消息进行刷盘持久化保存到 CommitLog 文件中。只要消息被刷盘持久化到磁盘文件中，Producer 发送的消息就不会消失。这样 Consumer 就能够消费消息，当无法拉取到消息的时候，可以等下一次消息拉取，同时服务端也支持长轮询模式，如果一个消息拉取请求失败之后，Broker 允许等待 30s 的时候，只要这段时间内有新的消息到达就直接返回消费端。
+
+RocketMQ 具体做法是使用 Broker 端的后台服务线程——ReputMessageService 不停的分发请求并且异步构建 ConsumeQueue 和 IndexFile 数据。
+
+🔵页缓存与内存映射
+
+页缓存(Page Cache)是 OS 对文件的缓存用于加速对文件的读写。程序对文件的顺序读写几乎接近于内存的读写速度，主要原因就是由于操作系统使用 PageCache 机制对读写访问操作进行的性能优化，将一部分的数据用作 PageCache。
+
+* 数据写入：OS 首先会写入到 Cache 内，随后通过异步方式由 pdflush 内核线程将 Cache 内的数据刷盘到物理磁盘上。
+* 数据读取：如果读取文件未命中 PageCache，OS 在从物理磁盘中访问文件的同时会顺序对其他相邻数据块进行预读取。
+
+RocketMQ 主要通过 MappedByteBuffer 对文件进行读写操作。其中利用了 NIO 中 FileChannel 模型将磁盘上的物理文件直接映射到用户态的内存地址中（Mmap 的方式减少了传统 IO 将磁盘文件数据在操作系统内核地址空间缓冲区和用户应用程序地址空间缓冲区之间来回拷贝的性能开销），这对文件的操作转化为了对内存地址进行操作，从而极大地提高了文件读写效率（正因为需要使用内存映射机制，RocketMQ的文件存储都是用定长结构存储，方便一次将整个文件映射至内存）。
+
+🔵消息刷盘
+
+![img](rocketmq.assets/rocketmq_design_2.png)
+
+刷盘两种方式，同步刷盘和异步刷盘。
+
+1. 同步刷盘：只有在消息真正持久化到磁盘后，RocketMQ 的 Broker 端才会真正返回给 Producer 端。同步刷盘可靠性较高，但是性能会有影响，一般适用于金融业务较多。
+2. 异步刷盘：能够充分利用 OS 的 PageCache 优势，只要消息写入 PageCache 即可将成功的 ACK 返回到 Producer 端。消息刷盘采用后台异步线程提交的方式进行，降低了读写延迟，提高了MQ 的性能和吞吐量
+
+### 2. 通信机制
+
+参考：[通信机制](https://github.com/apache/rocketmq/blob/master/docs/cn/design.md#2-通信机制)
+
+RocketMQ 消息队列集群主要包括 NameServers、Broker(Master/Slave)、Producer、Consumer 这4个角色，其在 Netty 的基础上自定义了通信协议并且扩展了通信模块，基本通讯流程如下：
+
+1. Broker 启动之后需要将自己注册到 NameServer；随后每隔 30s 上报 Topic 路由信息。
+2. Producer 发送消息时候，需要根据消息的 Topic 从本地缓存的 TopicPublishInfoTable 中获取路由信息。如果没有则从 NameServer 上获取，同时 Producer 会每隔 30s 向 NameServer 拉取一次路由信息。
+3. Producer 根据获取到的路由信息选择一个消息队列进行消息发送； Broker 接收消息后并且落盘。
+4. Consumer 根据路由信息，完成客户端的负载均衡之后，选择其中一个或者几个消息队列来拉取消息并且进行消费。
+
+![image-20220503194609744](rocketmq.assets/image-20220503194609744.png)
+
+### 3. 负载均衡
+
+RocketMQ 中负载均衡分为两种：
+
+1. Producer 端发送消息时候的负载均衡
+2. ⭐Consumer 端订阅消息时候的负载均衡
+
+🔵Producer的负载均衡
+
+Producer 发送消息会首先根据 Topic 找到对应的路由信息，RocketMQ 在默认方式下选择一个消息队列发送消息，具体容错策略在 `MQFaultStrategy` 类中定义。其中有一个 `sendLatencyFaultEnable` 开关变量，如果开启会在随机递增取模的基础上，过滤掉不可用的 Broker。这里的 Latency Fault Tolerance 就是指对之前发生失败的 Broker 进行一定时间的退避；如果关闭就只会进行随机递增取模选择消息队列。Latency Fault Tolerance 机制是实现消息发送高可用的关键所在。
+
+🔵Consumer的负载均衡
+
+Consumer 端由两种消费模式(pull/push)，其实 push 模式只是对 pull 模式的一种封装，本质就是消息拉取线程从服务器上拉取到一批消息之后，然后**立马**继续尝试拉取消息；如果未拉取到消息，则延迟一会继续拉取。这两种消费模式都需要 Consumer 知道从哪个消息队列中获取到消息。因此非常有必要在 Consumer 端进行负载均衡，即需要在 Broker 端中的多个消息队列分配给同一个消费者组中的哪些 Consumer 进行消费。
+
+* Consumer 端心跳包
+
+  Consumer 启动后会通过定时任务不断向 RocketMQ 集群中所有的 Broker 发送心跳包（包含消息消费分组名称、订阅关系集合、消息通信模式和客户端id等信息）。Broker 在收到 Consumer 的心跳消息后，会将其维护在 ConsumerManager 的本地缓存变量——ConsumerTable中，同时将封装后的客户端网络通道信息保存在本地缓存变量——ChannelInfoTable中，为之后做 Consumer 端负载均衡提供可以依据的元数据信息。
+
+* Consumer 端实现负载均衡的核心类 —— `RebalanceImpl` 类
+
+  Consumer 实例中启动 MQClientInstance 实例部分，会完成负载均衡服务线程——`RebalanceService` 的启动（每隔20s执行一次）。`RebalanceService` 线程的 run 方法中最终调用的是 `RebalanceImpl` 中的 `rebalanceByTopic()` 方法，这个方法会根据消费者通信类型（广播模式/集群模式）做出不同的逻辑处理。 以下是**集群模式**下主要处理流程：
+
+  1. 从`rebalanceImpl` 的实例的属性 `topicSubscribeInfoTable` 中获取该 Topic 主题下消息消费队列集合
+
+  2. 根据 topic 和 consumerGroup 为参数调用 `MQClientFactory.findConsumerIdList()` 方法向 Broker 端获取该消费组下消费者 Id 列表
+
+  3. 对 topic 下的消费队列、消费者id进行排序，然后容消息队列分配策略算法（默认是消息队列的平均分配算法）计算出待拉取的消息队列。这里的平均分配算法类似于分页算法，将所有的消息队列排序当作**记录**，将所有 consumer 排序当作**页数**，并且求出每一页需要包含的平均大小和每个页面记录的范围，最后遍历整个范围计算出房前 consumer 端应该配分配到的消息队列。
+
+     ![img](rocketmq.assets/rocketmq_design_8.png)
+
+  4. 最后调用 `updateProcessQueueTableInRebalance()` 方法，将分配到的消息队列集合与 processQueueTable 做过滤对比。
+
+     ![img](rocketmq.assets/rocketmq_design_9.png)
+
+     红色表示与分配到的消息队列集合中互不包含的部分，绿色表示交集部分。
+
+消息消费队列在同一消费组不同消费者之间的负载均衡，其核心设计理念是在一个消息消费队列在同一时间只允许被同一消费组内的一个消费者消费，一个消息消费者能同时消费多个消息队列。
+
+### 4. 事务消息
+
+![img](rocketmq.assets/rocketmq_design_10.png)
+
+事务消息的处理分为两个部分：正常事务消息的发送和提交流程、事务补偿流程。
+
+事务消息设计有以下几个要点
+
+1. 事务消息在一阶段对用户不可见
+
+   如果消息是 half 消息，RMQ 将备份原消息的 topic 和消费队列，然后改变主题为 `RMQ_SYS_TRANS_HALF_TOPIC`。由于消费者并未订阅该主题，因此消费者无法消费 half 类型的消息，然后 RocketMQ 会开启一个定时任务，从 topic 为 `RMQ_SYS_TRANS_HALF_TOPIC` 中拉取消息进行消费，根据生产者组获取一个服务提供者发送回查事务的状态请求，根据事务状态来决定提交或者回滚。
+
+   代码见[此处](#6. 事务消息)
+
+2. Commit 和 Rollback 操作以及 Op 的引入
+
+   在一阶段之后，如果是 commit 则用户可见，如果是 rollback 则需要撤销一阶段的消息。其中 Op 消息适用于标识当前事务消息的状态，如果一条事务消息没有对应的 Op 消息，则说明这个事务状态可能还在等待，或者二阶段失败了。
+
+3. Op 消息的存储以及对应关系
+
+   ![img](rocketmq.assets/rocketmq_design_12.png)
+
+4. Half 消息的索引构建
+
+   在执行二阶段Commit操作时，需要构建出Half消息的索引。一阶段的Half消息由于是写到一个特殊的Topic，所以二阶段构建索引时需要读取出Half消息，并将Topic和Queue替换成真正的目标的Topic和Queue，之后通过一次普通消息的写入操作来生成一条对用户可见的消息。所以RocketMQ事务消息二阶段其实是利用了一阶段存储的消息的内容，在二阶段时恢复出一条完整的普通消息，然后走一遍消息写入流程。
+
+5. 处理二阶段失败的消息
+
+   如果在RocketMQ事务消息的二阶段过程中失败了，例如在做Commit操作时，出现网络问题导致Commit失败，那么需要通过一定的策略使这条消息最终被Commit。RocketMQ采用了一种补偿机制，称为“回查”。
+
+   rocketmq并不会无休止的的信息事务状态回查，默认回查15次，如果15次回查还是无法得知事务状态，rocketmq默认回滚该消息。
+
+### 5. 消息查询
+
+RocketMQ 支持的消息查询方式有两种：
+
+1. 按照 MessageID 查询消息
+
+   MessageID 长度为16字节，其中包含了消息存储主机地址(IP和端口)，消息 Commit Log Offset。Client 从 MessageID 中解析出 broker 的地址和提交日志的偏移地址后封装成一个 RPC 请求后通过 Remoting 通信层发送。Broker 根据对应消息找到记录。
+
+2. 按照 Message Key 查询消息
+
+   根据Key进行查询消息是基于 IndexFile 索引文件实现的，其逻辑结构类似 JDK 中 HashMap 的实现。索引文件的具体结构如下：
+
+   ![img](rocketmq.assets/rocketmq_design_13.png)
+
+   如果消息的properties中设置了UNIQ_KEY这个属性，就用 topic + “#” + UNIQ_KEY的value作为 key 来做写入操作。如果消息设置了KEYS属性（多个KEY以空格分隔），也会用 topic + “#” + KEY 来做索引。
+
+   其中的索引数据包含了Key Hash/CommitLog Offset/Timestamp/NextIndex offset 这四个字段，一共20 Byte。NextIndex offset 即前面读出来的 slotValue，如果有 hash冲突，就可以用这个字段将所有冲突的索引用链表的方式串起来了。Timestamp记录的是消息storeTimestamp之间的差，并不是一个绝对的时间。整个Index File的结构如图，40 Byte 的Header用于保存一些总的统计信息，4\*500W的 Slot Table并不保存真正的索引数据，而是保存每个槽位对应的单向链表的头。20\*2000W 是真正的索引数据，即一个 Index File 可以保存 2000W个索引。
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
