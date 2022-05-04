@@ -916,6 +916,167 @@ RocketMQ 支持的消息查询方式有两种：
 
    其中的索引数据包含了Key Hash/CommitLog Offset/Timestamp/NextIndex offset 这四个字段，一共20 Byte。NextIndex offset 即前面读出来的 slotValue，如果有 hash冲突，就可以用这个字段将所有冲突的索引用链表的方式串起来了。Timestamp记录的是消息storeTimestamp之间的差，并不是一个绝对的时间。整个Index File的结构如图，40 Byte 的Header用于保存一些总的统计信息，4\*500W的 Slot Table并不保存真正的索引数据，而是保存每个槽位对应的单向链表的头。20\*2000W 是真正的索引数据，即一个 Index File 可以保存 2000W个索引。
 
+## 四. RocketMQ 最佳实践
+
+### 1. 生产者
+
+生产者发送失败会直接抛出异常，发送消息成功会有多个状态：
+
+- **SEND_OK**：消息发送成功。要注意的是消息发送成功也不意味着它是可靠的。要确保不会丢失任何消息，还应启用同步Master服务器或同步刷盘，即SYNC_MASTER或SYNC_FLUSH。
+
+- **FLUSH_DISK_TIMEOUT**：消息发送成功但是服务器刷盘超时。此时消息已经进入服务器队列（内存），只有服务器宕机，消息才会丢失。消息存储配置参数中可以设置刷盘方式和同步刷盘时间长度，如果Broker服务器设置了刷盘方式为同步刷盘，即FlushDiskType=SYNC_FLUSH（默认为异步刷盘方式），当Broker服务器未在同步刷盘时间内（默认为5s）完成刷盘，则将返回该状态——刷盘超时。
+
+- **FLUSH_SLAVE_TIMEOUT**：消息发送成功，但是服务器同步到Slave时超时。此时消息已经进入服务器队列，只有服务器宕机，消息才会丢失。如果Broker服务器的角色是同步Master，即SYNC_MASTER（默认是异步Master即ASYNC_MASTER），并且从Broker服务器未在同步刷盘时间（默认为5秒）内完成与主服务器的同步，则将返回该状态——数据同步到Slave服务器超时。
+
+- **SLAVE_NOT_AVAILABLE**：消息发送成功，但是此时Slave不可用。如果Broker服务器的角色是同步Master，即SYNC_MASTER（默认是异步Master服务器即ASYNC_MASTER），但没有配置slave Broker服务器，则将返回该状态——无Slave服务器可用。
+
+Producer的send方法本身支持内部重试，重试逻辑如下：
+
+- 至多重试2次。
+- 如果同步模式发送失败，则轮转到下一个Broker，如果异步模式发送失败，则只会在当前Broker进行重试。这个方法的总耗时时间不超过sendMsgTimeout设置的值，默认10s。
+- 如果本身向broker发送消息产生超时异常，就不会再重试。
+
+如果业务对消息可靠性要求比较高，建议应用增加相应的重试逻辑：比如调用send同步方法发送失败时，则尝试将消息存储到db，然后由后台线程定时重试，确保消息一定到达Broker。
+
+### 2. 消费者
+
+🔵消息幂等
+
+RocketMQ 无法避免消息重复(Exactly-Once)，如果业务对消息重复比较敏感，无比在业务层进行去重处理。可以借助关系型数据库中 primary key 或者 unique key 的来进行标识。
+
+在实际场景中，可能会出现消息相同但是不同 msgId 的情况，比如消费者主动重发、客户端重投导致的重复，这种情况需要使用业务字段进行重复消费。
+
+🔵消费速度慢解决方案
+
+1. 提高消费并行度
+
+   * 在同一 Consumer Group 下，增加 Consumer 实例的数量来提高并行度（如果超过订阅队列的数量就会无效）。
+   * 增加单个 Consumer 的消费并行线程，通过修改参数 consumeThreadMin、consumeThreadMax实现。
+
+2. 批量消费
+
+   某些业务流程如果支持批量方式消费，则可以很大程度上提高消费吞吐量，例如订单扣款类应用，一次处理一个订单耗时 1s，一次处理 10 个订单可能也只耗时 2s，这样即可大幅度提高消费的吞吐量，通过设置 consumer的 consumeMessageBatchMaxSize 返个参数，默认是 1，即一次只消费一条消息，例如设置为 N，那么每次消费的消息数小于等于 N。
+
+3. 跳过非重要消息
+
+   发生消息堆积时，如果消费速度一直追不上发送速度，如果业务对数据要求不高的话，可以选择丢弃不重要的消息。例如，当某个队列的消息数堆积到100000条以上，则尝试丢弃部分或全部消息，这样就可以快速追上发送消息的速度。示例代码如下：
+
+   ```java
+   public ConsumeConcurrentlyStatus consumeMessage(
+           List<MessageExt> msgs,
+           ConsumeConcurrentlyContext context) {
+       long offset = msgs.get(0).getQueueOffset();
+       String maxOffset =
+               msgs.get(0).getProperty(Message.PROPERTY_MAX_OFFSET);
+       long diff = Long.parseLong(maxOffset) - offset;
+       if (diff > 100000) {
+           // TODO 消息堆积情况的特殊处理
+           return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+       }
+       // TODO 正常消费过程
+       return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+   }    
+   ```
+
+4. 优化消息消费过程
+
+   举例如下，某条消息的消费过程如下：
+
+   - 根据消息从 DB 查询【数据 1】
+   - 根据消息从 DB 查询【数据 2】
+   - 复杂的业务计算
+   - 向 DB 插入【数据 3】
+   - 向 DB 插入【数据 4】
+
+   这条消息的消费过程中有4次与 DB的 交互，如果按照每次 5ms 计算，那么总共耗时 20ms，假设业务计算耗时 5ms，那么总过耗时 25ms，所以如果能把 4 次 DB 交互优化为 2 次，那么总耗时就可以优化到 15ms，即总体性能提高了 40%。所以应用如果对时延敏感的话，可以把DB部署在SSD硬盘，相比于SCSI磁盘，前者的 RT 会小很多。
+
+🔵其他消费建议
+
+参考：[其他消费建议](https://github.com/apache/rocketmq/blob/master/docs/cn/best_practice.md#24-其他消费建议)
+
+### 3. Broker
+
+Broker 角色分为 ASYNC_MASTER（异步主机）、SYNC_MASTER（同步主机）以及SLAVE（从机）。如果对消息的可靠性要求比较严格，可以采用 SYNC_MASTER加SLAVE的部署方式。如果对消息可靠性要求不高，可以采用ASYNC_MASTER加SLAVE的部署方式。如果只是测试方便，则可以选择仅ASYNC_MASTER或仅SYNC_MASTER的部署方式。
+
+Broker 的配置：
+
+| 参数名                  | 默认值                 | 说明                                                         |
+| ----------------------- | ---------------------- | ------------------------------------------------------------ |
+| listenPort              | 10911                  | 接受客户端连接的监听端口                                     |
+| namesrvAddr             | null                   | nameServer 地址                                              |
+| brokerIP1               | 网卡的 InetAddress     | 当前 broker 监听的 IP                                        |
+| brokerIP2               | 跟 brokerIP1 一样      | 存在主从 broker 时，如果在 broker 主节点上配置了 brokerIP2 属性，broker 从节点会连接主节点配置的 brokerIP2 进行同步 |
+| brokerName              | null                   | broker 的名称                                                |
+| brokerClusterName       | DefaultCluster         | 本 broker 所属的 Cluser 名称                                 |
+| brokerId                | 0                      | broker id, 0 表示 master, 其他的正整数表示 slave             |
+| storePathRootDir        | $HOME/store/           | 存储根路径                                                   |
+| storePathCommitLog      | $HOME/store/commitlog/ | 存储 commit log 的路径                                       |
+| mappedFileSizeCommitLog | 1024 * 1024 * 1024(1G) | commit log 的映射文件大小                                    |
+| deleteWhen              | 04                     | 在每天的什么时间删除已经超过文件保留时间的 commit log        |
+| fileReservedTime        | 72                     | 以小时计算的文件保留时间                                     |
+| brokerRole              | ASYNC_MASTER           | SYNC_MASTER/ASYNC_MASTER/SLAVE                               |
+| flushDiskType           | ASYNC_FLUSH            | SYNC_FLUSH/ASYNC_FLUSH SYNC_FLUSH 模式下的 broker 保证在收到确认生产者之前将消息刷盘。ASYNC_FLUSH 模式下的 broker 则利用刷盘一组消息的模式，可以取得更好的性能。 |
+
+### 4. 客户端配置
+
+客户端(生产者/消费者)首先要找到 Name Server 才能够找到 Broker。
+
+RocketMQ可以令客户端找到Name Server, 然后通过Name Server再找到Broker。如下所示有多种配置方式，优先级由高到低，高优先级会覆盖低优先级。
+
+- 代码中指定Name Server地址，多个namesrv地址之间用分号分割
+
+  ```java
+  producer.setNamesrvAddr("192.168.0.1:9876;192.168.0.2:9876");  
+  
+  consumer.setNamesrvAddr("192.168.0.1:9876;192.168.0.2:9876");
+  ```
+
+- Java启动参数中指定Name Server地址
+
+  ```
+  -Drocketmq.namesrv.addr=192.168.0.1:9876;192.168.0.2:9876
+  ```
+
+- 环境变量指定Name Server地址
+
+  ```sh
+  export   NAMESRV_ADDR=192.168.0.1:9876;192.168.0.2:9876
+  ```
+
+- HTTP静态服务器寻址（默认 / 推荐）
+
+  客户端启动后，会定时访问一个静态HTTP服务器，地址如下：http://jmenv.tbsite.net:8080/rocketmq/nsaddr，这个URL的返回内容如下：
+
+  ```
+  192.168.0.1:9876;192.168.0.2:9876
+  ```
+
+  客户端默认每隔2分钟访问一次这个HTTP服务器，并更新本地的Name Server地址。URL已经在代码中硬编码，可通过修改/etc/hosts文件来改变要访问的服务器，例如在/etc/hosts增加如下配置：
+
+  ```
+  10.232.22.67    jmenv.tbsite.net
+  ```
+
+  推荐使用HTTP静态服务器寻址方式，好处是客户端部署简单，且Name Server集群可以热升级。
+
+其他详细配置：[客户端配置](https://github.com/apache/rocketmq/blob/master/docs/cn/best_practice.md#52-客户端配置)
+
+## 五. RocketMQ on Dledger
+
+之前的 broker 多副本架构如果 master 挂掉的话，slave 不会自动变成 master。因此之后 RocketMQ 采用基于 dledger 构建 raft 协议来构建多副本架构，这样就拥有了自动故障处理能力。
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
