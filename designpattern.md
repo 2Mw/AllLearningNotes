@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=100) P100
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=104) P104
 
 ## 初识
 
@@ -1834,3 +1834,63 @@ JDK 中的 Comparator 类。
 3. 适合调用者和接收者之间解耦，适合命令的撤销和恢复操作。
 
 在 JDK 中 Runnable 担当命令的角色，Thread 充当的是调用者的角色，start就是执行方法。
+
+### 4. 责任链模式
+
+> 又名职责链模式(Chain of Responsibility Pattern)，为了避免请求处理者与多个请求处理者耦合在一起，将所有的请求处理者通过前一对象记住下一个对象的引用而连成一条链；当有请求发送的时候，请求可以沿着这条链传递，直到有对象满足处理它为止。
+
+生活中经常会出现一个请求有多个对象可以进行处理，但每个对象的处理条件或者权限不同。例如公司员工请假，可以批假的领导有很多，但是不同领导能批准的天数不同，员工必须根据自己要请假的天数找不同的领导去签名。
+
+结构：
+
+1. 抽象处理(Handler)者：定义处理请求的接口，包含抽象方法和后继连接
+2. 具体处理(Concrete Handler)者：实现抽象处理者的处理方法，判断是否处理本次请求，如果不可用则交给后继者处理
+3. 客户(Client)类：创建处理链，并向连头的具体处理者对象提交请求
+
+案例（请假处理流程）：
+
+```mermaid
+classDiagram
+	class Handler {
+		# NUM_ONE = 1: int
+		# NUM_THREE = 3: int
+		# NUM_SEVEN = 7: int
+		- numStart: int
+		- numEnd : int
+		- nextHandler : Handler
+		+setNextHandler(Handler h) void
+		+submit(Request r) void
+		+handleReq(Request r) void 
+	}
+	<<abstract>> Handler
+	Handler o-- Handler
+	Handler <|-- GroupLeader
+	Handler <|-- Manager
+	Handler <|-- CEO
+	Request <-- Handler
+```
+
+特点：
+
+* 降低了请求发送者和接收者的耦合度
+* 增强了系统的可扩展类和灵活性，简化了对象之间的连接
+* 不能保证每个请求都被处理，请求可能涉及多个对象，如果职责链过长，会有性能问题。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
