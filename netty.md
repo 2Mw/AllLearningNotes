@@ -40,7 +40,7 @@ channel 有点类似stream，是读写数据的双向通道， 可以从 channel
 
 而对于 Selector 模式的服务器设计，其工作在非阻塞模式下，作用就是配合一个线程来管理多个channel，selector 可以用来监听多个 Channel 的状态，适用于连接数多但是流量低 (low traffic) 的场景。
 
-![clipboard.png](netty.assets/bVcQPs.png)
+![clipboard.png](E:\Notes\netty\netty.assets\bVcQPs.png)
 
 ### 2. ByteBuffer
 
@@ -78,7 +78,7 @@ ByteBuffer 的正确使用方法：
 1. 先向 buffer 中写入数据，例如调用`channel.read(buffer)`
 2. 调用`flip()`方法将 buffer 切换到**读模式**
 3. 从 buffer 中读取数据，例如调用 `buffer.get()`
-4. 如果未将文件读取完毕则结束，否则进入步骤5
+4. 如果将文件读取完毕则结束，否则进入步骤5
 5. 调用 `clear()` 或者 `compact()` 方法切换到写模式，继续向 buffer 中写入数据，重复步骤1。
 
 🔵ByteBuffer 的内部结构
@@ -93,19 +93,19 @@ ByteBuffer 有三个重要属性：
 
 初始 ByteBuffer，或者使用 clear 方法后：
 
-![image-20220322170953359](netty.assets/image-20220322170953359.png)
+![image-20220322170953359](E:\Notes\netty\netty.assets\image-20220322170953359.png)
 
 写入数据：
 
-![image-20220322171031629](netty.assets/image-20220322171031629.png)
+![image-20220322171031629](E:\Notes\netty\netty.assets\image-20220322171031629.png)
 
 开始读模式后，position 指针归零，并且 limit 位置发送变化：
 
-![image-20220322171048280](netty.assets/image-20220322171048280.png)
+![image-20220322171048280](E:\Notes\netty\netty.assets\image-20220322171048280.png)
 
 使用 `compact()` 方法，即在未完全读取数据后继续写数据的情况，将已读取的数据清除：
 
-![image-20220322171313499](netty.assets/image-20220322171313499.png)
+![image-20220322171313499](E:\Notes\netty\netty.assets\image-20220322171313499.png)
 
 🔵ByteBuffer 常用函数
 
@@ -197,7 +197,7 @@ static void gatheringWrite() {
 
 早些年网络不发达的情况，一般有**Nagle算法**来防止客户端放松过小的数据包，从而有可能导致在发送端发生粘包的问题。如果关闭**Nagle算法**（`TCP_NODELAY=1`）后还是有可能产生粘包的问题，比如在 TCP 接收端，应用层未及时取走信息，因此可能会导致在 TCP Recv Buffer 信息堆积，从而导致 TCP 粘包。
 
-![关闭Negle就不会粘包了吗](netty.assets/1460000039691676.png)
+![关闭Negle就不会粘包了吗](E:\Notes\netty\netty.assets\1460000039691676.png)
 
 ### 3. 文件编程
 
@@ -487,12 +487,12 @@ static void selectorServer() throws IOException, InterruptedException {
 
 🔵消息边界问题
 
-![image-20220323124527938](netty.assets/image-20220323124527938.png)
+![image-20220323124527938](E:\Notes\netty\netty.assets\image-20220323124527938.png)
 
 对于第一种情况需要对 ByteBuffer 进行扩容。对于第二、三中情况就需要对解决数据包切分的问题。
 
 1. 可以采用固定消息长度，数据包大小一致，服务器按预定的长度进行读取，缺点就是浪费带宽和空间。
-2. 另一种思路就是按分隔符进行差分，缺点就是读取的效率较低。
+2. 另一种思路就是按分隔符进行拆分，缺点就是读取的效率较低。
 3. TLV / LTV格式，根据后续消息的大小来分配 ByteBuffer 的空间。即 HTTP 1.1 或者 HTTP 2.0 格式。
 
 第三种方式在 Netty 中会有很好的封装，这里为了简单使用第二种的形式来对案例进行教学，即使用 ByteBuffer 的 Compact 方法来进行操作。
@@ -622,7 +622,7 @@ worker 的数量最好设置为 CPU 核心的数量，参考[阿姆达尔定理]
 
 IO 模型主要分为五类：阻塞 IO，非阻塞 IO 、多路复用模型、信号驱动 IO、异步 IO 模型。其中多路复用又分为单线程多路复用，单线程多路复用配合多线程读写业务复用（工作池、线程池、进程池等版本）等等。
 
-![image-20220323160423430](netty.assets/image-20220323160423430.png)
+![image-20220323160423430](E:\Notes\netty\netty.assets\image-20220323160423430.png)
 
 当读请求发送来的时候，阻塞 IO 会等待操作系统等待对应网络请求到达后，并且复制数据后才会返回数据；而非阻塞 IO 会一直请求直到网络数据到达，但是在操作系统复制数据的时候非阻塞 IO 还是会阻塞等待复制完毕。
 
@@ -647,7 +647,7 @@ socket.getOutputStream().write(buf);
 
 但是其在操作系统层面需要进行的操作很多，内部工作流程如下：
 
-![image-20220323163358244](netty.assets/image-20220323163358244.png)
+![image-20220323163358244](E:\Notes\netty\netty.assets\image-20220323163358244.png)
 
 首先需要将对应磁盘上的文件读取到内核缓冲区中，然后再复制到 Java 程序的用户缓冲区中，开始向网络中发送数据的时候，还需要将数据复制到 Socket 的缓冲区中，然后操作系统准备发送网络数据的时候，还需要将 Socket 中的数据复制到网卡中去。
 
@@ -657,13 +657,13 @@ socket.getOutputStream().write(buf);
 
 在 Java 中 ByteBuffer 可以直接通过分配系统内存来减少一次内存的复制，使用方法 `allocateDirect()` 来进行分配。
 
-![image-20220323163821111](netty.assets/image-20220323163821111.png)
+![image-20220323163821111](E:\Notes\netty\netty.assets\image-20220323163821111.png)
 
 **进一步优化：**
 
 在 Java 中如果存在两个 Channel 之间通过 transferTo / transferFrom 进行传输数据的时候，在 Linux 2.1 之后会提供的 sendFile 方法，操作系统会使用 DMA 的方式来将缓冲区的数据进行读写到磁盘或者网卡中。
 
-![image-20220323164102640](netty.assets/image-20220323164102640.png)
+![image-20220323164102640](E:\Notes\netty\netty.assets\image-20220323164102640.png)
 
 而在 Linux 2.4 之后，在 Java 调用 transferTo 方法后，操作系统会将内核缓冲区中的数据使用 DMA 的方式直接写入到网卡中，有了更少的用户态和内核态之间的切换，并且也减少了 CPU 之间的计算和传输。
 
@@ -673,7 +673,7 @@ socket.getOutputStream().write(buf);
 
 异步 IO
 
-![image-20220323164446549](netty.assets/image-20220323164446549.png)
+![image-20220323164446549](E:\Notes\netty\netty.assets\image-20220323164446549.png)
 
 文件读取异步 IO：
 
@@ -862,7 +862,7 @@ public class TestEventLoop {
 
 示意图：
 
-<img src="netty.assets/image-20220324112515325.png" alt="image-20220324112515325" style="zoom: 80%;" />
+<img src="E:\Notes\netty\netty.assets\image-20220324112515325.png" alt="image-20220324112515325" style="zoom: 80%;" />
 
 完整代码：
 
@@ -1043,7 +1043,7 @@ Pipeline 的执行顺序：
 
 对于入站 Handler 之间的消息传递，需要调用 `super.channelRead()` / `ctx.fireChannelRead()` 操作才能传递给下一个 Handler，如果下一个 Handler 没有收到消息，就**不会执行**和继续向下传递消息了。入站和出站之间的 Handler 之间不需要进行信息传递。
 
-![image-20220325093944922](netty.assets/image-20220325093944922.png)
+![image-20220325093944922](E:\Notes\netty\netty.assets\image-20220325093944922.png)
 
 Channel.writeAndFlush() 和 ctx.writeAndFlush() 的区别：
 
@@ -1178,7 +1178,7 @@ public static void main(String[] args) {
 
 **注意**：切片后的产生新的 ByteBuf 有使用限制，比如不能增加长度等；如果原有的 ByteBuf 释放内存后，新的 ByteBuf 也会受到影响，可以使用 `retain()` 方法让引用数量加一，不被回收内存。
 
-![image-20220325111855649](netty.assets/image-20220325111855649.png)
+![image-20220325111855649](E:\Notes\netty\netty.assets\image-20220325111855649.png)
 
 其他方法：
 
@@ -1549,7 +1549,7 @@ public class UptimeClientHandler extends ChannelInboundHandlerAdapter {
 1. [SSL/TLS应用示例](https://www.jianshu.com/p/710f70a99cbc)
 2. [SSL / TLS 工作原理和详细握手过程 ](https://segmentfault.com/a/1190000021559557)
 
-![img](netty.assets/webp.webp)
+![img](E:\Notes\netty\netty.assets\webp.webp)
 
 客户端和服务器端握手协议（双向认证）：
 
@@ -1832,4 +1832,550 @@ public class UdpClient {
 <a href="#2. 协议的设计与解析">详见</a>
 
 ## 五 Netty 源码
+
+### 1. 服务器启动流程
+
+1. init & register 处理
+
+   JDK 中的 ServerSocketChannel 和 Netty 中的 NioServerSocketChannel 是怎么联系起来的？
+
+   ​	NioServerSocketChannel 会在 register 事件中作为 ServerSocketChannel 附件进行绑定。
+
+   ```java
+   serverSocketChannel.register(selector, 0, niossc);
+   ```
+
+   init 和 register 事件都在 `AbstractBootstrap` 类中的 dobind 方法中定义：
+
+   ```java
+   private ChannelFuture doBind(final SocketAddress localAddress) {
+       // init & register
+       final ChannelFuture regFuture = this.initAndRegister();
+       final Channel channel = regFuture.channel();
+       if (regFuture.cause() != null) {
+           return regFuture;
+       } else if (regFuture.isDone()) {
+           ChannelPromise promise = channel.newPromise();
+           doBind0(regFuture, channel, localAddress, promise);
+           return promise;
+       } else {
+           final AbstractBootstrap.PendingRegistrationPromise promise = new AbstractBootstrap.PendingRegistrationPromise(channel);
+           regFuture.addListener(new ChannelFutureListener() {
+               public void operationComplete(ChannelFuture future) throws Exception {
+                   Throwable cause = future.cause();
+                   if (cause != null) {
+                       promise.setFailure(cause);
+                   } else {
+                       promise.registered();
+                       AbstractBootstrap.doBind0(regFuture, channel, localAddress, promise);
+                   }
+   
+               }
+           });
+           return promise;
+       }
+   }
+   ```
+
+   其中 init 操作包括：
+
+   * 创建 NioServerSocketChannel
+   * 添加 NioServerSocketChannel 初始化 handler
+
+   register 操作包括：
+
+   * 将 register 操作进行 boss 线程切换到 nio
+   * 将 原生的 ssc 注册到 selector 上，并且将 nio-ssc 与原始 ssc 进行绑定。
+   * 执行 niossc 上的 handler 事件
+
+2.  regFuture 等待回调 dobind0
+
+   等待注册完毕后，设置 promise 成功，register 成功结束后，调用 dobind0。
+
+   dobind0 的操作：
+
+   * 绑定原生 ssc 的端口号
+   * 触发 active 事件，使原始 ssc 关注 OP_ACCEPT 事件
+
+### 2. NioEventLoop
+
+NioEventLoop 的重要组成：Selector，线程，任务队列。
+
+NioEventLoop 进处理 io 事件，也能处理普通任务，定时任务等。
+
+1. Selector 何时创建
+
+   NioEventLoop 中会有两个 selector：
+
+   ```java
+   public final class NioEventLoop extends SingleThreadEventLoop {
+       private Selector selector;
+       private Selector unwrappedSelector;
+       private SelectedSelectionKeySet selectedKeys;
+       private volatile int ioRatio = 50;
+       // 父类中的属性
+       private final Queue<Runnable> taskQueue;
+       private volatile Thread thread;
+       private final Executor executor;
+       // 其他属性省略
+       NioEventLoop(/*参数忽略*/) {
+           // 其他忽略
+           NioEventLoop.SelectorTuple selectorTuple = this.openSelector();
+           this.selector = selectorTuple.selector;
+           this.unwrappedSelector = selectorTuple.unwrappedSelector;
+       }
+   }
+   ```
+
+   多个任务会存放在 taskQueue 中，thread 会取出任务逐个执行。
+
+   Selector 会在 NioEventLoop 构造方法中直接创建
+
+   ❓问：为什么会有两个 selector？
+
+   NIO 中原生的 selector 中 selectionKeys 内部使用Set 进行实现，遍历的效率较低，因此 netty 中对 selectionKeys 进行使用**数组**进行重新实现，遍历效率较高。
+
+2. nio 线程何时启动
+
+   当首次调用 EventLoop 的 execute 方法的时候就会启动，之后会一直启动等待任务。
+
+3. 提交普通任务会不会结束 selector 阻塞
+
+   具体代码在 NioEventLoop.run() 方法中，EventLoop 不仅需要处理 selector 的信息，还有处理 io 事件、普通任务以及定时任务等。因此当存在其他任务的时候会调用 `selector.wakeup()` 方法结束 select() 方法的阻塞。
+
+   并且由于 wakeup() 方法是重量级锁的操作，因此需要设置一个 **wakenUp** cas 操作避免 wakeup() 方法在多线程情况下被频繁调用，只需要唤醒一次即可。
+
+4. 由于 NioEventLoop.run() 是一个死循环，因此什么时候会进入 `SELECT` 分支？
+
+   ```java
+   for (;;) {
+       try {
+           int strategy;
+           try {
+               strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
+               switch (strategy) {
+               case SelectStrategy.CONTINUE:
+                   continue;
+   
+               case SelectStrategy.BUSY_WAIT:
+                   // fall-through to SELECT since the busy-wait is not supported with NIO
+   
+               case SelectStrategy.SELECT:
+                   long curDeadlineNanos = nextScheduledTaskDeadlineNanos();
+                   if (curDeadlineNanos == -1L) {
+                       curDeadlineNanos = NONE; // nothing on the calendar
+                   }
+                   nextWakeupNanos.set(curDeadlineNanos);
+                   try {
+                       if (!hasTasks()) {
+                           strategy = select(curDeadlineNanos);
+                       }
+                   } finally {
+                       // This update is just to help block unnecessary selector wakeups
+                       // so use of lazySet is ok (no race condition)
+                       nextWakeupNanos.lazySet(AWAKE);
+                   }
+                   // fall through
+               default:
+               }
+           } catch (IOException e) {
+               // If we receive an IOException here its because the Selector is messed up. Let's rebuild
+               // the selector and retry. https://github.com/netty/netty/issues/8566
+               rebuildSelector0();
+               selectCnt = 0;
+               handleLoopException(e);
+               continue;
+           }
+   
+           selectCnt++;
+           // 其他
+       }
+   }
+   ```
+
+   当前没有任务的时候才会进入 SELECT 分支。进入 SELECT 分支会阻塞多久？如果没有定时任务就会延迟 1-1.5s；如果有定时任务，就会等待定时任务结束后。
+
+5. nio 空轮询的bug在哪里体现，如何解决？
+
+   nio 空轮询的bug会在即使没有超时，也不会阻塞，从而导致空轮询。
+
+   Netty 中使用了 selectCnt 变量检查空轮询是否产生，如果变量次数超过阈值，就会触发空轮询检查修复，重新赋值新的 selector。
+
+   > JDK 在linux环境下的selector会出现空轮询的bug
+
+6. ioRatio 控制什么？100 有什么用
+
+   用于控制分配给 io 事件的处理时间。100的话并没有什么用处，其会让其他普通执行完毕，反而会降低 io 事件处理的效率。
+
+### 3. accept 和 read流程
+
+🔵accept流程
+
+1. select() 阻塞直到事件发生
+2. 遍历处理 selectedKeys
+3. 拿到一个key，判断事件类型是否为 accept
+4. 创建 socketChannel，设置为非阻塞
+5. 将 SocketChannel 注册到 selector
+6. 关注 selectionKey 的 read 事件
+
+🔵read 流程
+
+1. select() 阻塞直到事件发生
+2. 遍历处理 selectedKeys
+3. 拿到一个key，判断事件类型是否为 read
+4. 读取操作
+
+## 六. Scalable IO in Java
+
+参考：[Scalable-IO-in-Java](https://www.researchgate.net/profile/Doug-Lea/publication/268341114_Scalable_IO_in_Java/links/546e473a0cf2b5fc1760729f/Scalable-IO-in-Java.pdf)
+
+### 1. 可伸缩网络服务
+
+大部分网络服务请求都分为：读取、解码、处理、编码、发送这几个流程。
+
+![image-20220505152443053](netty.assets/image-20220505152443053.png)
+
+可伸缩性的目标：
+
+1. 负载增加的情况下能够优雅降级
+2. 硬件提高，性能也提高
+3. 满足其他高可用和高性能的目标：低延时，流量高峰能正常运作，可以调节服务质量
+4. 分治通常是达到可伸缩目标的最好方法
+
+分治方法：
+
+1. 将过程拆分成一个个小任务，每个人物之间没有阻塞
+2. 允许是可以执行
+
+事件驱动处理（更高效但是很难编程）：
+
+1. 占用较少资源，不需要对每个客户端都分配一个线程
+2. 更少开销，更少的上下文切换，更少的锁
+3. 分配较慢，需要手工绑定事件
+4. 必须将每个操作拆分成简单的非阻塞行为，但是无法阻止所有的阻塞（GC，缺页等）
+
+### 2. Reactor 模式
+
+先介绍 java.nio 中几个重要的角色：
+
+* Channels：用于连接文件，socket等，可以进行非阻塞读
+* Buffers：如同数组可以被 Channel 进行读写
+* Selectors: 用来告诉 Channel 是否有 IO 事件
+* SelectionKeys：用于维持 IO 事件的状态和绑定监听
+
+🔵单 Reactor 单线程模型
+
+![image-20220505155033834](netty.assets/image-20220505155033834.png)
+
+Reactor 就相当于服务器，Selector 用于监听服务器端的连接请求，如果有连接请求的话，将连接任务 dispatch 给 Acceptor 用于建立于客户端之间的连接，随后在创建 Handler 线程用于处理与客户端之间的业务处理。
+
+特点：
+
+1. 模型简单，全部都在同一个线程中执行
+2. 存在性能问题，只有一个线程无法发挥多核 CPU 的性能，很容易导致性能瓶颈。
+3. 在处理 Handler 业务的时候不能够处理其他事件，容易造成不能接收和处理外界信息的现象。
+
+Reactor 代码：
+
+```java
+public class Reactor implements Runnable {
+    final Selector selector;
+    final ServerSocketChannel ssc;
+
+    Reactor(int port) throws IOException {
+        selector = Selector.open();
+        ssc = ServerSocketChannel.open();
+        ssc.socket().bind(new InetSocketAddress(port));
+        ssc.configureBlocking(false);   // NIO
+        SelectionKey sk = ssc.register(selector, SelectionKey.OP_ACCEPT);
+        sk.attach(new Acceptor());
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (!Thread.interrupted()) {
+                selector.select();
+                Set<SelectionKey> keys = selector.selectedKeys();
+                for (SelectionKey key : keys) dispatch(key);
+                keys.clear();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void dispatch(SelectionKey k) {
+        Runnable r = (Runnable) k.attachment();
+        if (r != null) r.run();
+    }
+
+    class Acceptor implements Runnable {
+        @Override
+        public void run() {
+            try {
+                SocketChannel sc = ssc.accept();
+                if (sc != null) new Handler(selector, sc);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+Handler 代码（用于处理读取、解码、处理、编码、发送）：
+
+```java
+public final class Handler implements Runnable {
+    final SocketChannel socketChannel;
+    final SelectionKey key;
+    ByteBuffer input = ByteBuffer.allocate(256);
+    ByteBuffer output = ByteBuffer.allocate(256);
+    static final int READING = 0, SENDING = 1;
+    int state = READING;
+
+    Handler(Selector selector, SocketChannel sc) throws IOException {
+        socketChannel = sc;
+        sc.configureBlocking(false);
+        key = socketChannel.register(selector, 0);
+        key.attach(this);
+        key.interestOps(SelectionKey.OP_READ);
+        selector.wakeup();
+    }
+
+    @Override
+    public void run() {
+        try {
+            if (state == READING) read();
+            else write();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void read() throws IOException {
+        socketChannel.read(input);
+        System.out.println("Processing");
+        state = SENDING;
+        key.interestOps(SelectionKey.OP_WRITE);
+    }
+
+    void write() throws IOException {
+        socketChannel.write(output);
+        key.cancel();
+    }
+
+}
+```
+
+🔵单 Reactor 多线程模式
+
+![image-20220505171749912](netty.assets/image-20220505171749912.png)
+
+即将 Handler 放进线程池中，这个模型可以充分利用多核 CPU 的处理能力，但是多线程之间的数据共享和访问会比较负载，Reactor 在单线程中处理所有连接与事件的监听以及事件分发，在高并发场景中容易出行性能瓶颈，多线程仅仅解决了业务处理的压力。
+
+代码：
+
+```java
+public class MthreadHandler implements Runnable {
+    final SocketChannel sc;
+    final SelectionKey key;
+    ByteBuffer input = ByteBuffer.allocate(256);
+    ByteBuffer output = ByteBuffer.allocate(256);
+    static final int READING = 0, SENDING = 1, PROCESSING = 2;
+    int state = READING;
+
+    ExecutorService pool = Executors.newFixedThreadPool(4);
+
+    MthreadHandler(Selector selector, SocketChannel sc) throws IOException {
+        this.sc = sc;
+        sc.configureBlocking(false);
+        key = sc.register(selector, 0);
+        key.attach(this);
+        key.interestOps(SelectionKey.OP_READ);
+        selector.wakeup();
+    }
+
+    @Override
+    public void run() {
+        try {
+            if (state == READING) read();
+            else write();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    synchronized void read() throws IOException {
+        sc.read(input);
+        pool.submit(this::process);
+        state = SENDING;
+        key.interestOps(SelectionKey.OP_WRITE);
+    }
+
+    synchronized void write() throws IOException {
+        sc.write(output);
+        key.cancel();
+    }
+
+    synchronized void process(){
+        System.out.println("Processing");
+    }
+    
+}
+```
+
+🔵多 Reactor 多线程模型
+
+![image-20220505172039720](netty.assets/image-20220505172039720.png)
+
+为了充分利用资源对于多 CPU 的机器，可以将 Reactor 分为两个部分：
+
+1. mainReactor 主要负责监听 serverSocket 用于处理新连接的建立，将建立的 SocketChannel 指定注册给 subReactor
+2. subReactor 维护自己的 selector，基于 mainReactor 注册的 socketChannel 多路分离 IO 读写事件，读写网络数据，handler 事件等交给 worker 线程执行。 
+
+## 六. IO 复用模型
+
+> fd: file descriptor 文件描述符
+
+### 流 IO操作 阻塞
+
+流：可以进行IO操作的内核对象，比如文件、管道、套接字，流的入口(fd)
+
+IO操作：对流的操作
+
+阻塞等待：不能很好的处理多个IO请求，同一时间同一时刻只能处理一个阻塞监听。
+
+多路IO复用：既能阻塞等待不占用资源，又能同一时刻监听多个IO请求。
+
+<img src="https://i.loli.net/2021/07/16/Dv6bHQPhX5Mngu8.png" alt="image-20210716170919024" style="zoom:50%;" />
+
+### IO复用
+
+如何解决大量IO读写请求：
+
+* 阻塞+多线程/多进程
+
+  <img src="https://i.loli.net/2021/07/16/YCW7bfKA53mHX8t.png" alt="image-20210716171204591" style="zoom:50%;" />
+
+  不可取，需要开辟很多资源
+
+* 非阻塞+忙轮询
+
+  会占用很多资源，相当于一直`while`循环。
+
+* Select方法
+
+  ```python
+  while true:
+  	select(stream[])	# 阻塞
+  	
+      for i in stream:
+          read(i)
+  ```
+
+  会告诉你有事件发生，但不会告诉你时间具体信息。
+
+* epoll方法
+
+  ```python
+  while True:
+      stream[] = epoll_wait(epoll_fd)
+      for i in strem[]:
+          # Read..
+  ```
+
+  <img src="https://i.loli.net/2021/07/16/byqMzfexYod4aPu.png" alt="image-20210716171836848" style="zoom:50%;" />
+
+什么是epoll：IO多路复用技术，只关心“活跃”的请求，能够处理大量的连接请求(**系统可以打开的最大文件数目**)。
+
+```sh
+Linux中可以打开的最大文件数码
+[root ~]# cat /proc/sys/fs/file-max
+183917
+```
+
+### 模型一 单线程accept(无IO复用)
+
+<img src="https://i.loli.net/2021/07/16/aIu1Rf4Sh7YCnDt.png" alt="image-20210716174844814" style="zoom:50%;" />
+
+当服务端处于读写状态的时候，对于其他客户端23的请求是无响应的，处理完毕之后才能接受限一个请求。
+
+非并发模型，串行服务器，最大网络请求量为1，并发量为1。
+
+### 模型二 单线程Accept+多线程读写业务(无IO复用)
+
+<img src="https://i.loli.net/2021/07/16/p7b42NUq1leFaKg.png" alt="image-20210716175354278" style="zoom:50%;" />
+
+client给server连接的时候，server会分配一个线程同该client进行读写操作，然后server会立马回到accept阻塞状态，可以继续处理下一个请求，继续分配线程与下一个客户端处理。
+
+特点：支持了并发，一个客户端同一个线程进行处理，server处理的内聚性比较高。客户端数量增多，线程也增多。对于高并发情景，收到硬件的瓶颈；对于长连接，服务器需要保存心跳连接，占用连接和线程开销；适用于客户端数量不多的场景。
+
+### 模型三 单线程多路IO复用
+
+<img src="https://i.loli.net/2021/07/29/wlzrtOQSN5uen4i.png" alt="image-20210729205451699" style="zoom: 60%;" />
+
+**分析：**
+
+1. 主线程创建`ListenFd`之后，采用多路IO复用机制如(select, epoll)进行IO状态的阻塞监控。有Client1客户端的连接请求，IO复用机制检测后`ListenFd`出发读事件，则进行Accept建立连接，并将新生产的`ConnFd1`加入到监听IO的集合中。
+2. Client1再次进行读写操作业务的时候，主线程中的多路IO复用会触发服务器端的读写事件业务。
+3. 当服务器正在进行client1的读写业务的时候，其他客户端的连接请求和读写请求会阻塞，不能够及时响应。
+
+特点：
+
+* 使用单流程监听多个客户端的读写状态模型，不需要1：1的线程数量关系。
+* 阻塞IO，可以极大利用CPU
+* 可以监听多个客户端的请求业务，但是同一时间只能处理一个客户端的业务。
+* 当有大量的客户端请求的时候，由于业务串行执行，会存在排队等待的现象，并发量还是为1。
+
+### 模型四 单线程多路IO复用+多线程读写业务（工作池）
+
+> 使用不是很多
+
+<img src="netty.assets/image-20210729212754812.png" alt="image-20210729212754812" style="zoom:50%;" />
+
+跟模型三类似，只是减少了多路io复用的排队时间。将业务使用异步处理。
+
+读写业务为1，处理事件业务为worker的数量。
+
+### 模型五 单线程多路IO复用+多线程多路IO复用(线程池)
+
+> 常用
+
+<img src="https://i.loli.net/2021/07/29/xKm2QzgsRhCUGrl.png" alt="image-20210729222347312" style="zoom:50%;" />
+
+**模型分析：**
+
+1. 服务器在启动监听之前，需要开启固定数量N的线程，用线程池来进行管理
+2. 主线程创建`ListenFd`之后，会采用多路IO复用机制(select, epoll)的状态进行阻塞监控。有客户端请求连接的时候，IO复用机制ListenFd出发读机制，进行Accept连接，并且将新生成的`connFd1`分发给线程池中的某个线程进行监听。
+3. 线程池中的每个线程也启用多路IO复用，用来监听有主线程分发下来的socket套接字。
+4. thread监听各自分发的，并且各自处理。
+
+特点：
+
+* 将模型三中业务处理分散到多个线程当中，可以监听的数量成倍增加；之前监控的数量取决于主线程的机制限制（select为1024，epoll与内存大小有关 约3-6W），建议N的大小与CPU的核心数量为1：1。
+* 虽然监听的并发数量提升，但是最高的读写并行通道为N，并且多个处于同一个Thread的客户端仍会有延迟。
+
+### 模型五 单线程多路IO复用+多线程多路IO复用(进程池)
+
+<img src="netty.assets/image-20210729224633583.png" alt="image-20210729224633583" style="zoom:50%;" />
+
+main process只是监听ListenFd状态，⼀旦触发读事件(有新连接请求). 通过⼀些IPC(进程间通信：如信 号、共享内存、管道)等, 让各⾃⼦进程Process竞争Accept完成链接建⽴，并各⾃监听。
+
+多进程内存资源空间占⽤稍微⼤⼀些，多进程模型安全稳定型较强，这也是因为各⾃进程互不⼲扰的特点导致。
+
+### 模型六 单线程多路IO复用+多线程多路IO复用+多线程读写业务
+
+>单线程多路IO复用用于分发connFd，多线程多路IO复用用于分发业务，最后一个多线程用于处理读写业务
+
+<img src="netty.assets/image-20210729225801845.png" alt="image-20210729225801845" style="zoom:50%;" />
+
+在模型五基础上，除了能够保证同时响应最⾼的并发数，⼜能够解决读写并⾏通道的局限问题。同⼀时刻的读写并⾏通道，达到了最⼤化极限， ⼀个客户端可以对应⼀个单独的执⾏流程处理读写业务，读写并⾏通道与客户端的数量1：1关系。
+
+**该模型过于理想化**，一味要求CPU核⼼数数量⾜够⼤。如果硬件CPU数量可数，那么该模型就造成⼤量的CPU切换的成本浪费。因为为了保证读写并⾏通道和客户 端是1：1的关系，就要保证server开辟的thread的数量与客户端⼀致。
+
+
+
+
 
