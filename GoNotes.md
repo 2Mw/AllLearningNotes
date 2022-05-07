@@ -783,7 +783,7 @@ func (p *person) addAge(){
 }
 
 func main(){
-    fmt.Println(p1.age)
+   fmt.Println(p1.age)
 	p1.addAge()
 	fmt.Println(p1.age)
 }
@@ -1767,7 +1767,105 @@ handle context deadline exceeded
 */
 ```
 
+上下文 `context.Context` 在 Go 语言中用来设置截止日期、同步信号，传递请求相关值的结构体。
 
+1. 使用 context 实现倒计时通信事件
+
+   ```go
+   func main() {
+      log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+      log.Printf("Start")
+      ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+      defer cancel()
+   
+      go handle(ctx, 3*time.Second)
+      select {
+      case <-ctx.Done():
+         log.Println("main", ctx.Err())
+      }
+      time.Sleep(1 * time.Second)
+   }
+   
+   func handle(ctx context.Context, duration time.Duration) {
+      select {
+      case <-ctx.Done():
+         log.Println("handle", ctx.Err())
+      case <-time.After(duration):
+         log.Println("process request with", duration)
+      }
+   }
+   复制代码
+   ```
+
+   输出：
+
+   ```
+   2022/05/07 21:01:41.536615 Start
+   2022/05/07 21:01:44.567277 process request with 3s
+   2022/05/07 21:01:46.574656 main context deadline exceeded
+   复制代码
+   ```
+
+   可见五秒后输出定时结果。
+
+2. 使用 context 实现父子协程之间的同步中断
+
+   ```go
+   func main() {
+      fatherCtx, cancel := context.WithCancel(context.Background())
+      // 在父context下创建子context
+      sonCtx, _ := context.WithCancel(fatherCtx)
+   
+      go fatherWatch(fatherCtx)
+      go sonWatch(sonCtx)
+   
+      time.Sleep(3 * time.Second)
+      log.Printf("Cancel All.")
+      cancel()
+      time.Sleep(time.Second)
+   }
+   
+   func fatherWatch(ctx context.Context) {
+      for true {
+         select {
+         case <-ctx.Done():
+            log.Printf("Father exit")
+            return
+         default:
+            log.Printf("Father is working")
+            time.Sleep(time.Second)
+         }
+      }
+   }
+   
+   func sonWatch(ctx context.Context) {
+      for true {
+         select {
+         case <-ctx.Done():
+            log.Printf("Son exit")
+            return
+         default:
+            log.Printf("Son is working")
+            time.Sleep(time.Second)
+         }
+      }
+   }
+   复制代码
+   ```
+
+   输出：
+
+   ```
+   2022/05/07 21:17:05 Father is working
+   2022/05/07 21:17:05 Son is working
+   2022/05/07 21:17:06 Father is working
+   2022/05/07 21:17:06 Son is working
+   2022/05/07 21:17:07 Son is working
+   2022/05/07 21:17:07 Father is working
+   2022/05/07 21:17:08 Cancel All.
+   2022/05/07 21:17:08 Father exit
+   2022/05/07 21:17:08 Son exit
+   ```
 
 ## 反射
 
