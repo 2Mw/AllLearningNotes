@@ -1,4 +1,4 @@
-# 设计模式
+# Context设计模式
 
 2021.07.29 02:25
 
@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=104) P104
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=114) P114
 
 ## 初识
 
@@ -1878,15 +1878,105 @@ classDiagram
 
 
 
+### 5. 状态模式
 
+> 状态(State)模式，对于有状态的对象，把复杂的判断逻辑流程交给不同的状态对象中，允许对象在内部状态发生变化的时候改变其行为。
 
+案例：通过按钮来控制电梯的状态（开门，关门，停止，运行）。每一种状态的改变，都有可能根据其他情况来更新处理，比如运行状态的时候就不允许进行开门。
 
+```mermaid
+classDiagram
+	class ILift {
+		+ OpenState=1
+		+ CloseState=2
+		+ RunningState=3
+		+ StopState=4
+		+setState(int state) void
+		+open()
+		+close()
+		+stop()
+		+run()
+	}
+	<<interface>> ILift
+	ILift <|-- Lift
+```
 
+对应的代码：
 
+```java
+@Override
+public void open() {
+    switch (state) {
+        case CLOSING_STATE:
+            System.out.println("电梯open from closing");
+            this.setState(OPENING_STATE);
+            break;
+        case STOPPING_STATE:
+            System.out.println("电梯open from stop");
+            this.setState(OPENING_STATE);
+            break;
+        case RUNNING_STATE:
+            break;
+    }
+}
+```
 
+存在的问题，这里需要很多的switch语句，可扩展性很差，耦合度较高，如果新增加一种状态就会导致需要重构代码。
 
+结构：
 
+* 环境(Context)角色：定义了客户程序需要的接口，维护当前的状态，并将与状态相关的操作委托给响应的对象处理。
+* 抽象状态(State)角色：定义了一个接口，用于封装环境对象中特定状态对应的行为。
+* 具体(Concrete State)状态：用于实现抽象状态所对应的行为。
 
+案例：对上述电梯案例进行改进
+
+```mermaid
+classDiagram
+	class LiftState {
+		#Context context
+		+setContext(Context ctx) void
+		+open()
+		+close()
+		+stop()
+		+run()
+	}
+		class Context {
+		+OpenningState os
+		+ClosingState cs
+		+RunnningState rs
+		+StoppingState ss
+		+getLiftState() LiftState
+		+setLiftState(LiftState state)
+		+open() void
+		+close() void
+		+stop() void
+		+run() void
+	}
+	
+	LiftState <|-- OpenningState
+	LiftState <|-- ClosingState
+	LiftState <|-- RunnningState
+	LiftState <|-- StoppingState
+	
+	
+	Context o-- OpenningState
+	Context o-- ClosingState
+	Context o-- RunnningState
+	Context o-- StoppingState
+	
+
+```
+
+特点：
+
+* 允许将某个状态有关的行为都放在一个类中，并且可以方便的增加新的状态，只需要改变对象的状态即可改变对象的行为。
+* 状态的增加必然会增加类和对象的数量。
+* 对开闭原则支持并不好
+
+使用场景：
+
+* 一个对象的行为取决于它的状态，运行时必须根据状态来改变它的行为。
 
 
 
