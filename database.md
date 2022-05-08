@@ -791,7 +791,7 @@ MySQL默认的事务隔离级别是RR可重复读。
 
 ## view问题：
 
-### 1. 一条SQL语句是如何执行的
+### 1. 一条SQL查询语句是如何执行的
 
 ![image-20220428215100120](database.assets/image-20220428215100120.png)
 
@@ -800,6 +800,108 @@ MySQL默认的事务隔离级别是RR可重复读。
 其实就是考察对MySQL整体架构的了解。
 
 在当客户端连接到数据库的时候，首先到查询缓存中查找是否命中，之前的查询结果会以 K-V 对的形式缓存在内存中，如果命中直接返回客户端。在MySQL 8.0 之前的话会查询缓存的流程，8.0 之后就没有查询缓存这个模块了。如果没有命中缓存，就开始真正执行SQL语句了，首先会经过分析器，来对SQL语句进行词法分析，查看SQL语句中是否有语句错误；经过分析器之后会进入优化器，分析SQL语句的执行逻辑和执行效率，选择一个较优的执行方案；经过优化器之后进入SQL语句执行器，开始执行的时候会判断该用户是否有对应的执行权限，如果有权限，执行器就会根据这个表的引擎定义，调用对应的存储引擎接口，最终返回SQL语句执行的结果。
+
+### 2. 一条SQL更新语句是怎么执行的
+
+参考：
+
+1. [必须了解的mysql三大日志-binlog、redo log和undo log](https://segmentfault.com/a/1190000023827696)
+
+对于SQL更新语句来说，查询语句走过的流程更新语句还是要走一遍，但是与之不同的是，更新流程还涉及两个重要的日志模块：redolog(重做日志) 和 binlog(归档日志)。
+
+🔵重要的日志 redolog
+
+redolog 是 InnoDB 引擎层特有的日志，记录的是**物理日志**（即SQL语句执行后的结果）。
+
+在MySQL中更新操作存在一个问题，如果每一次更新操作都写进磁盘，首先磁盘要找到对应的那条记录然后在更新，整个过程中IO成本和查找成本都很高，为了解决这个问题，MySQL 的设计者使用了 WAL(write-Ahead logging) 技术，技术关键就是**先写日志，再写磁盘**。
+
+redolog 包括两部分：内存中的日志缓存(redolog cache)和磁盘上的日志文件(redolog file)，向将记录写入到缓冲区，后续某个时机写入磁盘。具体来说，当更新一条记录的时候，InnoDB引擎首先会将记录写至redolog中并且更新内存缓存，这个时候就算更新完成了，同时 InnoDB 引擎会在系统比较空闲的时候将这个操作记录更新到磁盘中。
+
+❓redolog 何时将缓存刷盘？
+
+用户空间的缓冲区是无法直接写入磁盘的，中间必须经过操作系统的内核空间缓冲区(OS buffer)。因此 redolog buffer 刷盘的过程是先将 redolog buffer 写入 os buffer，然后通过系统调用 fsync() 将其刷到 redolog file。
+
+![img](database.assets/1460000023827701.png)
+
+redolog buffer 写入 redolog file的时机可以通过 `innodb_flush_log_at_trx_commit ` 参数进行配置：
+
+* 0（延时写）：事务提交时不会立即将 redolog buffer 写入到 os buffer，而是每秒写入 os buffer 并且调用 fsync() 写入到 redolog file 中。系统崩溃的时候只会丢失 1s 的数据。
+* 1（实时写，实时刷）：每次提交都会将 redolog buffer -> os buffer -> redolog file。即使系统崩溃也不会丢失数据，但是 IO 性能较差。
+* 2（实时写，延迟刷）：每次提交都仅进行 redolog buffer -> os buffer，然后每秒执行 os buffer -> redolog file。
+
+❓ 如果 redolog 被写满了怎么办？
+
+在 InnoDB 中 redolog 是大小固定的。假如配置了一组 4 个文件，每个文件大小是 1GB，那么 redolog 就可以记录 4 GB 的操作。如果 redolog 写满就不得不将部分redolog中的数据写入磁盘，然后才能继续更新。
+
+<img src="database.assets/image-20220508202656434.png" alt="image-20220508202656434" style="zoom:50%;" />
+
+其中 write pos 标识当前记录的位置，checkpoint 是当前擦除的位置，擦除记录前首先要将记录更新到磁盘文件。如果 write pos 之间还有空的部分，就表示还可以继续记录新的 redolog，否则就需要停止新的更新操作，将 redolog 中的数据同步到磁盘中，将 checkpoint 推进。
+
+如果期间数据库发生异常崩溃，之间提交的记录也不会丢失，因此 MySQL 具有崩溃后保证数据安全(crash-safe)的能力。
+
+🔵重要的日志 binlog
+
+binlog 是 server 层的日志，用于记录数据库执行的写入性操作（不包括查询），以二进制的方式保存在磁盘中，记录的是**逻辑日志**（可以简单理解为就是sql语句）。
+
+binlog 是通过追加的方式写入的，可以通过 `max_binlog_size` 参数设置每个 binlog 文件的大小，当大小达到给定值之后，会生成新的文件来保存日志。
+
+❓为什么要有两个日志
+
+最初 MySQL 并没有 InnoDB 引擎，最初的 MyISAM 引擎没有 crash-safe 能力，binlog 日志只能用于归档。
+
+binlog 的使用场景：
+
+1. 主从复制：在 Master 端开启 binlog，然后将 binlog 发送给各个 slave，slave 端重放 binlog 从而达到主从数据一致。
+2. 数据恢复：通过使用 `mysqlbinlog` 工具来恢复数据。
+
+binlog 的刷盘时机：
+
+对于 innodb 引擎而言，只有在事务提交的时候才会记录 binlog，那么 什么时候将 binlog 刷盘呢？ MySQL通过控制参数 `sync_binlog` 控制刷盘时机，取值范围是 `0-N`:
+
+* 0：不强制要求，由系统自行判断何时写入磁盘
+* 1：每次 commit 的时候都要将 binlog 写入磁盘
+* N：每 N 个事务提交，才会将 binlog 写入磁盘
+
+binlog 的日志格式（通过参数 `binlog-format` 指定）：
+
+* `STATEMENT`：即SQL语句，mysql 5.7.7 之前的默认选项
+* `ROW`：基于行的复制，仅记录那条数据被修改了
+* `MIXED`：上述两者的混合模式，`STETEMENT` 模式无法复制的操作使用 ROW 模式保存。
+
+🔵redolog 和 binlog 的区别
+
+|          | redolog                              | binlog                                          |
+| -------- | ------------------------------------ | ----------------------------------------------- |
+| 文件大小 | redolog 文件大小是固定的             | binlog 可以通过参数进行调整每个binlog文件的大小 |
+| 实现方式 | InnoDB引擎层实现的                   | server 层实现的，所有引擎都可以使用             |
+| 记录方式 | redolog 采用的是循环写的方式进行记录 | binlog 是通过追加的方式进行记录                 |
+| 使用场景 | redolog 可以进行崩溃恢复             | binlog 用于主从复制和数据恢复                   |
+| 记录内容 | redolog 记录的是物理日志             | binlog 记录的是逻辑日志                         |
+
+🔵更新语句的执行流程
+
+1. 执行器调用引擎接口找到 ID = 2 的一行。由于 ID 是主键，引擎直接用 B+ 树找到对应的行。如果 ID = 2 的行数据在内存中，直接返回给执行器，否则从磁盘读取到内存中再返回。
+2. 执行器拿到引擎提供的数据之后，进行update执行。
+3. 引擎将这行新数据更新到 redolog buffer中，此时 redolog 处于 prepare 状态，等待执行器完成后随时提交事务。
+4. 执行器生成这个 binlog，并将 binlog 写入磁盘
+5. 执行器调用引擎的提交事务接口，引擎将 redolog 状态改成提交状态，更新完成。
+
+<img src="database.assets/image-20220508215152835.png" alt="image-20220508215152835" style="zoom:67%;" />
+
+其中深色表示在执行器中执行，浅色表示在引擎中执行。
+
+🔵两阶段提交
+
+在进行更新语句写入 redolog 中时候，redolog 的状态分为 prepare 和 commit 状态，这就是两阶段提交。
+
+为什么要进行两阶段提交？
+
+假设如果不用两阶段提交：
+
+* 如果先写 redolog 再写 binlog：如果在写 binlog 的时候系统崩溃，会出现重放redolog存在而重放binlog不存在的数据。
+* 如果先写 binlog 再写 redolog：由于崩溃之后，redolog 中的这个事务无效，然后 binlog 中却存在这个数据，导致数据不一致。
+
+如果使用两阶段提交，如果 binlog 中不存在对应的标识事务的 XID，redolog 就进行回滚，存在就进行提交。
 
 ## 其他
 
