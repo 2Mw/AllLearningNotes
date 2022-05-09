@@ -708,7 +708,7 @@ select ...   -- 朴素select语句
    | :--: | :--: | :----: | :-------: | :-------: | :---------: |
    | john |  18  | female |     1     |     1     |    null     |
 
-   
+   <img src="https://ask.qcloudimg.com/http-save/yehe-1263954/87ab1211224cb9229424fb5cb4580faa.png?imageView2/2/w/1620" alt="img" style="zoom: 80%;" />
 
 2. undolog(回滚日志)
 
@@ -789,7 +789,7 @@ MySQL默认的事务隔离级别是RR可重复读。
 * REPEATABLE-READ(可重复读)： 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，可以阻止脏读和不可重复读，但幻读仍有可能发生。
 * SERIALIZABLE(可串行化)： 最高的隔离级别，完全服从ACID的隔离级别。所有的事务依次逐个执行，这样事务之间就完全不可能产生干扰，也就是说，该级别可以防止脏读、不可重复读以及幻读。
 
-## view问题：
+## 面试问题：
 
 ### 1. 一条SQL查询语句是如何执行的
 
@@ -902,6 +902,29 @@ binlog 的日志格式（通过参数 `binlog-format` 指定）：
 * 如果先写 binlog 再写 redolog：由于崩溃之后，redolog 中的这个事务无效，然后 binlog 中却存在这个数据，导致数据不一致。
 
 如果使用两阶段提交，如果 binlog 中不存在对应的标识事务的 XID，redolog 就进行回滚，存在就进行提交。
+
+### 3. 事务隔离级别的实现
+
+参考：
+
+1. [深入理解MySQL底层事务隔离级别的实现原理](https://cloud.tencent.com/developer/article/1892952)
+
+在 MySQL 中 每条记录在更新的时候都会同时记录一条回滚操作。事务每次开启之间，都会从数据库中获取一个自增长的事务 ID，可以根据事务 ID 判断事务执行的先后顺序。
+
+![image-20220509100542712](database.assets/image-20220509100542712.png)
+
+基于 MVCC 查询一条记录的流程：
+
+1. 获取事务自己的版本号
+2. 获取到 read view
+3. 查询得到的数据记录，比较记录事务 ID 与 read view 中事务 ID
+4. 如果不符合 Read View 可见性原则，使用 Undolog 中的记录历史快照返回符合规则的数据
+
+InnoDB 实现 MVCC 使用过 Read View + Undo Log 实现的，Undolog 保存了记录的历史快照，Read view 中可见性原则保证了当前版本数据是否可见。
+
+在 RC 隔离级别下，每一次查询都会生成一个新的 read view，而在 RR 隔离级别下，只有第一次查询会生成 read view；对于更新操作**都**会更新 read view。
+
+具体样例可以参考引用链接。
 
 ## 其他
 
