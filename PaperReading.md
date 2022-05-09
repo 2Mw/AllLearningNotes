@@ -460,6 +460,54 @@
 
 1. 对于一些实验室硬件条件较差的同学帮助会很大，并且能够进行加速计算，节约时间成本。
 
+### 2022-05
+
+#### Adaptive Mixtures of Local Experts 
+
+![image-20220509203843932](PaperReading.assets/image-20220509203843932.png)
+
+原文：JACOBS R A, JORDAN M I, NOWLAN S J, et al. 1991. Adaptive mixtures of local experts. Neural computation [J], 3: 79-87.
+
+简介：在多目标任务学习的时候，传统的训练方式使模型在相应的场景进行权重更新的时候，也会影响模型对其他场景的权重，叫做干扰效应(interference effect)。作者设计了基于概率的门限模型，最终模型的选取会根据 gating 的输出来选取最适合场景的 experts 组合，使得模型可以和传统模型一样在复杂的不同任务下具有更强的泛化性。对于如何对 experts 和 gating 架构的训练，作者提出了两种思路：
+
+1. 赋予关联学习竞争性，是网络中每个 expert 都可以独立更新权重：
+   $$
+   E^c=\log\sum_ip_i^ce^{-\frac12||d^c-o_c||^2}
+   $$
+
+2. 赋予竞争学习关联性，这种架构的本质就是将学习中网络的神经元替换成独立的 Experts 网络，使得每个 experts 之间的权重变化不会互相影响。
+   $$
+   F_{moe}=\sum_{i=1}^Ng_i(x)\text{softmax}(f_i(x))
+   $$
+   其中 $f_i$ 表示每个 expert 的输出，$g_i()$ 使 gating 网络对于输出的选择。
+
+关键词：多专家模型；多任务学习
+
+解决的问题：
+
+1. 传统的训练时候存在的干扰效应(interference effect)。
+
+数据集：无
+
+摘抄的评价：
+
+1. 本文提出的Gating Network具有很强的可扩展性。在Gating的统合作用下，各个experts之间互相独立，那么也可以认为这些Expert Networks可以被随意更改，那么Gating Network这个技术在跨模态系统融合这个方向上就能具有很强的应用性。
+
+   例如，对于一个雷达-视觉融合检测系统来说，实现这样一个复杂系统的过程就可以被简化成：
+
+   * 分别训练一个基于雷达数据的检测网络和一个基于视觉数据的检测网络；
+   * 训练一个Gating Network来统合两者的输出。
+
+   因为“软”竞争学习带来的概率整合思路，训练出的完整系统就有可能会具有雷达检测和视觉检测两方的优势。视觉系统弥补雷达系统的不确定性，同时雷达系统增加对天气和遮挡物的鲁棒性。
+
+2. 从另一方面来看，在计算能力允许的条件下，应用了Gating Network的模型也会在理论上具有无限的泛化性，所有可能在实际场景中出现的情况都可以作为子场景以单独训练一个用于该场景的expert。当然，experts的数量可能也会降低模型在实际应用时的性能，毕竟每一个expert都需要输出一个对于输入场景的判断结果，所以也不能认为可以无限的设置experts来提高泛化性和鲁棒性。
+
+参考：
+
+1. [Adaptive Mixtures of Local Experts](https://zhuanlan.zhihu.com/p/423447025)
+2. [Google多任务学习模型：Multi-gate Mixture-of-Experts (MMoE, 2018)](https://zhuanlan.zhihu.com/p/434975656)
+3. [多目标学习在推荐系统中的应用](https://mp.weixin.qq.com/s?__biz=MzU2ODA0NTUyOQ==&mid=2247491211&idx=2&sn=a11007131f97835d655a4d451920843e&chksm=fc92a43dcbe52d2be58ef7e120d4bbff9ecdd8ffd5f9ebb473a97105c1fa71faadee1b403cf4&scene=126&sessionid=1605064054&key=059149d48d5c3e99fee7200bda4a5e4a7d0f1ab172f270b4a31ee39d0129a2210098dda57b4c275f69eb6ec5d674f4871ffcaef7636fa83bab1fb263f6c9673f88de8b4437ab0ab108b5e757060dc795c0031452e18002915f2f0c738c1f483eece0212fe66ba4aec07cd7b7fba4df7e812592e373fdc1c34e1bbf86d0acc1e1&ascene=1&uin=Mjg1NTU5MTQxMA%3D%3D&devicetype=Windows+10+x64&version=6300002f&lang=zh_CN&exportkey=A77db8rvlMC6aDR5FrUFMBM%3D&pass_ticket=8hNub%2BFu4yLIlzlFzkmkkQMUkX4moojyuksiXcSdcWti8q5%2BiG2QZTCpgM1wGGdz&wx_header=0)
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
