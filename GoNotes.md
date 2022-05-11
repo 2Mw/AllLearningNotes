@@ -78,13 +78,35 @@ func c() {
 }
 ```
 
-## Go Mod管理
+## Go 依赖管理
+
+通过 go.mod 文件管理依赖包的版本，通过 go get/ go mod 指令工具管理依赖包。
 
 切换国内环境：
 
 ```
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
+
+使用 go get 命令：
+
+```sh
+go get example.org/pkg@update	# 默认
+go get example.org/pkg@none		# 删除依赖
+go get example.org/pkg@v1.1.2	# 指定对应的版本
+go get example.org/pkg@23dfdd	# 指定对应的commit
+go get example.org/pkg@master	# 选择分支
+```
+
+go mod 命令：
+
+```sh
+go mod init		# 初始化 go.mod 文件
+go mod download # 下载模块到本地缓存
+go mod tidy		# 增加需要的依赖，删除不需要的
+```
+
+
 
 ## 变量与常量
 
@@ -182,6 +204,18 @@ s3 := "北京市朝阳区"
 s4 := []rune(s3)
 s4[5] = '市'
 fmt.Println(string(s4))
+```
+
+字符串拼接，底层采用 byte[] 拼接效率更高：
+
+```go
+func stringBd() {
+   var sb strings.Builder
+	sb.Grow(100)	// 提前分配内存
+   for i := 0; i < 100; i++ {
+      sb.WriteString("a")
+   }
+}
 ```
 
 ## 流程控制
@@ -1258,6 +1292,41 @@ func strconv.ParseBool(str string) (bool, error)
 
 1. `errors.New("txt")`	不支持自定义内容
 2. `fmt.Errorf("Errors: %v \n", err)`
+
+错误链：
+
+```go
+func err() error {
+	return errors.New("fucking error")
+}
+
+func err2() error {
+	return fmt.Errorf("fucking error2: %w", err())
+}
+```
+
+错误判定：
+
+```java
+func judgeError(err error) {
+   if errors.Is(err, fs.ErrExist) {
+      // ...
+   }
+}
+```
+
+从错误链中提取特定的错误：
+
+```go
+func asError(err error) {
+	var pathError *fs.PathError
+	if errors.As(err, &pathError) {
+		fmt.Printf("Path error at: %v\n", pathError.Path)
+	}
+}
+```
+
+
 
 ## 并发编程
 
