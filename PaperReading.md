@@ -508,6 +508,33 @@
 2. [Google多任务学习模型：Multi-gate Mixture-of-Experts (MMoE, 2018)](https://zhuanlan.zhihu.com/p/434975656)
 3. [多目标学习在推荐系统中的应用](https://mp.weixin.qq.com/s?__biz=MzU2ODA0NTUyOQ==&mid=2247491211&idx=2&sn=a11007131f97835d655a4d451920843e&chksm=fc92a43dcbe52d2be58ef7e120d4bbff9ecdd8ffd5f9ebb473a97105c1fa71faadee1b403cf4&scene=126&sessionid=1605064054&key=059149d48d5c3e99fee7200bda4a5e4a7d0f1ab172f270b4a31ee39d0129a2210098dda57b4c275f69eb6ec5d674f4871ffcaef7636fa83bab1fb263f6c9673f88de8b4437ab0ab108b5e757060dc795c0031452e18002915f2f0c738c1f483eece0212fe66ba4aec07cd7b7fba4df7e812592e373fdc1c34e1bbf86d0acc1e1&ascene=1&uin=Mjg1NTU5MTQxMA%3D%3D&devicetype=Windows+10+x64&version=6300002f&lang=zh_CN&exportkey=A77db8rvlMC6aDR5FrUFMBM%3D&pass_ticket=8hNub%2BFu4yLIlzlFzkmkkQMUkX4moojyuksiXcSdcWti8q5%2BiG2QZTCpgM1wGGdz&wx_header=0)
 
+#### InterHAt
+
+![image-20220512093416809](PaperReading.assets/image-20220512093416809.png)
+
+原文：Li Z, Cheng W, Chen Y, et al. Interpretable click-through rate prediction through hierarchical attention[C]//Proceedings of the 13th International Conference on Web Search and Data Mining. 2020: 313-321.
+
+简介：InterHAt 是由注意力机制构成的推荐算法模型，借助于当前在 NLP 领域火热的 Transformer 应用在推荐系统上 CTR 预测数据集上并且取得了不错的效果。并且 InterHAt 也有着较低的计算复杂度，使用层级注意力机制(Hierarchical Attention)聚合每一阶数据的特征信息，一层一层堆叠至产生计算高阶的特征信息，能够在不同的语义子空间中捕捉特征关联中的多语义特征信息。并且该模型也有较好的可解释性特点，通过在每一阶特征聚合层计算对于数据不同域的权重大小得到注意力点，提取出关键的域信息。
+
+关键词：推荐系统；注意力机制；可解释性
+
+数据集：
+
+1. criteo 数据集
+2. avazu 数据集
+3. Frappe 数据集
+
+解决的问题：
+
+1. 之前的模型解释性较差
+2. dnn 部分对于计算高阶特征关联的效率较低
+3. 对于特征的多语义信息捕捉能力不足
+
+我的评价：
+
+1. 和 autoint 中类似的部分就是对于特征的低阶信息处理，同样只使用注意力机制处理的方式，目前需要对比到底是 crossnet 提取 bound-degree 特征信息的能力强还是注意力机制能力强
+2. 这个模型的可解释性要比 autoInt 中可解释性貌似要强一点
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
