@@ -1035,6 +1035,121 @@ ALTER TABLE tbl_name WAIT N add column ...
 2. 控制并发度，考虑中间件。
 3. 将一行数据改成逻辑上的多行。以影院账户为例可以考虑余额放在多条记录上，影院的账户总额等于多个记录的值的总和。
 
+### 6. MySQL有时候为什么会选错索引
+
+对一个表，存有10万行数据，即(1,1,1), (2,2,2).... (100000,100000,100000)。
+
+表的定义如下：
+
+```sql
+-- auto-generated definition
+create table t
+(
+    id int not null
+        primary key,
+    a  int null,
+    b  int null
+);
+create index a on t (a);
+create index b on t (b);
+```
+
+插入数据可以使用存储过程进行复现：
+
+```sql
+delimiter ;;
+create procedure idata()
+begin
+    declare i int;
+    set i = 1;
+    while (i < 100000)
+        do
+            insert into t
+            values (i, i, i),
+            set i = i + 1;
+        end while;
+end ;;
+
+delimiter ;
+call idata();
+```
+
+首先分析一条SQL语句：
+
+```sql
+explain select * from t where a between 10000 and 20000;
+```
+
+![image-20220514111248458](database.assets/image-20220514111248458.png)
+
+可以看到扫描的行数时 10000 行左右，使用了索引。
+
+但是实际应用中不会这么简单。
+
+| SessionA                                  | SessionB                                                 |
+| ----------------------------------------- | -------------------------------------------------------- |
+| start transaction with consisten snapshot |                                                          |
+|                                           | delete * from t;<br/>call idata()                        |
+|                                           |                                                          |
+|                                           | explain select * from t where a between 10000 and 20000; |
+| commit                                    |                                                          |
+
+Session B将数据全部删除之后又重新插入10万行的数据，但是此时却不会再使用索引a了。可以通过慢查询日志来具体查看执行状况。为了说明优化器选择是否正确，可以增加一个对照即使用 `force index(a)` 来让优化器强制使用索引a。
+
+```sql
+set long_query_time = 0;	# 慢查询日志开启
+select * from t where a between 10000 and 20000;
+select * from t force index(a) where a between 10000 and 20000;
+```
+
+看到前者时全表扫描后者只使用10001行。
+
+🔵优化器的逻辑
+
+优化器选择索引的目的是用最小代价执行语句。扫描行数是影响执行代价的因素之一，扫描行数越少磁盘扫描越少，占用CPU资源越少。
+
+那么**扫描行数是怎么判断**的？
+
+MySQL并不能精确知道满足条件的记录数目，而是通过统计信息来估计记录数目。这个统计信息就是索引的区分度，一个索引上不同的值越多说明区分度越好，称为“基数”。
+
+可以使用 `show index` 方法查看表上索引的基数，得到的结果都是**采样**得到了，精确结果不切实际。
+
+![image-20220514113633573](database.assets/image-20220514113633573.png)
+
+🔵如何修正索引结果
+
+使用analyze语句：
+
+```sql
+analyze table t;
+```
+
+🔵索引选择异常和处理
+
+对于以下SQL语句，如果选择索引，会选择哪个索引：
+
+```sql
+select * from t where a between 1 and 1000 and b between 50000 and 100000 order by b limit 1;
+```
+
+如果使用索引a进行查询，那么就是扫描a的前1000行，然后再过滤字段b；
+
+如果使用索引b查询，则需要扫描50000行的数据。如果使用索引a进行会更好。
+
+但是 explain 以下发现，优化器又选错索引了。
+
+![image-20220514115834677](database.assets/image-20220514115834677.png)
+
+之所以优化器选择索引b，是因为他认为使用索引b可以避免排序，因为b本身就是索引已经是有序的了，遍历的时候就不需要进行排序只需要遍历。
+
+因此可以诱导优化器选择合适的索引比如：
+
+```sql
+select * from t where a between 1 and 1000 and b between 50000 and 100000 order by b,a limit 1;
+```
+
+如果使用 `order by b,a` 的话，对两个索引字段就都需要进行排序，因此优化器就会选择需要扫描行数较少的索引了。
+
 ## 其他
 
 ### 其他链接
