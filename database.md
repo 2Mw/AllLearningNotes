@@ -998,6 +998,38 @@ InnoDB 实现 MVCC 使用过 Read View + Undo Log 实现的，Undolog 保存了�
 
 因此建议在选择唯一索引和普通索引的时候，如果写多读少，还是尽量选择普通索引；如果业务更新模式是数据写入后马上进行查询，即使使用了 change buffer，查询的时候会立马 merge，这非但磁盘 io 次数不会减少，反而会增加 change buffer 访问的次数。
 
+❓字符串的前缀索引
+
+对于字符串的索引，MySQL支持前缀索引即定义字符串的一部分作为索引。
+
+```sql
+alter table SUser add index index2(email;		# 全文索引
+alter table SUser add index index2(email(6));	# 前缀索引
+```
+
+根据 B+ 树的性质可以知道，在相同条件下全文索引扫描的行数比前缀索引要少，并且全文索引可以使用索引覆盖，而前缀索引由于不知道字符串是否被截断因此必须回表。
+
+因此，在使用前缀索引的时候需要定义好长度，才能做到技能节省空间又不用额外增加太多查询成本。
+
+但是如果遇到前缀区分程度不够好的情况怎么办：
+
+1. 倒序存储
+
+   ```sql
+   select field_list from t where id_card = reverse('input_id_card_string');
+   ```
+
+2. 添加 hash 字段
+
+   ```sql
+   alter table t add id_card_crc int unsigned, add index(id_card_crc);
+   select field_list from t where id_card_crc=crc32('input') and id_card = `input`
+   ```
+
+​	但是这两种情况都不支持范围查询，只支持等值查询。
+
+
+
 ### 5. 数据库锁
 
 ❓如何安全的给表加字段
