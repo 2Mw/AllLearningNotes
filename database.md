@@ -1216,6 +1216,73 @@ select * from t where a between 1 and 1000 and b between 50000 and 100000 order 
 
 由于 alter 语句执行的过程中，给表 A 上了 MDL 锁，但是 MySQL 为了实现 online DDL，在拷贝数据的时候将 MDL 锁退化为了读锁，因此可以实现重建表期间的增删改查操作。
 
+### 8. count(*) 
+
+MySQL的不同引擎count(*)的实现方式也不同，MyISAM将表的行数存放在磁盘上，因此可以直接返回；而innodb需要每行进行读取。
+
+❓为什么innodb不直接存储行数
+
+这个innodb的事务有关，每一行记录都要判断是否对当前的会话可见，有些行对当前会话是不可见的。
+
+并且MySQL对于count(*)查询也是进行过优化的，由于普通索引树比主键索引树要小很多，MySQL优化器会找到最小普通索引树来进行遍历，保证在逻辑正确的前提下减少扫描的数据量。
+
+🔵不同count的效率
+
+count(字段)<count(主键 id)<count(1)≈count(*)，对于 count(字段) 的做法，如果字段允许为null的话，是不会计数的。
+
+❓怎么解决快速取得计数
+
+可以使用以子之矛攻子之盾的方法，令设一个计数表用来存储数据数目。
+
+| 会话A               | 会话B                |
+| ------------------- | -------------------- |
+| begin;<br/>计数值+1 |                      |
+|                     | begin;<br/>查询计数; |
+|                     | commit               |
+| commit              |                      |
+
+可以看到在RR隔离级别下，数据读取还是一致的。
+
+### 9. order by 怎么工作的
+
+对于以下SQL语句（city字段为索引）：
+
+```sql
+explain select city,name,age from t where city='杭州' order by name limit 1000;
+```
+
+查看执行计划后可以看到 `Using index condition; Using filesort`，using filesort 就是表示需要进行排序，MySQL会给每个线程分配内存用于排序，称为 sort buffer。
+
+<img src="database.assets/image-20220518203805126.png" alt="image-20220518203805126" style="zoom:67%;" />
+
+由于 sort buffer 的大小有限，因此如果遇到数据量较大需要排序的情况下就需要使用到外部排序，将排序结果输出到多个小文件中，然后使用归并排序合并成大文件，最终返回执行结果。
+
+🔵全字段排序和rowid排序
+
+对于上述查询语句，MySQL假如查询到符合条件的行记录之后会将`city,name,age`一起放到 sort buffer 中，但是如果遇到字段长度很长的话，就会导致临时文件较多排序效率降低。
+
+<img src="database.assets/image-20220518203824088.png" alt="image-20220518203824088" style="zoom:67%;" />
+
+对于这种情况，MySQL在存放到 sort buffer 的时候会只存储 name 和 id 主键字段，排序后再将按照索引取出 `city,name,age` 三个字段的数据返回客户端，称为 rowid 排序。
+
+相比于全字段排序，rowid 排序要多进行一次查表。
+
+🔵如何优化
+
+如果原来的数据本来就是有序的，就无需进行排序。可以对 city, name 字段添加联合索引：
+
+```sql
+alter table t add index city_user(city, name)
+```
+
+查看其对应的 B+ 树数据结构可以观察到，在 city 相同的情况下，name 字段已经排序好了，就无需进行后续进入 sort buffer 的操作，遍历完毕 city 字段然后取出主键 id 找到 age 字段返回即可。
+
+<img src="database.assets/image-20220518204432465.png" alt="image-20220518204432465" style="zoom:80%;" />
+
+查询过程如下：
+
+<img src="database.assets/image-20220518204644643.png" alt="image-20220518204644643" style="zoom:67%;" />
+
 ## 其他
 
 ### 其他链接
