@@ -532,8 +532,78 @@
 
 我的评价：
 
-1. 和 autoint 中类似的部分就是对于特征的低阶信息处理，同样只使用注意力机制处理的方式，目前需要对比到底是 crossnet 提取 bound-degree 特征信息的能力强还是注意力机制能力强
+1. 和 autoint 中类似的部分就是对于特征的低阶信息处理，同样只使用注意力机制处理的方式，目前需要对比到底是 crossnet 提取 bound-degree 特征信息的能力强还是注意力机制能力强。
 2. 这个模型的可解释性要比 autoInt 中可解释性貌似要强一点
+
+#### MMoE
+
+![image-20220520093613740](PaperReading.assets/image-20220520093613740.png)
+
+原文：MA J, ZHAO Z, YI X, et al. Modeling task relationships in multi-task learning with multi-gate mixture-of-experts[C]//Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining.2018:1930-1939. 
+
+简介：MMoE 模型是由谷歌团队提出的基于多任务学习的推荐算法模型，是针对多任务模型通过学习不同的任务之间的联系和差异来提高训练的质量。相对于先前工作中常用的 shared-bottom 模型，MMoE 能够在不加增加模型参数数量的基础上来捕捉不同任务之间的关联和区别，使用专家系统网络是的不同任务之间参数共享，不同任务的 gating 网络可以学习到不同的专家组合，捕捉到任务之间的异同。
+
+关键词：推荐系统；多专家模型；多任务学习
+
+数据集：
+
+解决的问题：
+
+我的评价：
+
+参考：
+
+1. [详解谷歌之多任务学习模型MMoE(KDD 2018)](https://zhuanlan.zhihu.com/p/55752344)
+
+#### MAIL
+
+![image-20220520093709498](PaperReading.assets/image-20220520093709498.png)
+
+原文：FENG P J, PAN P, ZHOU T, et al. Zero shot on the cold-start problem: Model-agnostic interest learning for recommender systems[C]//Proceedings of the 30th ACM International Conference on Information & Knowledge Management.2021:474-483. 
+
+简介：MAIL 双塔框架是由网易云团队提出的针对冷启动问题的推荐算法，MAIL 算法模型与具体的推荐算法模型是无关的，推荐算法模型可以是现存提出的任何推荐算法，MAIL 是在其推荐算法基础上完善和解决冷启动问题的增强。其受到零样本学习(Zero-shot Learning)的启发，设计了双塔结构，一个塔是在零样本的视角下解决冷启动的问题，首先使用双自动编码器进行跨模态重建，从隐藏特征中给新用户获取虚拟行为爱好，然后在另一个塔即排序塔中根据零样本塔来计算用户行为偏好。通过跨模态重建和基于最大平均差异的模态对齐，零样本塔根据老用户的属性将行为偏好迁移到新用户上。基于零样本塔产出的虚拟行为偏好，排序塔可以更好地捕捉新用户的兴趣并进行推荐。
+
+关键词：推荐系统；Rank 算法；冷启动；
+
+数据集：
+
+1. [阿里妈妈数据集](https://tianchi.aliyun.com/dataset/dataDetail?dataId=56)
+2. 网易云音乐直播业务数据
+
+解决的问题：
+
+1. 解决冷启动的问题，在网易云音乐业务线上取得了较大的提升
+
+我的评价： 
+
+1. 可以将这个模型与新推荐算法模型(未解决冷启动)结合起来，变成新的模型
+
+参考：
+
+1. [CIKM 2021 | 云音乐提出与模型无关的冷启动推荐框架](https://mp.weixin.qq.com/s/mDNf_n4PQY8slROibmPuQA)
+
+#### DMoE
+
+![image-20220520093930825](PaperReading.assets/image-20220520093930825.png)
+
+原文：Eigen D, Ranzato M A, Sutskever I. Learning factored representations in a deep mixture of experts[J]. arXiv preprint arXiv:1312.4314, 2013.
+
+简介：深层多专家模型(DMoE)是由谷歌团队提出的一种学习算法，这种模型能够在不提高计算复杂度的情况下增加 expert 的数量，为输入数据选择最佳训练方法，既保证了模型的泛化性也保证了高效性。作者也了解到在专家系统模型中 gating 任务需要高效使用专家组合策略，每一层专家系统的关注点都是不同的，在第一层 DMoE 主要关注以位置为主的特征，第二层主要关注以类别为主的特征信息。最终实验结果也表明，DMoE 能够在扩大网络模型的基础上，对于输入数据只使用到模型中最适合的一部分而不会导致计算复杂度增加，并且保证了计算高效性。
+
+关键词：多专家模型；
+
+数据集：
+
+1. MNIST
+2. Monophone Speech
+
+解决的问题：
+
+1. 在不提高计算复杂度的情况下增加专家的组合数量，在扩大网络模型的同时也保证了计算复杂度高效。
+
+我的评价：
+
+1. 可以把 DCNv2 中的 MoE 转为 DMoE
 
 ## RS-Wiki
 
