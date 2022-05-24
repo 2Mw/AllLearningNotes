@@ -93,7 +93,7 @@ git checkout -- 1.txt	# 将文件内容还原到最近一次提交的状态
 ```sh
 git commit -m "msg"
 git commit -a -m "mag"	# 用于无 untracked 的情况
-git commit --amend		# 覆盖上一次提交(团队项目谨慎使用，最好上一次是本地commit时使用)
+git commit --amend		# 覆盖上一次提交(谨慎使用，最好上一次是本地commit时使用)
 ```
 
 忽略文件 gitignore：
@@ -154,6 +154,7 @@ git remote show <remote>	# 查看具体某个远程仓库具体信息
 ```sh
 git remote add <name> <url>
 git remote remove <name>
+git remote set-url --add --push origin <url>	# 为某个origin设置不同的fetch和push的url
 ```
 
 修改远程仓库名称：
@@ -240,3 +241,19 @@ git merge <name>	# 将对应的分支合并到当前分支
 `=======` 上半部分是当前分支的，下半部分是另一个分支的，将`<<<<<<<` 和 `>>>>>>>` 之间内容手动解决后，将对应的标志删除后进行 add 和 commit 后就合并成功了。
 
 ### 2. 变基 rebase
+
+## 三. Git 高阶
+
+### 1. Git 仓库清理
+
+`git fsck` 命令用来检查内部数据库的问题或者不一致性。
+
+`git gc` 命令在你的仓库中执行 “garbage collection”，删除数据库中不需要的文件和将其他文件打包成一种更有效的格式。
+
+清理仓库的方法：
+
+```sh
+git reflog expire --expire=now --all
+git gc --prune=now
+```
+
