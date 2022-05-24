@@ -1337,6 +1337,44 @@ execute stmt;
 DEALLOCATE prepare stmt;
 ```
 
+### 11. 为什么SQL语句逻辑相同但是性能差异较大？
+
+1. 函数
+
+   假设数据库中存储了n年以来所有的交易数据，要统计所有年份7月份的交易总数，SQL语句大致为：
+
+   ```sql
+   select count(*) from tradelog where month(t_modified)=7;
+   ```
+
+   其中 `t_modified` 字段为索引，但是会出现SQL语句执行很久，是因为对字段做函数运算会导致索引搜索功能失效，因为对索引字段做函数操作可能会破坏索引的有序性，因此优化器放弃走B+树搜索功能。
+
+   因此改为：
+
+   ```sql
+   select count(*) from tradelog where t_modified >= '2016-7-1' and t_modified<'2016-8-1';
+   ```
+
+2. 隐式类型转换
+
+   ```sql
+   select * from tradelog where tradeid=110717;
+   ```
+
+   比如上述SQL语句，tradeid 是varchar类型的索引字段，在MySQL中如果字符串和数字做比较的话，就会将字符串转为数字。
+
+   ```sql
+   select * from tradelog where CAST(tradid AS signed int) = 110717;
+   ```
+
+   由1可知，使用函数操作可能会导致索引搜索功能失效从而导致全表扫描。
+
+3. 隐式字符编码转换
+
+   对于不同表如果使用的字符集不同，即使表的对应字段都是索引也会导致索引搜索失效导致全表扫描。 
+
+   
+
 ## 其他
 
 ### 其他链接
