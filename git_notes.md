@@ -257,3 +257,17 @@ git reflog expire --expire=now --all
 git gc --prune=now
 ```
 
+### 2. 设置别名
+
+对于输入长度较多命令，git支持使用别名来进行快速开发：
+
+```sh
+git config --global alias.graph 'log --oneline --graph --all'
+```
+
+相当于：
+
+```sh
+git log --oneline --graph --all
+```
+
