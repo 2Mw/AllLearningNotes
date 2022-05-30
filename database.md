@@ -1373,7 +1373,39 @@ DEALLOCATE prepare stmt;
 
    对于不同表如果使用的字符集不同，即使表的对应字段都是索引也会导致索引搜索失效导致全表扫描。 
 
-   
+
+### 12. 为什么只查询一行语句也执行很慢
+
+可能发生的情况：
+
+1. 表锁或者行锁
+2. MDL锁
+3. 等待 flush
+
+怎么定位执行较慢SQL语句的程序：
+
+1. 使用语句 `show processlist`
+
+2. 使用语句 `select blocking_pid from sys.schema_table_lock_waits;`
+
+3. 如果想要查看谁占用的写锁，可以使用以下语句：
+
+   ```sql
+   select * from t sys.innodb_lock_waits where locked_table = `db.t`;
+   ```
+
+4. 然后使用 `KILL ID` 或者 `KILL QUERY ID` 来杀死对应的查询线程。
+
+其他奇怪的结果：
+
+```sql
+select * from t where id = 1;					# 执行时间为 800 ms
+select * from t where id = 1 in share mode; 	# 执行时间为 0.2 ms
+```
+
+可能出现的原因，此时对于表 t 的 id 为 1 的记录正在进行大量的修改操作，前者是快照读，因此可能需要执行查找很多的 undo log 才能找到对应的记录，而后者是当前读，可以直接读到数据。
+
+![image-20220530214128790](database.assets/image-20220530214128790.png)
 
 ## 其他
 
