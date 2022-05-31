@@ -8,7 +8,9 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=114) P114
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=121) P121
+
+推荐网站：https://refactoringguru.cn/
 
 ## 初识
 
@@ -1978,9 +1980,107 @@ classDiagram
 
 * 一个对象的行为取决于它的状态，运行时必须根据状态来改变它的行为。
 
+### 6. 观察者模式
 
+> 观察者模式（Observer Pattern）。比如，当一个对象被修改时，则会自动通知依赖它的对象。又称为发布-订阅(Publish/Subscribe)模式，定义了一对多的依赖关系让多个观察者对象同时监听某一个主题的对象。当这个主题的对象发生状态变化的时候，会通知所有的观察者对象，是观察者对象能够自动更新自己。
 
+结构：
 
+* 抽象主题(Subject)角色：为被观察者，抽象主题角色将所有的观察者对象存放在一个集合中，每个主题都可以有任意数量的观察者，也可以增加和删除观察者对象
+* 具体主题(Concrete Subject)角色：被被观察者的具体实现，向所有的观察者发送通知
+* 抽象观察(Observer)者：定义了更新接口，收到通知的时候进行更新行为
+* 具体观察(Concrete Observer)者：具体观察者的实现
 
+具体案例（微信公众号）：
 
+​	即微信公众号内容更新的时候会通知所有关注该公众号的所有用户。
 
+```mermaid
+classDiagram
+	class Observer {
+		+update(String msg) void
+	}
+	<<interface>> Observer
+	class WXUser{
+		-String name
+		+update(String msg) viud
+	}
+	
+	class Subject{
+		+attach(Observer o) void
+		+detach(Observer o) void
+		+notify(String msg) void
+	}
+	
+	<<interface>> Subject
+	class OfficialAccount{
+		-List WXUsers
+		+attach() void
+		+detach() void
+		+notify() void
+	}
+	
+	Observer <|-- WXUser
+	Subject <|-- OfficialAccount
+	OfficialAccount o-- Observer
+```
+
+特点：
+
+* 降低了目标和观察者对象之间的耦合关系，收发消息属于广播机制。
+* 如果观察者对象较多的话，收到消息会有延迟
+* 如果被观察者有循环依赖的话，可能会导致循环调用导致系统崩溃。(A->B->A)
+
+JDK 中的实现，`java.util.Observable` 和 `java.util.Observer` 分别定义了被观察者和观察者对象，只要实现其子类就可以编写观察者实例。
+
+### 7. 中介者模式
+
+>中介者模式（Mediator Pattern）是用来降低多个对象和类之间的通信复杂性。这种模式提供了一个中介类，该类通常处理不同类之间的通信，并支持松耦合，使代码易于维护。
+
+![image-20220531150919039](designpattern.assets/image-20220531150919039.png)
+
+前者如果修改一个类的话，其他的多个类也需要进行改变，类之间关系较为复杂，代码维护成本也高。中介者模式就是为了解决这个问题，用于封装一系列对象之间的交互，使原有类之间的耦合关系变低。
+
+结构：
+
+* 抽象中介者(Mediator)角色：中介者类的接口定义，提供对象注册和转发的方法。
+* 具体中介(Concrete Mediator)者：定义同事对象的一个 List，调节同时之间的交互关系
+* 抽象同事类(Colleague)对象：同事类接口，需要保存中介者对象，提供同事对象交互的抽象方法。
+* 具体同事(Concrete Colleague)类：抽象同事类角色的实现，处理同事对象之间的交互。
+
+具体案例（租房案例）：
+
+```mermaid
+classDiagram
+	class Mediator{
+	+contact(Person p, String msg)
+	}
+	<<interface>> Mediator
+	
+	class MediatorImpl {
+	-HouseOwner owner
+	-Tenant tenant
+	+contact(Person p, String msg) void
+	}
+	Mediator <|-- MediatorImpl
+	
+	class Person{-Mediator m}
+	
+	class Tenant{
+	+contact(String msg) void
+	}
+	class HouseOwner{
+	+contact(String msg) void
+	}
+	
+	Person <-- Tenant
+	Person <-- HouseOwner
+	MediatorImpl o-- Tenant
+	MediatorImpl o-- HouseOwner
+	Mediator o-- Person
+```
+
+特点：
+
+* 对于多个对象之间的关联起到了松散耦合的作用，不用像之前的“牵一发而动全身”
+* 可以对多个对象集中进行管理，一对多关系变为一对一的关系。
