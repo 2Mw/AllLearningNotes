@@ -411,7 +411,7 @@
 
 原文：Song W, Shi C, Xiao Z, et al. Autoint: Automatic feature interaction learning via self-attentive neural networks[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 1161-1170.
 
-简介：AutoInt 算法是基于注意力机制的端到端推荐算法模型，可以用于自动显式建模特征之间的高阶和低阶的关联，并且该算法模型相比于之前的模型有着较好的可解释性。作者将注意力机制引入推荐算法领域，根据多头自注意力机制提出了新的 Interacting Layer，既能够将高维稀疏的输入数据映射到低维子空间中，也能够将各个不同的特征融合起来构成高阶特征信息共同训练，并且无需大量手工费时的特征工程。
+简介：AutoInt 算法是基于注意力机制的端到端推荐算法模型，可以用于自动显式建模特征之间的高阶和低阶的关联，并且该算法模型相比于之前的模型有着较好的可解释性。作者将注意力机制引入推荐算法领域，根据多头自注意力机制提出了新的 Interacting Layer，既能够将高维稀疏的输入数据映射到低维子空间中，也能够将各个不同的特征融合起来构成高阶特征信息共同训练，并且无需大量手工费时的特征工程。低阶特征通过残差连接来建模，高阶特征通过叠加注意力层数来建模。
 
 关键词：推荐系统；CTR 预测；注意力机制；可解释模型
 
@@ -433,6 +433,7 @@
 
 1. 所见的基于协同过滤算法中使用注意力机制来替代全连接层深度神经网络来进行建模和训练。
 2. 这个模型也是基于协同过滤中具有可解释性特点的模型
+2. 随着注意力层的叠加，高阶特征的阶数会指数增长。
 3. 建议复现
 
 #### CowClip
@@ -605,6 +606,32 @@
 
 1. 可以把 DCNv2 中的 MoE 转为 DMoE
 
+### 2022-06
+
+### GateNet
+
+![image-20220606152309640](PaperReading.assets/image-20220606152309640.png)
+
+原文：Huang T, She Q, Wang Z, et al. GateNet: gating-enhanced deep network for click-through rate prediction[J]. arXiv preprint arXiv:2007.03519, 2020.
+
+简介：GateNet 是借助 Gate 机制来对 Embedding 层和 MLP 层来进行改造的推荐算法模型。Embedding Gate 是用来从特征级别的层面来选取重要的潜在特征信息，Hidden Gate 是用来对 MLP 层进行改造来自适应控制选取特征来传给下游的层。改进后的很多知名模型比如 DeepFM, xDeepFM 都有一定程度上的提升，但是提升不大。
+
+关键词：推荐系统；CTR 预测；Gate 机制
+
+数据集：
+
+1. ICME
+2. Criteo
+3. SafeDriver
+
+解决的问题：
+
+1. 相比于之前的模型有较小的提升
+
+我的评价：
+
+1. 提升不大，可以尝试，疑似灌水文章。
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
@@ -684,7 +711,9 @@
 
 4. [推荐系统论文阅读 - 简书](https://www.jianshu.com/u/720c6853ff98)
 
-3. [推荐算法文章 - alg](https://www.6aiq.com/member/alg)
+5. [推荐算法文章 - alg](https://www.6aiq.com/member/alg)
+
+3. [推荐系统遇上深度学习系列](https://cloud.tencent.com/developer/user/1622140)
 
 ## 参考文献
 
