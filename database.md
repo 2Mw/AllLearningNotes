@@ -872,6 +872,12 @@ binlog 是 server 层的日志，用于记录数据库执行的写入性操作�
 
 binlog 是通过追加的方式写入的，可以通过 `max_binlog_size` 参数设置每个 binlog 文件的大小，当大小达到给定值之后，会生成新的文件来保存日志。
 
+事务执行过程中，先把日志写到 binlog cache，等到事务提交的时候将 cache 中数据写到binlog文件中。
+
+无论事务多大也要保证能够一次性写入，系统给每个线程的 binlog cache 分配一片内存，参数 `binlog_cache_size` 用于控制 binlog cache 的大小，如果超过大小就需要暂存到磁盘中。
+
+<img src="database.assets/image-20220607165513216.png" alt="image-20220607165513216" style="zoom: 80%;" />
+
 ❓为什么要有两个日志
 
 最初 MySQL 并没有 InnoDB 引擎，最初的 MyISAM 引擎没有 crash-safe 能力，binlog 日志只能用于归档。
@@ -917,7 +923,7 @@ binlog 的日志格式（通过参数 `binlog-format` 指定）：
 
 其中深色表示在执行器中执行，浅色表示在引擎中执行。
 
-🔵两阶段提交
+🔵两阶段提交2PC
 
 在进行更新语句写入 redolog 中时候，redolog 的状态分为 prepare 和 commit 状态，这就是两阶段提交。
 
@@ -929,6 +935,8 @@ binlog 的日志格式（通过参数 `binlog-format` 指定）：
 * 如果先写 binlog 再写 redolog：由于崩溃之后，redolog 中的这个事务无效，然后 binlog 中却存在这个数据，导致数据不一致。
 
 如果使用两阶段提交，如果 binlog 中不存在对应的标识事务的 XID，redolog 就进行回滚，存在就进行提交。
+
+
 
 ### 3. 事务隔离级别的实现
 
