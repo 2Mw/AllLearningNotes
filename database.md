@@ -1433,9 +1433,50 @@ select * from t where id = 1 in share mode; 	# 执行时间为 0.2 ms
 2. 对于索引上的等值查询，如果是唯一索引 next-key 锁就会退化为行锁。
 3. 对于索引上的等值查询，如果查询到最后一个值不满足条件的时候 next-key 锁会退化为间隙锁。
 
+### 14. MySQL如何实现主备一致(binlog)
 
+主备切换流程：
 
+![image-20220608201330004](database.assets/image-20220608201330004.png)
 
+客户端的读写都是直接访问节点A，节点B是A备库。建议将备库设置为 readonly 模式（只对同步更新有效，用户更新无效），有以下几点考虑：
+
+1. 对于运营类的查询语句可以放到备库上查询，设置为只读模式可以防止误操作。
+2. 防止切换逻辑有bug，造成双写数据不一致的情况。
+3. 可以查看 readonly 的状态来判断节点的角色。
+
+![image-20220608204347477](database.assets/image-20220608204347477.png)
+
+<p style='text-align:center'>主备更新流程图</p>
+
+主库和备库之间是维持长连接的，两者之间事务日志同步流程为以下几个步骤：
+
+1. 在备库 B 上通过 change master 命令，设置主库 A 的 IP、端口、用户名、密码以及开始请求 binlog 的位置、文件名和日志偏移量。
+2. 在备库 B 上执行 start slave 命令，备库会启动两个线程即 `sql_thread` 以及 `io_thread`，前者负责解析并且执行日志中的命令，后者负责与主库之间建立连接。
+3. 主库 A 校验完毕后，按照备库 B 传过来的位置，从本地读取 binlog 发给 B。
+4. 备库 B 拿到 binlog 之后写到本地文件（中转日志 relay log）
+5. `sql_thread` 读取中转日志解析并且执行。
+
+binlog 中记录语句的方式有三种：
+
+1. statement，只记录SQL语句。但是存在风险，比如一个删除语句 `delete from t limit 1`，假如主库和备库中使用的索引不一致就会导致删除的数据也不一致。
+2. row，即记录真实的数据，对于 delete 语句会记录删除 item 的主键 id，不会存在主备不一致的情况。但是会存在占用空间较多的情况，假如一个 delete 语句要删除10万条记录，那么10万条记录都会存储到 binlog 中就会耗费较多的 IO 资源，影响执行速度。
+3. mixed，即前两者的结合，MySQL 采取折中的方案，如果可能会引起主备不一致的情况就使用 row 格式，否则就使用 statement 的格式。
+
+查看 binlog 语句：`show binlog events in 'master.000001'`
+
+但是越来越多的场景更偏向于 `row` 格式，对于删错行或者插入错数据可以准确知道数据的具体内容。
+
+🔵如何进行数据恢复
+
+对于 binlog 进行恢复数据的标准做法就是使用 mysqlbinlog 工具进行解析然后使用MySQL执行。
+
+```sql
+# 从 binlog 文件中进行恢复数据
+mysqlbinlog binlog.000001 binlog.000002 | mysql -u root -p
+# 从 binlog 中2738-2973字节位置开始执行
+mysqlbinlog master.000001 --start-position=2738 --stop-position=2973
+```
 
 
 
