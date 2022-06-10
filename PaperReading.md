@@ -608,7 +608,7 @@
 
 ### 2022-06
 
-### GateNet
+#### GateNet
 
 ![image-20220606152309640](PaperReading.assets/image-20220606152309640.png)
 
@@ -631,6 +631,51 @@
 我的评价：
 
 1. 提升不大，可以尝试，疑似灌水文章。
+
+#### EDCN
+
+![image-20220607110817643](PaperReading.assets/image-20220607110817643.png)
+
+原文：CHEN B, WANG Y, LIU Z, et al. Enhancing Explicit and Implicit Feature Interactions via Information Sharing for Parallel Deep CTR Models[C]//Proceedings of the 30th ACM International Conference on Information & Knowledge Management.2021:3757-3766. 
+
+简介：EDCN 网络是华为技术团队提出的与模型无关的基于并行架构的推荐算法，该算法主要分为两个主要的模块：Bridge Module 和 Regulation Module，分别用于解决大多并行架构存在的 Embedding 过度共享问题以及中间层(比如crossnet和mlp)之间显式特征与隐式特征之间参数共享不足的问题，bridge module 负责将中间层每一层的输出进行融合参数共享，regulation module 负责。作者将这两个模块应用到众多并行架构网络上发现在 DCN 网络上改进效果较优，因此称为 EDCN。
+
+关键词：推荐系统；CTR 预测；
+
+数据集：
+
+1. avazu
+2. criteo
+3. Huawei Industrial dataset
+
+解决的问题：
+
+1. 中间层显式特征和隐式特征参数共享不足的问题，从而导致梯度过陡的现象。
+2. 在 embedding 层参数过度共享的问题。
+
+我的评价：
+
+1. 作者对于其他模型在 criteo 和 avazu 两个数据集上得到的实验结果和对应原论文中的实验结果有很大的出入，比如 DCNv2 中 criteo 的 AUC 为 0.8115，而它为 0.8001。
+
+2. 作者在 DCN 上改进的效果要比在 DCNv2 上改进的效果要好，可能是调参没调好？
+
+3. 总体上来说写作手法还是值得学习的论文。
+
+4. 和 GateNet 的比较
+
+   * Embedding Gate 和 Regulation Module
+
+     相同：两者都是给特征之间赋予不同的权重，算法上比较类似
+
+     不同：前者只有一个gate，输入到并行架构中的值是相同的；后者使用 softmax，并且类似多头注意力机制或者类似使用的多个 gate，输入到并行架构中的值是不同的。
+
+   * Hidden Gate 和 Bridge Module
+
+     Hidden Gate 只是捕捉 mlp 中每一层 bit-wise 的权重，其实我感觉这里并没有什么用处。
+
+     相比之下 Bridge Module 能够融合 mlp 和 crossnet 输出的显式特征和隐式特征进行参数共享，让模型在 back propagation 的时候让梯度变缓；然后通过 regulation module 重新分配给 mlp 和 crossnet。
+
+   相形见绌，GateNet是灌水文章的嫌疑更大了。
 
 ## RS-Wiki
 
