@@ -1447,7 +1447,7 @@ select * from t where id = 1 in share mode; 	# 执行时间为 0.2 ms
 
 ![image-20220608204347477](database.assets/image-20220608204347477.png)
 
-<p style='text-align:center'>主备更新流程图</p>
+<p style='text-align:center' id='主备更新'>主备更新流程图</p>
 
 主库和备库之间是维持长连接的，两者之间事务日志同步流程为以下几个步骤：
 
@@ -1528,6 +1528,21 @@ mysqlbinlog master.000001 --start-position=2738 --stop-position=2973
 根据主备延迟有着不同主备切换策略：可靠性优先策略和可用性优先策略。
 
 一般情况下建议使用可靠性优先策略来保证数据的一致性，可用性优先策略用于救急。
+
+### 16. 备库并行复制
+
+对于备库偶发性的查询压力，对备库延迟的影响一般都是分钟级别的，但是如果备库执行日志的速度持续低于主库生成日志的速度，那么延迟就可能达到小时级别，压力较大的情况很可能备库永远跟不上主库的节奏。
+
+![image-20220608204347477](database.assets/image-20220608204347477.png)
+
+并行复制能力和图中 master 中 start->undolog 和 slave 中 sql_thread->Data执行中转日志的两部分有关。假如主库中使用多线程进行读写而备库中只使用单线程进行写入数据就导致严重的主备延迟，因此回来MySQL中引入了多线程复制。
+
+<img src="database.assets/image-20220610145035627.png" alt="image-20220610145035627" style="zoom:67%;" />
+
+MySQL 5.6之后 sql_thread 变成了 coordinator，只负责读取中转日志和分发事务，worker 线程用于真正跟新日志，worker 的数量是由 `slave_parallel_workers` 进行决定。coordinator 进行任务分发有两个基本要求：
+
+1. 不能造成更新覆盖，对于同样更新一行的两个事务，必须分发到同一个 worker 中
+2. 同一事务中的语句不能拆开，必须存放到同一个 worker 中。
 
 ## 其他
 
