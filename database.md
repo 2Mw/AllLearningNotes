@@ -1544,6 +1544,110 @@ MySQL 5.6之后 sql_thread 变成了 coordinator，只负责读取中转日志�
 1. 不能造成更新覆盖，对于同样更新一行的两个事务，必须分发到同一个 worker 中
 2. 同一事务中的语句不能拆开，必须存放到同一个 worker 中。
 
+### 17. 一主多从如何完成主备切换
+
+![image-20220611093439940](database.assets/image-20220611093439940.png)
+
+<p style='text-align:center'>一主多从基本结构</p>
+
+其中 A 和 A' 是互为主备关系，从库 BCD 是 A 的备库。当一主多从结构切换完成后，A' 称为新的主库，BCD 也需要重新指向新的主库，因此主备切换的复杂性增加了。
+
+![image-20220611094104018](database.assets/image-20220611094104018.png)
+
+🔵基于位点的主备切换
+
+当切换 master 的时候需要执行一条 `change master` 的命令：
+
+```sql
+change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PASSWORD=$pass MASTER_LOG_FILE=$log_file MASTER_LOG_POS=$log_pos
+```
+
+后两个参数记录的是主库的日志文件和日志偏移量。但是两个参数是怎么确定的？
+
+* 前者由于 A 和 A' 互为主备，日志文件都是相同的，后者偏移量很难精确获取到。
+
+在找位点的过程中要确保不能丢失数据，总要找到一个稍微考前的位点，然后跳过在库B上已经执行过的事务。
+
+一种取得同步位点的方法：
+
+1. 等待新主库 A' 把中转日志(relay log)全部同步完成
+
+2. 在 A' 库上执行 show master status 命令，获取到 A' 上最新的 File 和 position
+
+   ```sql
+   mysql> show master status;
+   +---------------+----------+--------------+------------------+-------------------+
+   | File       | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
+   +---------------+----------+--------------+------------------+-------------------+
+   | binlog.000039 |   156  |          |             |             |
+   +---------------+----------+--------------+------------------+-------------------+
+   ```
+
+3. 取原主库 A 故障时刻 T
+
+4. 使用 mysqlbinlog 工具来解析 A' 的日志文件得到 T 时刻的位点。
+
+   ```sql
+   mysqlbinlog File --stop-datetime=T --start-datetime=T
+   ```
+
+但是这个值并不精确，会存在以下这种情况：
+
+1. 在 T 时刻，主库 A 执行完成一个 insert 语句插入一行数据 R，将 binlog 传给 A' 和 B，然后 A 遭遇断电
+2. 在新主库 A' 上 R 这一行已经存在，日志是写在 Position 位置之后的
+3. 在备库 B 上执行 change master 命令，指向 A' 的 File 文件 Position 位置，就会把 R 这一行的数据又同步到备库 B 上执行
+4. 而这个时候 B 就会发送 `Duplicate entry` 发生主键冲突的错误，然后停止同步。
+
+通常情况下，在切换任务的时候要主动跳过这些错误：
+
+1. 每次碰到错误的时候停下来，执行一次跳过命令，直到不在出现停下来的情况为止。
+
+   ```sql
+   set global sql_salve_skip_counter=1;
+   start slave;
+   ```
+
+2. 设置 `slave_skip_errors` 参数，直接设置跳过指定的错误
+
+   常见的错误：
+
+   * 1062 插入数据时遇到唯一键错误
+   * 1032 删除数据时找不到对应行
+
+   ```SQL
+   # 在 my.cnt 中配置
+   slave_skip_errors=1062,1053
+   slave_skip_errors=all
+   slave_skip_errors=ddl_exist_errors
+   # 作为 mysql 启动参数的写法
+   --slave-skip-errors=1062,1053
+   --slave-skip-errors=all
+   --slave-skip-errors=ddl_exist_errors
+   ```
+
+🔵基于 GTID 的主备切换
+
+上述跳过事务和忽略错误的方法操作都很复杂并且很容易出错，MySQL 5.6 之后引入了 GTID。
+
+GTID(Global Transaction Identifier)，即全局事务 ID，是一个事务在提交的时候形成的，是这个事务的唯一标识，组成格式为：`GTID=server_uuid:gno`。
+
+GTID 启动参数：
+
+```sh
+# 在启动 MySQL 示例的时候加上参数
+mysql -u root -p --gtid_mode=on --enforce_gtid_consistency=on
+```
+
+在启动 GTID 后主备切换语句为：
+
+```sql
+change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PASSWORD=$pass master_auto_position=1
+```
+
+
+
+
+
 ## 其他
 
 ### 其他链接
