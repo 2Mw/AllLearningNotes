@@ -1544,7 +1544,7 @@ MySQL 5.6之后 sql_thread 变成了 coordinator，只负责读取中转日志�
 1. 不能造成更新覆盖，对于同样更新一行的两个事务，必须分发到同一个 worker 中
 2. 同一事务中的语句不能拆开，必须存放到同一个 worker 中。
 
-### 17. 一主多从如何完成主备切换
+### 17. 一主多从——主备切换
 
 ![image-20220611093439940](database.assets/image-20220611093439940.png)
 
@@ -1644,7 +1644,64 @@ mysql -u root -p --gtid_mode=on --enforce_gtid_consistency=on
 change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PASSWORD=$pass master_auto_position=1
 ```
 
+### 18. 一主多从——读写分离
 
+<img src="database.assets/image-20220611093439940.png" alt="image-20220611093439940" style="zoom:80%;" />
+
+<p style='text-align:center'>一主多从基本结构</p>
+
+一主多从是读写分离的一种结构，读写分离的目标是分摊主库的压力，但是上面这种结构负载均衡是由client进行决定，还有一种架构是在MySQL和客户端之间有一个中间代理层 proxy，客户端只连接 proxy，由 proxy 来根据请求类型和上下文决定请求分发的路由。
+
+![image-20220612164939864](database.assets/image-20220612164939864.png)
+
+<p style='text-align:center'>带proxy的读写分离架构</p>
+
+客户端直连和带 proxy 的读写分离架构特点：
+
+* 客户端直连方案查询性能稍好，整体架构简单；但是需要了解后端部署细节，比如在出现主备切换、库迁移的过程中时候客户端都会感知，一般采用 Zookeeper 来进行管理后端组件。
+* 带 proxy 架构对客户端比较友好，不需要关注后端细节。对后端维护团队要求较高需要有高可用架构，整体系统较为复杂。
+
+⭐由于主从之间存在延迟，客户端执行完一个更新事务之后马上发起查询，如果查询操作选择的是从库的话，就很有可能读取到事务更新之前的状态。
+
+> 从库中读取到系统过期的状态，暂定为“**过期读**”
+
+有几种处理过期读的方案：
+
+1. 强制走主库（简单并且使用最多）
+
+   将查询请求就行分类，一类是必须拿到最新结果的请求，则强制发到主库；另一类是可以读到旧数据的请求，可以发送到从库。
+
+2. sleep 方案（有点不靠谱）
+
+   大多数主备延迟都在 1s 左右，大概率会拿到最新的数据。
+
+3. 判断主备无延迟方案
+
+   * 在从库每次执行查询请求之前，先判断 seconds_behind_master 是否为 0，如果为 0 才执行查询请求。
+   * 使用 `show slave status` 来对比主从库的位点，Master_Log_File 和 Read_Master_Log_Pos 表示读到主库的最新位点，Relay_Master_Log_File 和 Exec_Master_Log_Pos 表示备库执行的最新位点。
+   * 使用 `show slave status` 来对比 GTID 集合，Auto_Position=1 表示主备关系使用了 GTID 协议，Retrieved_Gtid_Set 表示备库收到所有日志的 GTID 集合，Executed_Gtid_Set 表示已经执行完成的 GTID 集合，两个集合如果相同就表示已经同步完成。
+
+   但是还存在一个问题，上述判断主备无延迟是根据“备库收到日志都执行完成”，但是还有一部分日志，主库已经执行确认但是备库未收到日志的情况。
+
+4. 配合 semi-sync 方案
+
+   为了解决 3 中存在的问题，引入了**半同步复制**(semmi-sync replication)，主要设计为：
+
+   1. 在事务提交的时候，主库把 binlog 发送给从库
+   2. 从库收到 binlog 时候，返回主库 ack
+   3. 主库收到 ack 之后才给 client 返回事务完成的确认
+
+   启用 semi-sync 就表示所有发送给客户端发送过确认的事务都保证备库收到了这个日志。
+
+5. 等主库位点方案
+
+   * 使用 `show master status` 得到主库执行到的 File 和 Position
+   * 选定从库执行 `select master_pos_wait(File, Position, 1)`，等待从库同步主库 binlog 到指定位置
+   * 如果返回值 >= 0，则在从库执行查询语句；否则到主库执行查询语句。
+
+6. 等 GTID 方案
+
+   同方案 5 类似，执行等待同步语句为：`select wait_for_executed_gtid_set(gtid_set, 1)`
 
 
 
