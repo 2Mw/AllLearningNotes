@@ -1703,7 +1703,29 @@ change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PAS
 
    同方案 5 类似，执行等待同步语句为：`select wait_for_executed_gtid_set(gtid_set, 1)`
 
+### 19. 如何判断数据库是否出问题了
 
+方法：
+
+1. SELECT 1，这个不行。这个只能判断主库的进程存在，并不能说明主库没有问题。如果出现达到并发线程上限(`innodb_thread_concurrency`)是不能察觉的，这条语句依旧能正常执行。
+
+2. 查表判断，在系统库中创建一个表 `health_check`，`select * from mysql.health_check`，定期执行。但是不能检测空间满了的情况，比如更新事务要写 binlog，一旦 binlog 空间占用率达到 100%，那么所有更新语句和事务提交 commit 语句就会阻塞，但是读语句还是能正常执行。
+
+3. 更新判断：在 `health_check` 表中添加一个 timestamp 字段，用于表示最后一次执行检测的时间：
+
+   ```sql
+   update mysql.health_check set t=now();
+   ```
+
+   但是在主备都执行相同的更新命令可能会出现行冲突，从而导致主备同步停止。因此还需要添加一个 ID 字段，表示主备库的 serverID 为主键
+
+4. 使用 MySQL 内部发现问题的方法，使用库 `performance_schema`
+
+   ```sql
+   select * from performance_schema.file_summary_by_event_name where event_name='wait/io/file/innodb/innodb_log_file';
+   ```
+
+   
 
 ## 其他
 
