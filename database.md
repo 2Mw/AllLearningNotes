@@ -1725,7 +1725,40 @@ change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PAS
    select * from performance_schema.file_summary_by_event_name where event_name='wait/io/file/innodb/innodb_log_file';
    ```
 
-   
+
+### 20. 误删数据怎么办
+
+删除数据分为以下几类：
+
+1. 使用 delete 语句误删数据行
+
+   可以使用 Flashback 工具将数据恢复，使用这个方案的前提是确保 `binlog_format=row` 以及 `binlog_row_image=FULL`。
+
+   较为推荐的做法是恢复一个备份或者找一个从库作为临时库，在临时库上进行操作，确认后再恢复到主库。这种方法防止二次破坏。
+
+   对于事前预防要设置参数 `sql_safe_updates=on`，指定 delete 和 update 语句必须 where 条件语句。
+
+2. 使用 drop table 或者 truncate table 误删数据表
+
+   如果误删数据表就需要使用到**全量备份+增量日志**，这要求线上有定期的全量备份，并且实时备份 binlog。
+
+   假如有人在中午 12 点误删一个库，恢复流程如下：
+
+   * 取出最近一次全量备份，假设库是一天一备，上次备份的时间是 0 点
+   * 用全量备份恢复出一个临时库
+   * 从日志备份中取出 0 点以后的日志，将处理误删数据的语句全部应用到临时库
+
+3. 使用 drop database 误删数据库
+
+   搭建**延迟复制的备库**。一般主备复制结果存在问题就是主库表被删除，从库的表也会被删除。
+
+   延迟备库是一种特殊的备库，通过 `change master to master_delay=N`，可以指定备库持续保持跟主库有 N 秒的延迟。当在 N 秒之内发现误操作这个命令之后，就可以在备库上执行 `stop slave` 命令，跳过误操作命令，恢复出需要的数据。
+
+4. 使用 rm 命令误删整个 MySQL 实例
+
+   有其他实例的备份，不慌
+
+更多的方法就是预防误操作的风险：使用账号分离和指定操作规范。
 
 ## 其他
 
