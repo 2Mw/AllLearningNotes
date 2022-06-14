@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=121) P121
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=125) P125
 
 推荐网站：https://refactoringguru.cn/
 
@@ -2084,3 +2084,21 @@ classDiagram
 
 * 对于多个对象之间的关联起到了松散耦合的作用，不用像之前的“牵一发而动全身”
 * 可以对多个对象集中进行管理，一对多关系变为一对一的关系。
+
+### 8. 迭代器模式
+
+> 迭代器(Iterator)模式，提供一个对象来顺序访问聚合对象中的一系列数据，而且不暴露聚合对象的内部表示
+
+结构：
+
+* 抽象聚合(Aggregate)角色：定义存储、添加、删除聚合元素以及创建迭代器对象的接口。
+* 具体聚合(Concrete Aggregate)角色：实现抽象聚合类，返回具体迭代器的实例
+* 抽象迭代器(Iterator)角色：定义访问和遍历聚合元素的接口，通常包含 `hasNext()` 和 `next()` 方法。
+* 具体迭代器角色：实现抽象迭代器，完成对聚合对象的遍历并且记录当前位置。
+
+![image-20220614194813386](designpattern.assets/image-20220614194813386.png)
+
+特点：
+
+* 支持一不同的方式遍历一个聚合对象，满足开闭原则
+* 但是增加了类的个数，一定程度上增加了系统的复杂度
