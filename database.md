@@ -1760,6 +1760,56 @@ change master to MASTER_HOST=$host MASTER_PORT=port MASTER_USER=$user MASTER_PAS
 
 更多的方法就是预防误操作的风险：使用账号分离和指定操作规范。
 
+### 21. 为什么还有 kill 不掉的语句
+
+MySQL 中有两个 kill 命令：
+
+```sql
+kill query thread_id;
+kill connection thread_id;
+```
+
+> thread_id 可以通过 `show processlist` 命令获取
+
+MySQL 中的 kill 命令和 linux  中的 kill 命令类似，并不是让进程直接停止，而是给进程发送信号让其进入终止流程，比如对表进行CRUD的时候已经获取了MDL锁，如果强行停止会导致MDL锁无法释放。
+
+MySQL 中 kill 命令做了两件事：
+
+* 把对应连接的状态改为 `THE::KILL_QUERY`
+* 然后给连接的执行线程发送信号
+
+Kill 不掉的情况：
+
+1. 对应线程正在阻塞，并未执行
+2. 超大事务执行期间被 kill 需要进行回滚
+3. 大查询回滚，由于查询过程中生成了较大临时文件
+4. DDL 命令执行到最后阶段被 kill 也可能收到 IO 资源影响耗时较久。
+
+### 23. 多数据查询会不会OOM
+
+🔵全表扫描对 server 层的影响：
+
+比如执行一条语句，改表大小有 200G：
+
+```shell
+mysql -u root -p -e "select * from db.t" > file
+```
+
+收发数据流程如下：
+
+1. 获取一行数据，写到 `net_buffer` 中，buffer 大小由 `net_buffer_length` 定义，默认 16k
+2. 重复获取行，直到 `net_buffer` 写满然后调用网络接口发出去。
+3. 发送成功则清空 `net_buffer`，然后和继续写入发送
+4. 如果发送函数返回 `EAGAIN` 或者 `WSAEWOULDBLOCK`，就表示本地网络栈(socket send buffer)写满，进入等待直到网络栈重新可写
+
+![image-20220615133630996](database.assets/image-20220615133630996.png)
+
+从这个流程可以看出 `net_buffer_length` 和 `socket send buffer`(由 /proc/sys/net/core/wmem_dafault 指定) 并不会达到 200G，即 MySQL 是**边读边发**的，如果客户端接收慢，很有可能导致事务执行时间变长。
+
+🔵全表扫描对 innodb 层的影响：
+
+在 innodb 内部，有对大查询的淘汰策略，魔改了 LRU 算法，大查询不会导致内存暴涨。
+
 ## 其他
 
 ### 其他链接
