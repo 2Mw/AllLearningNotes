@@ -1810,6 +1810,50 @@ mysql -u root -p -e "select * from db.t" > file
 
 在 innodb 内部，有对大查询的淘汰策略，魔改了 LRU 算法，大查询不会导致内存暴涨。
 
+### 24. Join 的使用
+
+在多表查询的时候，MySQL优化器首先要确定以哪个表来基准，一般情况下哪个表的结果集更小就选择哪个表为驱动表，驱动表的定义为：
+
+1. 满足查询条件记录行数较少的表为驱动表
+2. left join / straight_join 最左表为驱动表
+
+```sql
+# 字段 a 为索引
+select * from t1 join t2 on (t1.a=t2.a)
+```
+
+Join 的执行流程：
+
+1. 从表 t1 中读取一行数据 R1
+2. 从数据行 R 中取出 a 字段到表 t2 中查找得到 R2（使用索引）
+3. 合并 R1，R2 直到查询完毕
+
+这个过程和嵌套查询类似，可以使用被驱动表的索引称为 `Index Nested-Loop Join` (NLJ)
+
+<img src="database.assets/image-20220616164618672.png" alt="image-20220616164618672" style="zoom:80%;" />
+
+
+
+Block Nested-Loop Join
+
+对于被驱动表上的字段没有使用索引时候：
+
+```sql
+# 字段 a 为索引，b 不是索引
+select * from t1 join t2 on (t1.a=t2.a)
+```
+
+<img src="database.assets/image-20220616171155915.png" alt="image-20220616171155915" style="zoom: 80%;" />
+
+对于被驱动表上没有可用的索引，算法流程为：
+
+1. 将表 t1 的数据读入到线程内存 join_buffer 中
+2. 扫描表 t2，将表 t2 中每一行读取出来，跟 join_buffer 中的数据进行对比，返回满足条件的数据
+
+扫面的行数是 $O(m+n)$，判断的次数时间复杂度为 $O(MN)$
+
+因此使用 join 语句的时候尽量使用 Index NLJ，Block NLJ 尽量不要使用。
+
 ## 其他
 
 ### 其他链接
