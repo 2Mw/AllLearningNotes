@@ -1893,7 +1893,12 @@ select * from t1 join temp_t on (t1.b=temp_t.b);
 
 ### 25. 临时表
 
-创建临时表：
+MySQL中临时表主要分为两类：
+
+* 内部临时表：一种是 information_schema 中的临时表；另一种执行会话中有 `using temporary` 的时候 
+* 外部临时表：是通过语句 create temporary table 来创建的临时表，仅在本会话有效，表定义文件为 `frm`
+
+创建外部临时表：
 
 ```sql
 create temporary table t () engine=innodb;
@@ -1907,7 +1912,7 @@ create temporary table t () engine=innodb;
 
 因此临时表很适合 join 优化的场景，不需要担心表名重复导致创建表失败，不需要担心数据删除问题，在 session 结束的时候临时表会被自动回收。
 
-🔵临时表的应用
+🔵外部临时表的应用
 
 一般分库分表场景，将逻辑上的大表分散到不同的数据库实例上。比如将一个大表 ht 按照字段 f 拆分为 1024 个分表，然后分布到 32 个数据库实例上：
 
@@ -1919,9 +1924,73 @@ create temporary table t () engine=innodb;
 
 ![image-20220618110234943](database.assets/image-20220618110234943.png)
 
-🔵临时表主备复制
+🔵外部临时表主备复制
 
 在 session 结束的时候，会对每个临时表进行 `Drop` 操作，当 binlog_format=statement/mixed 的时候，需要写入到 binlog 中。如果当前 binlog_format 格式为 row 的时候，就不会记录临时表的操作。
+
+🔵什么情况下会使用内部临时表
+
+1. union 执行流程
+
+   比如下面这条 sql 语句：
+
+   ```sql
+   (select 1000 as f) union (select id from t1 order by id desc limit 2);
+   ```
+
+   通过 explain 查看执行计划使用了 `Using temporary` 。
+
+   执行流程如下：
+
+   * 首先创建内存临时表，表中只有一个主键字段 f
+   * 执行第一个子查询，得到 1000 的值，并存入临时表中
+   * 执行第二个子查询，如果存在相同的行由于违反了主键唯一性约束插入失败；如果不存在相同的行则插入成功
+
+   <img src="database.assets/image-20220619120008275.png" alt="image-20220619120008275" style="zoom:67%;" />
+
+   可以看到内存临时表起到了暂存数据的作用，由于使用了临时主键表 id 的唯一性索引实现 union 的约束
+
+   当然如果使用 union all 的话就不需要使用临时表了。
+
+2. group by 执行流程
+
+   ```sql
+   select id%10 as m, count(*) as c from t1 group by m;
+   ```
+
+   使用 explain 查看可以看到 `Using index, Using temporary, Using filesort`，这条语句执行流程：
+
+   * 创建内存临时表，有两个字段 m 和 c，主键是 m
+   * 扫描表 t1 上的索引一次取出叶子节点上的 id 值，计算 id % 10 的结果，如果临时表中不存在则创建，存在则 +1。
+   * 遍历完毕之后根据字段 m 进行排序然后返回给客户端
+
+   <img src="database.assets/image-20220619122254782.png" alt="image-20220619122254782" style="zoom:80%;" />
+
+   如果你不想要排序，可以在末尾添加 `order by null`
+
+3. Group by 优化
+
+   不论使用内存临时表还是磁盘临时表， group by 逻辑都要使用带唯一索引的表，执行代价比较高。如果表的数据量比较大的话，执行 group by 语句执行就会很慢。
+
+   group by 语句为什么要使用临时表？group by 语句就是用来统计不同值出现的次数，但是由于每一行 id % 10 的结果是无序的就需要临时表来记录和统计计算结果。但是如果保证计算结果的数据是有序的就简单了。
+
+   * 索引优化
+
+     在 MySQL 5.7 之后支持了 generated column 机制，用来实现对列数据的关联更新，可以创建新的字段，来关联需要关注的字段：
+
+     ```sql
+     alter table t1 add column int generated always as (id%10\0), add index(z);
+     # 之后的 group by 语句可以改为：
+     select z, count(*) as c from t1 group by z;
+     ```
+
+     这个时候就既不需要排序，也不需要临时表了。
+
+   * 直接排序
+
+     但是不是所有的情况都适合加索引，假如一个表数据量河大，那么存放到内存临时表后还需要转成磁盘临时表，这看起来比较傻。可以直接选择走磁盘临时表，在 group by 语句中就是 `SQL_BIG_RESULT`，直接告诉优化器此表数据量大，直接使用磁盘临时表。
+
+
 
 ## 其他
 
