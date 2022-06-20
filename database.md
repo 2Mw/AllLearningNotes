@@ -1979,7 +1979,7 @@ create temporary table t () engine=innodb;
      在 MySQL 5.7 之后支持了 generated column 机制，用来实现对列数据的关联更新，可以创建新的字段，来关联需要关注的字段：
 
      ```sql
-     alter table t1 add column int generated always as (id%10\0), add index(z);
+     alter table t1 add column int generated always as (id%10), add index(z);
      # 之后的 group by 语句可以改为：
      select z, count(*) as c from t1 group by z;
      ```
@@ -1990,7 +1990,35 @@ create temporary table t () engine=innodb;
 
      但是不是所有的情况都适合加索引，假如一个表数据量河大，那么存放到内存临时表后还需要转成磁盘临时表，这看起来比较傻。可以直接选择走磁盘临时表，在 group by 语句中就是 `SQL_BIG_RESULT`，直接告诉优化器此表数据量大，直接使用磁盘临时表。
 
+### 26. Memory 引擎
 
+![image-20220620191320846](database.assets/image-20220620191320846.png)
+
+<p style='text-align:center'>Memory 引擎数据组织方式</p>
+
+InnoDB 的数据组织方式是 B+ 树，Memory 引擎中数据和索引存储是分开的，数据单独存放，索引上保存数据的位置，这种组织方式称为**堆组织表**(Heap Organized Table)。
+
+两者有以下几点不同：
+
+1. InnoDB 表数据总是有序存放的，而内存表是按照写入顺序存放的
+2. 当数据文件有空洞的时候，InnoDB表为了保证数据有序性旨在固定位置写入新值；而内存表找到空位就可以插入新值，即插入的新值会替换上一个被删除数据的位置。
+3. 数据位置发生变化的时候，InnoDB 只需要修改主键索引，内存表需要修改所有的索引。
+
+内存表也是支持B树索引的，SQL 语句如下：
+
+```sql
+alter table t1 add index a_index using btree(id);
+```
+
+但是不建议在生产环境上使用内存表，原因有以下两个方面：
+
+1. 锁粒度问题
+
+   内存表不支持行锁，只支持表锁。因此当一张表有更新的时候就会堵住其他所有在这个表上的读写操作。
+
+2. 数据持久化问题
+
+   当数据库重启的时候，所有内存表都会被清空。
 
 ## 其他
 
