@@ -2039,7 +2039,25 @@ alter table t1 add index a_index using btree(id);
 1. 插入数据时候遇到唯一键冲突，数据没有插入成功但是自增键会增加
 2. 事务回滚也会出现不连续自增键的出现
 
+### 28. Insert 语句为什么锁很多
 
+🔵Insert...Select
+
+这里的 insert 语句指的是较为复杂的 insert 语句，比如 insert...select 语句，比如语句：
+
+```sql
+insert into t2(c,d) select c,d from t;
+```
+
+insert 循环写入只会对需要访问的资源进行上锁，对其他数据不上锁。
+
+🔵Insert唯一键冲突，导致死锁
+
+![image-20220622222715884](database.assets/image-20220622222715884.png)
+
+* 在 t1 时刻，启动是 session A 执行 insert 语句，此时在索引 C = 5 上加了记录锁。（为唯一索引，next-key lock 退化为记录锁）
+* 在 t2 时候，session B 执行相同的 insert 语句，发现唯一键冲突，加上读锁；同样 session C 也有读锁。
+* t3 时刻，session A 回滚，B 和 C 都继续执行插入操作，都要加上写锁，两个 session 都要等待对方释放锁导致死锁。
 
 ## 其他
 
