@@ -2059,6 +2059,38 @@ insert 循环写入只会对需要访问的资源进行上锁，对其他数据�
 * 在 t2 时候，session B 执行相同的 insert 语句，发现唯一键冲突，加上读锁；同样 session C 也有读锁。
 * t3 时刻，session A 回滚，B 和 C 都继续执行插入操作，都要加上写锁，两个 session 都要等待对方释放锁导致死锁。
 
+### 29. 怎么最快复制一张表
+
+* mysqldump，将数据导出成一组sql语句
+
+  ```sql
+  mysqldump -h $host -p port -u user --add-locks=0 --no-create-info --single-transaction  -set-gtid-purged=off --databases db_1 --result-file=dump.sql
+  ```
+
+  --no-create-info 表示不需要导出表结构
+
+  --add-locks=0 表示不增加 LOCK TABLES T WRITE 语句
+
+  插入数据：
+
+  ```sql
+  mysql db2 -e "source t.sql"
+  ```
+
+* 导出 CSV 文件
+
+  ```sql
+  select * from db1.t where a>900 into outfile '/server_tmp/t.csv';
+  ```
+
+  导入数据：
+
+  ```sql
+  load data infile 't.csv' into table db.t;
+  ```
+
+* 可传输表空间
+
 ## 其他
 
 ### 其他链接
