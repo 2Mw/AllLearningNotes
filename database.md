@@ -2091,6 +2091,46 @@ insert 循环写入只会对需要访问的资源进行上锁，对其他数据�
 
 * 可传输表空间
 
+### 30. Grant 后要跟 flush privileges 吗
+
+> grant 语句后需要执行 flush privileges 才能生效吗？
+
+查看用户权限语句：
+
+```sql
+select * from mysql.user where user='user';
+```
+
+存储用户权限的数据会存放在磁盘和内存中，如果磁盘和内存中数据不一致的时候就需要执行 `flush privileges` 语句防止出现奇怪的情况。
+
+MySQL中用户权限分为几种：
+
+* 全局权限
+
+  赋予和收回最高权限语句：
+
+  ```sql
+  grant all privileges on *.* to 'user'@'%' with grant option;
+  revoke all privileges on *.* from 'user'@'%';
+  ```
+
+* db 权限
+
+  即只给某个数据库的权限：
+
+  ```sql
+  grant all privileges on db1.* to 'user'@'%' with grant option;
+  ```
+
+* 表权限和列权限
+
+  ```sql
+  grant all privileges on db1.t1 to 'ua'@'%' with grant option;
+  GRANT SELECT(id), INSERT (id,a) ON mydb.mytbl TO 'ua'@'%' with grant option;
+  ```
+
+  
+
 ## 其他
 
 ### 其他链接
