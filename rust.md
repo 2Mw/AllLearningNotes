@@ -2,6 +2,8 @@
 
 书籍：[Rust 程序设计语言](https://kaisery.github.io/trpl-zh-cn/title-page.html)
 
+[TOC]
+
 ## 一. 准备
 
 ### 1. 安装Rust
@@ -373,6 +375,187 @@ fn main() {
 
 fn use_String(st : String) {
     println!("{}", st);
+}
+```
+
+### 5. 引用与借用
+
+如果想在上述函数与所有权中还能继续使用字符串，应该使用引用。使用引用不改变所有权而且运行使用。
+
+```rust
+fn main() {
+    let s = String::from("Hello");
+    use_string(&s);
+    println!("{}", s);
+}
+
+fn use_string(s : &String) {
+    println!("{}", s);
+}
+```
+
+可变引用，如果想要对引用的值进行修改：
+
+```rust
+fn main() {
+    let mut s = String::from("Hello");
+    change(&mut s);
+    println!("{}", s);
+}
+
+fn change(s : &mut String) {
+    s.push_str(", good");
+}
+```
+
+但是同一时间同一作用域只能有一个对数据的可变引用：
+
+```rust
+let mut s = String::from("hello");
+
+let r1 = &mut s;
+let r2 = &mut s;	// 编译错误
+```
+
+这种方法可以避免数据竞争，数据竞争由三种行为造成：
+
+* 两个或多个指针同时访问同一个数据
+* 至少有一个指针被用来写入数据
+* 没有同步数据访问的机制
+
+也不能在同一作用域中同时声明可变和不可变引用。
+
+```rust
+let mut s = String::from("hello");
+
+let r1 = &s; // 没问题
+let r2 = &s; // 没问题
+let r3 = &mut s; // 大问题
+```
+
+正确使用：
+
+```rust
+let mut s = String::from("hello");
+
+let r1 = &s; // 没问题
+let r2 = &s; // 没问题
+println!("{} and {}", r1, r2);
+// 此位置之后 r1 和 r2 不再使用
+
+let r3 = &mut s; // 没问题
+println!("{}", r3);
+```
+
+悬垂引用(Dangling References)，在具有指针的语言中，很可能会出现变量内存已释放但是它的指针仍存在，生成的悬垂指针，比如下例子。
+
+```rust
+fn dangle() -> &String { // dangle 返回一个字符串的引用
+
+    let s = String::from("hello"); // s 是一个新字符串
+
+    &s // 返回字符串 s 的引用
+} // 这里 s 离开作用域并被丢弃。其内存被释放。
+  // 危险！
+```
+
+正确的做法：
+
+```rust
+fn no_dangle() -> String {
+    let s = String::from("hello");
+
+    s
+}
+```
+
+变量的所有权被转移出去，因此值没有被释放。
+
+### 6. slice 类型
+
+slice运行引用集合中一段连续的元素序列而不是整个集合，没有元素的所有权。
+
+```rust
+fn main() {
+    let mut s = String::from("Hello, world");
+    let hello = &s[0..5];
+    let h = &s[..5];
+    let w = &s[6..];
+    let all = &s[..];
+    print!("{}, {}, {}, {}", hello, h, w, all);
+}
+```
+
+类型 `&str` 就是一个 slice。
+
+### 7. 结构体
+
+结构体的定义与创建：
+
+```rust
+fn main() {
+    let mut u1 = User {
+        username: String::from("Nick"),
+        email: String::from("nick@email.com"),
+        age: 66,
+    };
+
+    println!("User info: name:{}, email:{}, age:{}", u1.username, u1.email, u1.age);
+
+    u1.email = String::from("nick@gmail.com");
+    print!("New Email: {}", u1.email);
+}
+```
+
+使用字段简写语法：
+
+```rust
+fn build_user(email: String, username: String) -> User {
+    User {
+        email,		// email 字段名和参数名相同
+        username,	// 字段名和参数名相同
+        active: true,
+        sign_in_count: 1,
+    }
+}
+```
+
+简写二：
+
+```rust
+struct User {
+    active: bool,
+    username: String,
+    email: String,
+    sign_in_count: u64,
+}
+
+fn main() {
+    // --snip--
+
+    let user1 = User {
+        email: String::from("someone@example.com"),
+        username: String::from("someusername123"),
+        active: true,
+        sign_in_count: 1,
+    };
+
+    let user2 = User {
+        email: String::from("another@example.com"),
+        ..user1
+    };
+}
+```
+
+匿名结构体（元组结构体）：
+
+```rust
+struct Color(i32, i32, i32);
+struct Point(i32, i32, i32);
+
+fn main() {
+    let black = Color(0, 0, 0);
+    let origin = Point(0, 0, 0);
 }
 ```
 
