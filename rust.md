@@ -559,3 +559,128 @@ fn main() {
 }
 ```
 
+打印结构体角色：
+
+```rust
+#[derive(Debug)]
+struct User {
+    username: String,
+    email: String, 
+    age: i32,
+}
+
+
+fn main() {
+    let mut u1 = User {
+        username: String::from("Nick"),
+        email: String::from("nick@email.com"),
+        age: 66,
+    };
+
+    print!("{:?}\n\n", &u1);
+    print!("{:#?}", &u1);
+    dbg!(&u1);
+}
+
+//User { username: "Nick", email: "nick@email.com", age: 66 }
+
+//User {
+//    username: "Nick",
+//    email: "nick@email.com",
+//    age: 66,
+//}
+
+[src\main.rs:18] &u1 = User {
+    username: "Nick",
+    email: "nick@email.com",
+    age: 66,
+}
+```
+
+为结构体定义方法：
+
+```rust
+struct User {
+    username: String,
+    email: String, 
+    age: i32,
+}
+
+impl User {
+    fn getAge(&self) -> i32 {
+        return self.age;
+    }
+}
+```
+
+### 8. 枚举与模式匹配
+
+一般枚举类型：
+
+```rust
+#[derive(Debug)]
+enum IPType {
+    v4, v6(String),v8{x:i32, y:i32}
+}
+
+impl IPType {
+    fn p(&self) {
+        println!("ME");
+    }
+}
+
+fn main() {
+    let a = IPType::v4;
+    dbg!(&a);
+    let b = IPType::v6(String::from("::1"));
+    dbg!(&b);
+    let c = IPType::v8 { x: 1, y: 2 };
+    dbg!(&c);
+    c.p();
+}
+```
+
+可以支持不同参数类型，以及支持结构体。
+
+## 三. 测试
+
+### 1. 如何编写测试
+
+需要在模块上标注 `#[cfg(test)]` 和 `#[test]` 注解，可以使用宏函数 `assert*!` 等来进行判断。
+
+```rust
+#[derive(Debug)]
+struct User {
+    username: String,
+    email: String, 
+    age: i32,
+}
+
+impl User {
+    fn getAge(&self) -> i32 {
+        return self.age;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn get_user() {
+        let u = User {
+            username: "Nick".to_string(),
+            email: "abce@qq.com".to_string(),
+            age: 12
+        };
+        dbg!(&u);
+    }
+
+    #[test]
+    fn test_add () {
+        let a = 4;
+        let b = 6;
+        assert_eq!(a+b, 11);
+    }
+}
+```
+
