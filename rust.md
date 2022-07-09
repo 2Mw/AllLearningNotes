@@ -642,7 +642,360 @@ fn main() {
 
 可以支持不同参数类型，以及支持结构体。
 
-## 三. 测试
+🔵Option 枚举
+
+Option 枚举广泛应用在要么有值要么空值。Rust 中没有很多语言存在的空值功能，Rust 使用 `Option<T>` 类型来进行处理空值问题，Option 中含有两部分：`None` 和 `Some<T>` 。
+
+```rust
+enum Option<T> {
+    None,
+    Some(T),
+}
+```
+
+两者都是 Option 枚举类型，Some 可以包含特定类型的数值，None 需要指定类型。
+
+然而 `Option<T>` 和 `T` 类型无法进行运算，因此需要函数 `unwrap()` 进行转换。
+
+```rust
+fn test_option() {
+    let a: Option<i32> = None;
+    let b = Some(5);
+    assert_eq!(a.is_none(), true);
+    assert_eq!(b.unwrap()+1, 6);
+}
+```
+
+### 9. Match 流程控制
+
+相当于 switch 语句，如果像匹配剩余其他选项，则可以指定将值赋给一个变量，即这里的 other 变量。
+
+```rust
+fn test_match() {
+    #[derive(Debug)]
+    enum LoveType {
+        Male, FeMale, Lesibian, Gay, Bisexual, Transexual, Queer, Other
+    }
+
+    let a = LoveType::Gay;
+    let res = match a {
+        LoveType::Male => 1,
+        LoveType::FeMale => 2,
+        other => {
+            println!("What fucking is this {:?}", other);
+            666
+        }
+    };
+    dbg!(res);
+}
+```
+
+如果不想转移变量的所有权，则使用 `_` 进行替代。
+
+对于 Option 类型的变量，使用以下 match 进行匹配：
+
+```rust
+#[test]
+fn test_option2() {
+    let a = Some(5);
+    let x = match a {
+        Some(i) => Some(i+5),
+        None => Some(666)
+    };
+
+    dbg!(x);
+}
+```
+
+对于 Option 类型的变量必须匹配 None 类型。
+
+### 10. if let 简单控制流
+
+```rust
+let coin = Coin::Penny;
+let mut count = 0;
+if let Coin::Quarter(state) = coin {
+    println!("State quarter from {:?}!", state);
+} else {
+    count += 1;
+}
+```
+
+## 三. 使用包、Crate和模块管理
+
+Rust 的模块系统包含以下几个部分：
+
+- **包**（*Packages*）： Cargo 的一个功能，它允许你构建、测试和分享 crate。
+- **Crates** ：一个模块的树形结构，它形成了库或二进制项目。
+- **模块**（*Modules*）和 **use**： 允许你控制作用域和路径的私有性。
+- **路径**（*path*）：一个命名例如结构体、函数或模块等项的方式
+
+### 1. 包和 crate
+
+crate 是一个二进制项或者库。Crate Root 是一个源文件，Rust 编译器以它为起点，并且构成 crate 的根目录。
+
+包中所包含的内容由几条规则来确立。保重最多包含一个库 crate(Library crate)，包中可以包含任意多个二进制 crate（至少一个）。
+
+对于新创建的项目目录：
+
+* `src/main.rs` 就是一个与包名同名的二进制根 crate。 
+* `src/lib.rs` 是与包名相同的根库 crate
+* `src/bin/*.rs` 是每个文件可以编译为一个二进制 crate。
+
+如果同时包含上述两者，则有两个 crate，一个二级制 crate 和库 crate，名字都与包名相同，包名在 `Cargo.toml` 文件中的 name 指定。
+
+### 2. 模块和路径
+
+模块可以将 crate 中的代码进行分组，来提高可读性和重用性。模块还可以控制访问权限，决定公有(public)还是私有(private)。Rust 中默认所有项都是私有的，但是子模块可以使用父模块中的项。
+
+```rust
+// Restaurant
+mod front {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+
+        fn seat_at_table() {}
+    }
+
+    mod serving {
+        fn take_order() {}
+
+        fn serve_order() {}
+
+        fn take_payment() {}
+    }
+}
+
+pub fn eat() {
+    // absolute
+    crate::front::hosting::add_to_waitlist();
+    // relative
+    front::hosting::add_to_waitlist();
+}
+
+```
+
+模块中可以保留结构体、枚举、常量、trait以及函数等。
+
+为了引用某一项，就需要使用路径的方式来对其进行访问，路径有两种方式：
+
+* 绝对路径：从 crate 根开始，以 crate 名或者字面值 `crate` 开头
+* 相对路径：从当前模块开始，以 `self`, `super` 或者当前模块的标识符开头
+
+对于调用父类的方法，可以使用 `use` 或者 `super` 方式来进行调用：
+
+```rust
+pub fn eat() {
+    // absolute
+    crate::front::hosting::add_to_waitlist();
+    // relative
+    front::hosting::add_to_waitlist();
+}
+
+// 方式1
+mod back {
+    fn cook() {
+        super::eat();
+    }
+}
+
+// 方式2
+mod back {
+    use crate::eat;
+
+    fn cook() {
+        eat()
+    }
+}
+```
+
+`super` 关键字的作用相当于文件系统中的 `..` 来标识上一级。
+
+### 3. use 关键字
+
+上述调用的方式都比较冗长而且重复，不方便编写代码。
+
+```rust
+mod front {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+fn easy_eat() {
+    // 方式1
+    use front::hosting;
+    // 方式2
+    use self::front::hosting;
+    hosting::add_to_waitlist();
+}
+```
+
+如果不同子模块名称相同冲突，可以使用 `as` 关键字提供新的名称。
+
+```rust
+use std::fmt::Result;
+use std::io::Result as IoResult;
+
+fn function1() -> Result {
+    // --snip--
+}
+
+fn function2() -> IoResult<()> {
+    // --snip--
+}
+```
+
+使用 `pub use` **重导出**名称
+
+对于嵌套模块中的引用，为了防止引用链过长，可以将 `pub use` 联合进行使用，称为重导出(re-exporting)。
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub use crate::front_of_house::hosting;
+```
+
+如果需要引入很多定义于相同包或者模块的项时候，每次单独列出一行会占用很大空间：
+
+```rust
+// 之前
+use std::cmp::Ordering;
+use std::io;
+// 之后
+use std::{cmp::Ordering, io};
+```
+
+也可以将一个路径下**所有**项引入作用域：
+
+```rust
+use std::collections::*;
+```
+
+### 4. 拆分成多个文件模块
+
+将模块分成不同的文件，方便代码阅读。将上述的 front 模块存放到 front.rs 中：
+
+src/front.rs 文件中内容为：
+
+```rust
+// Restaurant
+pub mod hosting {
+    pub fn add_to_waitlist() {}
+
+    fn seat_at_table() {}
+}
+
+mod serving {
+    fn take_order() {}
+
+    fn serve_order() {}
+
+    fn take_payment() {}
+}
+```
+
+src/lib.rs 中引用 front 内容：
+
+```rust
+mod front;	// 用于加载同名文件中的模块
+
+use crate::front::hosting;
+
+pub fn eat() {
+    hosting::add_to_waitlist();
+}
+```
+
+## 四. 常见集合
+
+在本章将了解 Rust 中常用的集合：
+
+- Sequences: [`Vec`](https://doc.rust-lang.org/std/vec/struct.Vec.html), [`VecDeque`](https://doc.rust-lang.org/std/collections/struct.VecDeque.html), [`LinkedList`](https://doc.rust-lang.org/std/collections/struct.LinkedList.html)
+- Maps: [`HashMap`](https://doc.rust-lang.org/std/collections/hash_map/struct.HashMap.html), [`BTreeMap`](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html)
+- Sets: [`HashSet`](https://doc.rust-lang.org/std/collections/hash_set/struct.HashSet.html), [`BTreeSet`](https://doc.rust-lang.org/std/collections/struct.BTreeSet.html)
+- Misc: [`BinaryHeap`](https://doc.rust-lang.org/std/collections/struct.BinaryHeap.html)
+
+### 1. Vector
+
+vector 的基本使用如下：
+
+```rust
+#[cfg(test)]
+mod test_vector {
+    #[test]
+    fn t1() {
+        // 创建一个空的 vector
+        let v1:Vec<i32> = Vec::new();
+        // 使用宏进行创建不为空的 vector
+        let mut v2 = vec![1,2,3];
+        // 添加元素到末尾
+        v2.push(4);
+        // 删除末尾元素
+        v2.pop();
+        // 获取元素
+        print!("{}\n", v2[0]);
+        // get 方法获取 option
+        if let Some(a) = v2.get(10) {
+            println!("{}", a);
+        } else {
+            // None 值
+            println!("The value is None");
+        }
+        // 遍历
+        for i in &v2 {
+            println!("{}.", i);
+        }
+        println!("=============");
+        // 遍历修改
+        for i in &mut v2 {
+            *i += 2;
+            println!("{}.", i);
+        }
+    }
+}
+```
+
+建议使用 `get()` 方法来获取元素，修改元素的时候需要 `*` 就该引用的值。
+
+vector 中的借用检查错误案例：
+
+```rust
+#[test]
+fn t2() {
+    let mut v2 = vec![1,2,3];
+    let first = &v2[0];
+    println!("{}", first);
+    v2.push(1);
+    println!("{}", first);
+}
+```
+
+发生错误的原因：当获取不可变引用之后，对vector进行修改之后再次尝试使用这个不可变引用会发生错误。因为 vector 在增加新元素的时候，如果没有一次相邻元素存放的情况下，可能需要重新分配新内存并且将老元素拷贝到新的空间中。因此第一个元素的引用就指向了被释放的内存。
+
+使用枚举存储多种类型的值：
+
+```rust
+enum SpreadsheetCell {
+    Int(i32),
+    Float(f64),
+    Text(String),
+}
+
+let row = vec![
+    SpreadsheetCell::Int(3),
+    SpreadsheetCell::Text(String::from("blue")),
+    SpreadsheetCell::Float(10.12),
+];
+```
+
+
+
+## . 测试
 
 ### 1. 如何编写测试
 
