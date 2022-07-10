@@ -993,9 +993,372 @@ let row = vec![
 ];
 ```
 
+### 2. 字符串
 
+创建字符串：
 
-## . 测试
+```rust
+#[test]
+fn t1() {
+    // 创建空的 String
+    let mut s = String::new();
+    // 创建非空 String
+    let mut s = String::from("Hello world");
+    let mut s1 = "Good Night".to_string();
+    s1.push_str("_小狗");
+    println!("{}", s1);
+    // 拼接
+    let s2 = format!("{}--{}", s, s1);  // 不会获取所有权
+    let s3 = s + &s1;
+    println!("{}", s2);
+    println!("{}", s3);
+}
+```
+
+需要注意函数是否会获取字符串的所有权。
+
+对于 `+` 运算符，实际上是调用了 `fn add(self, s: &str) -> String` 函数，其中 self 没有添加引用，因此会转移所有权，s 是 slice 类型，并且使用的 Deref 强制转化(deref coercion)技术，将 `&String` 类型强转为 `&str` 类型。
+
+Rust 中 String 类型不支持索引，String 类型其实是 `Vec<u8>` 的封装。String 类型的长度不是字符的数量，而是使用 UTF-8 所需要的字节数。如果偏要索引，则需要转为 `&str` 的 slice 类型进行索引操作。
+
+```rust
+#[test]
+fn t2 () {
+    let s1 = "你好,世界".to_string();
+    println!("{}-- len:{}", &s1[0..3], s1.len());
+}
+// 输出
+//你-- len:13
+```
+
+其中每个中文占3个字节，如果索引改为 `[0..1]` 就会报错无效的索引。
+
+遍历字符串的方法：
+
+```rust
+// 遍历每个字符
+for c in s1.chars() {
+    println!("{}", c);
+}
+println!("==============");
+// 遍历每个字节
+for b in s1.bytes() {
+    println!("{}", b);
+}
+// 输出
+你
+好
+,
+世
+界
+==============
+228
+189
+160
+229
+165
+189
+44
+228
+184
+150
+231
+149
+140
+```
+
+### 3. HashMap
+
+创建 Hashmap
+
+```rust
+#[test]
+fn t1() {
+    // 构建方式 1
+    let mut score = HashMap::new();
+    score.insert("a".to_string(), 1);
+    score.insert("bs".to_string(), 2);
+    // 构建方式 2
+    let teams = vec!['a', 'b'];
+    let scores = vec![10, 50];
+    let maps: HashMap<_, _> = teams.into_iter().zip(scores).collect();
+}
+```
+
+访问 map 中的值：
+
+```rust
+let mut score = HashMap::new();
+score.insert("a".to_string(), 1);
+score.insert("bs".to_string(), 2);
+// 获取值
+let key = "abc".to_string();
+let v = score.get(&key);
+if let Some(v1) = v {
+    println!("Value is {}.", v1);
+} else {
+    println!("The key is not exists.");
+}
+// 遍历map
+for (k, v) in &score {
+    println!("{}--{}",k,v);
+}
+```
+
+## 五. 错误处理
+
+Rust 中的错误分为**可恢复的**（*recoverable*）和 **不可恢复的**（*unrecoverable*）错误。
+
+大多数语言不区分这两种错误，采用异常同一处理。Rust 中有 `Result<T, E>` 类型用于处理可恢复的错误，`panic!` 宏用于处理不可恢复的错误。
+
+### 1. panic
+
+当遇到 panic 的时候，程序默认会**展开** (unwinding)，这意味着 Rust 会回溯栈并且清理它遇到每一个函数的数据。另一种选择是**终止** (abort)，这个不会清理就退出程序。
+
+如果你需要项目最终的二进制文件越小越好，panic 会通过 `Cargo.toml` 的 `[profile]` 部分增减 `panic = 'abort'` 由此可以将展开切换为终止。在 release 中panic终止可以设置：
+
+```toml
+[profile.release]
+panic = 'abort'
+```
+
+设置 panic：
+
+```rust
+panic!("Something panic!.");
+```
+
+可恢复的错误：
+
+```rust
+#[test]
+fn t2() {
+    let f = File::open("E:/Notes/rust/code/hello-rust/src/bin/add.rs");
+    let f = match f {
+        Ok(file) => file,
+        Err(err) => panic!("Open file error: {}", err)
+    };
+}
+```
+
+匹配不同类型的错误：
+
+```rust
+#[test]
+fn t3() {
+    let f = File::open("add.rs");
+    let f = match f {
+        Ok(file) => file,
+        Err(err) => match err.kind() {
+            ErrorKind::NotFound => {
+                panic!("File not find");
+            },
+            other => {
+                panic!("Other error: {}", other)
+            }
+        }
+    };
+}
+```
+
+🔵panic 的简写：unwrap 和 expect
+
+使用 match 有点冗长不好表达意图。
+
+* `unwrap()` 如果 `Result` 返回的是 `OK`，`unwrap` 返回的是 `OK` 里的值。如果是 `Err` 则会自动调用 `panic!`
+
+  ```rust
+  #[test]
+  fn t4() {
+      let f = File::open("add.txt").unwrap();
+      println!("Open success {:?}", f);
+  }
+  ```
+
+* `expect()` 方法与 `unwrap()` 类似，它还可以允许自定义错误信息：
+
+  ```rust
+  #[test]
+  fn t5() {
+      let f = File::open("add.rs").expect("Failed OOOOOOOOOOPs");
+      println!("Open success {:?}", f);
+  }
+  ```
+
+🔵传播错误
+
+```rust
+fn main() {
+    use std::fs::File;
+    use std::io::{self, Read};
+
+    fn read_username_from_file() -> Result<String, io::Error> {
+        let f = File::open("hello.txt");
+
+        let mut f = match f {
+            Ok(file) => file,
+            Err(e) => return Err(e),
+        };
+
+        let mut s = String::new();
+
+        match f.read_to_string(&mut s) {
+            Ok(_) => Ok(s),
+            Err(e) => Err(e),
+        }
+    }
+}
+```
+
+传播错误的简写形式： `?` 运算符
+
+```rust
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+继续缩短：
+
+```rust
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+### 2. 什么时候 panic
+
+1. 实例、代码原型和测试非常适合 panic
+2. 比编译器知道的更多时候
+3. 错误指导原则
+4. 自定义类型的有效性验证
+
+## 六. 泛型、trait和生命周期
+
+### 1. 泛型
+
+函数泛型
+
+```rust
+fn largest<T>(list: &[T]) -> &T {
+    if list.len() == 0 {
+        panic!("Length error");
+    }
+    let ret = &list[0];
+    ret
+}
+```
+
+结构体泛型：
+
+```rust
+struct Point<T> {
+    x: T,
+    y: T,
+}
+
+impl<T> Point<T> {
+    fn x(&self) -> &T {
+        &self.x
+    }
+}
+
+struct Point2<T, U> {
+    x: T,
+    y: U,
+}
+
+fn main() {
+    let integer = Point { x: 5, y: 10 };
+    let float = Point { x: 1.0, y: 4.0 };
+    
+    let both_integer = Point2 { x: 5.0, y: 10 };
+    let both_float = Point2 { x: 1.0, y: 4.0 };
+    let integer_and_float = Point2 { x: 5, y: 4.0 };
+}
+```
+
+枚举中的泛型：
+
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+
+### 2. trait
+
+trait 用于告诉 rust 编译器某个特定类型拥有可能与其他类型共享的功能。类似接口(interfaces)的功能。
+
+```rust
+pub trait Person {
+    fn walk(&self);
+    fn eat(&self, food: String);
+    fn live() {
+        println!("Living");
+    }
+}
+
+pub struct Batman {
+    name: String,
+    age: i32,
+}
+
+impl Person for Batman {
+    fn walk(&self) {
+        println!("Batman is walking");
+    }
+
+    fn eat(&self, food: String) {
+        println!("Batman({}) is eating {}", self.name, food);
+    }
+}
+
+fn main() {
+    let a = Batman {
+        name: "Johny".to_string(),
+        age: 22,
+    };
+
+    a.eat("Hamburger".to_string());
+}
+```
+
+trait 中可以定义默认实现，子结构体可以选择实现或者不实现。
+
+trait 也可以作为参数，可以传入众多子实现结构体。
+
+```rust
+fn call(p: &impl Person) {
+    p.walk();
+}
+```
+
+如果函数参数需要实现多个trait的时候，需要使用 `+` 将其拼接起来：
+
+```rust
+pub fn notify(item: &(impl Summary + Display)) {}
+fn returns_summarizable() -> impl Summary {}
+```
+
+还可以：
+
+```rust
+fn some_function<T, U>(t: &T, u: &U) -> i32
+    where T: Display + Clone,
+          U: Clone + Debug
+{}
+```
+
+### 3. 生命周期和引用有效性
+
+## 七. 测试
 
 ### 1. 如何编写测试
 
