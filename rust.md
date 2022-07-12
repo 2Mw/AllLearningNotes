@@ -186,10 +186,6 @@ fn main() {
   a[0] = 1;
   ```
 
-
-
-
-
 ### 2. 函数
 
 语句与表达式，函数有一系列语句和一个可选表达式构成，Rust是一门基于表达式的语言。语句是执行操作不返回值的指令，表达式是计算并产生一个值，注意**末尾没有分号**。
@@ -1358,6 +1354,54 @@ fn some_function<T, U>(t: &T, u: &U) -> i32
 
 ### 3. 生命周期和引用有效性
 
+函数中泛型生命周期：
+
+```rust
+fn main() {
+    let string1 = String::from("abcd");
+    let string2 = "xyz";
+
+    let result = longest(string1.as_str(), string2);
+    println!("The longest string is {}", result);
+}
+
+fn longest(x: &str, y: &str) -> &str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+我们不需要 `longest` 函数获取参数的所有权，但是这段代码会报错：
+
+```
+help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `x` or `y`
+help: consider introducing a named lifetime parameter
+  |
+9 | fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+  |        ++++   ++         ++       ++
+```
+
+因为 rust 不知道将要返回的引用是指向 x 还是指向 y，并且我们也不知道。我们无法确定变量的声明周期，因此我们需要增加泛型生命周期参数来定义引用间的关系以便**借用检查器**可以进行分析。
+
+🔵生命周期注解语法：
+
+生命周期注解不改变任何引用的生命周期长短。当指定了生命周期后的函数也能接受任何生命周期的引用，声明周期描述了多个引用生命周期相互的关系。
+
+生命周期参数名称必须以撇号（`'`）开头，其名称通常全是小写，类似于泛型其名称非常短。`'a` 是大多数人默认使用的名称。生命周期参数注解位于引用的 `&` 之后，并有一个空格来将引用类型与生命周期注解分隔开。
+
+比如：
+
+```rust
+&i32        // 引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+```
+
+用于标注 rust 多个引用的泛型生命周期是如何关联的。如果两个引用都被 `'a` 所修饰，就表示两个变量的泛型生命周期存在的一样久。
+
 ## 七. 测试
 
 ### 1. 如何编写测试
@@ -1400,3 +1444,335 @@ mod tests {
 }
 ```
 
+使用 `assert!()` `assert_eq!()` 宏来进行判断：
+
+```rust
+assert_eq!(1, 1+1, "Not equal with {}", x);
+assert!(result.contains("Carol"), "contain name, value was `{}`", result);
+```
+
+🔵使用 `should_panic` 检查 panic：
+
+还应该检查代码是否按照期望处理错误。添加 `#[should_panic]` 来实现存在 panic 的时候会通过，没有 panic 的时候会失败。
+
+```rust
+#[test]
+#[should_panic]
+fn greater_than_100() {
+    Guess::new(200);
+}
+```
+
+也可以添加帮助信息：
+
+```rust
+#[test]
+#[should_panic(expected = "Guess value must be less than or equal to 100")]
+fn greater_than_100() {
+    Guess::new(200);
+}
+```
+
+🔵将 `Result<T, E>` 用于测试
+
+```rust
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() -> Result<(), String> {
+        if 2 + 2 == 4 {
+            Ok(())
+        } else {
+            Err(String::from("two plus two does not equal four"))
+        }
+    }
+}
+```
+
+### 2. 控制测试运行
+
+并行或者连续运行测试，当运行多个测试的时候，rust 会默认使用现存并行运行。
+
+如果不希望并行运行测试，或者想要更加精确的控制线程的数量，可以设置如下：
+
+```sh
+cargo test -- --test-threads=1
+```
+
+🔵显示函数输出
+
+默认情况下，使用 `cargo test` 命令 rust 会拦截打印到标准输出。
+
+可以使用 `--show-output` 来显示输出。
+
+```sh
+cargo test -- --show-output
+```
+
+🔵指定名字来运行部分测试
+
+```sh
+cargo test add
+```
+
+这个会运行名字中包含 `add` 的测试。
+
+🔵忽略部分测试
+
+可以通过标注 `#[ignore]` 来进行忽略测试：
+
+```rust
+#[test]
+#[ignore]
+fn expensive_test() {
+    // 需要运行一个小时的代码
+}
+```
+
+使用 `cargo test` 会自动跳过这些测试。
+
+如果希望只允许被忽略的测试，可以使用：
+
+```sh
+cargo test -- --ignored
+```
+
+### 3. 测试的组织结构
+
+测试主要分为两类：单元测试和集成测试。单元测试更小而且更集中；集成测试相当于进行黑盒测试。
+
+🔵单元测试
+
+单元测试的目的就是在与其他部分隔离的情况下测试每一个单元的代码，以便于快速而且准确的判断某个单元的代码是否符合预期。
+
+单元测试和要测试的代码共同存放在  src 目录下相同的文件中。规范就是在包含测试函数的 `tests` 模块，并且使用 `cfg(test)` 进行标注。
+
+```rust
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
+```
+
+🔵集成测试
+
+编写集成测试需要创建同 `src` 同级的 `tests` 目录
+
+```rust
+use adder;
+
+#[test]
+fn it_adds_two() {
+    assert_eq!(4, adder::add_two(2));
+}
+```
+
+指定特定的集成测试：
+
+```sh
+cargo test --test integration_test
+```
+
+## 八. 函数式编程
+
+- **闭包**（*Closures*），一个可以储存在变量里的类似函数的结构
+- **迭代器**（*Iterators*），一种处理元素序列的方式
+
+### 1. 闭包
+
+函数 -> 闭包：
+
+```rust
+// 函数
+fn simulated_expensive_calculation(intensity: u32) -> u32 {
+    println!("calculating slowly...");
+    thread::sleep(Duration::from_secs(2));
+    intensity
+}
+```
+
+将其转为闭包：
+
+```rust
+let expensive_closure = |num| {
+    println!("calculating slowly...");
+    thread::sleep(Duration::from_secs(2));
+    num
+};
+```
+
+一对 `|` 之间包裹的是闭包的参数，比如：`|param1, param2|`。
+
+如果只有一行就不需要进行大括号。
+
+```rust
+fn main() {
+    // 方式 1
+    let f = |x: i32| x+1;
+    dbg!(f(3));
+    // 方式 2
+    let f1 = |a: isize, b: isize| {
+        let c = a + b;
+        println!("{} + {} = {}", a, b, c);
+        c
+    };
+    dbg!(f1(2,3));
+    // 方式 3，参数类型和返回类型都指定
+    let gmin = |a: isize, b: isize| -> f32 {(a-b) as f32};
+    dbg!(gmin(1,3));
+}
+```
+
+### 2. Fn trait 闭包
+
+用于存放和调用闭包的结构体。这种结构体会在需要结果的时候执行闭包并且缓存结果。剩下的代码不必再复杂保存结果并且可以复用该值。这种称为**惰性求值**。
+
+```rust
+struct Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    calculation: T,
+    value: Option<u32>,
+}
+
+impl<T> Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    fn new(calculation: T) -> Cacher<T> {
+        Cacher {
+            calculation,
+            value: None,
+        }
+    }
+
+    fn value(&mut self, arg: u32) -> u32 {
+        match self.value {
+            Some(v) => v,
+            None => {
+                let v = (self.calculation)(arg);
+                self.value = Some(v);
+                v
+            }
+        }
+    }
+}
+```
+
+在此处 Cacher 中的 Calculation 类型被指定为输入为 `u32` 输出为 `u32` 的闭包泛型，其中的结构体实现举例的泛型闭包的使用方法。
+
+其他的 `Fn` trait：
+
+- `FnOnce` 消费从周围作用域捕获的变量，闭包周围的作用域被称为其 **环境**，*environment*。为了消费捕获到的变量，闭包必须获取其所有权并在定义闭包时将其移动进闭包。其名称的 `Once` 部分代表了闭包不能多次获取相同变量的所有权的事实，所以它只能被调用一次。
+- `FnMut` 获取可变的借用值所以可以改变其环境
+- `Fn` 从其环境获取不可变的借用值
+
+### 3. 迭代器
+
+迭代器模式允许你对一个序列进行某些处理。在 Rust 中迭代器是**惰性的**，这意味着在调用方法使用迭代器之前不会起任何效果。
+
+迭代器都实现 `Iterator` 的 trait，定义类似于：
+
+```rust
+pub trait Iterator {
+    type Item;
+    fn next(&mut self) -> Option<Self::Item>;
+    // 此处省略了方法的默认实现
+}
+```
+
+获取迭代器：
+
+```rust
+// 获取迭代器(元素引用不可变)
+let mut iter = l.iter();
+// 获取迭代器(元素引用可变)
+let mut iter_mut = l.iter_mut();
+```
+
+获取到的迭代器必须是可变的，由于需要改变序列位置的信息，因此必须要 `mut` 进行修饰。
+
+默认 `iter()` 方法获取到的元素是不可变引用，如果想要获取可变引用就需要使用 `iter_mut()` 方法。
+
+🔵消费迭代器：
+
+```rust
+let s: isize = iter.sum();
+```
+
+使用 `map` 方法：
+
+```rust
+let v1: Vec<i32> = vec![1, 2, 3];
+let v2: Vec<_> = v1.iter().map(|x| x + 1).collect();
+assert_eq!(v2, vec![2, 3, 4]);
+```
+
+❗注意这里必须要添加 `collect()` 方法，因为 rust 中迭代器是惰性的，不会自动生成结果，需要使用 `collect()` 方法后才会创建新的结果。
+
+使用 `filter` 方法：
+
+```rust
+fn shoes_in_size(shoes: Vec<Shoe>, shoe_size: u32) -> Vec<Shoe> {
+    shoes.into_iter().filter(|s| s.size == shoe_size).collect()
+}
+```
+
+🔵循环 VS 迭代器
+
+所有这些 Rust 能够提供的优化使得结果代码极为高效。现在知道这些了，请放心大胆的使用迭代器和闭包吧！他们使得代码看起来更高级，但并不为此引入运行时性能损失。
+
+## 九. Cargo 和 Crates.io 
+
+### 1. 发布配置
+
+```sh
+cargo build
+cargo build --release
+```
+
+两者编译器使用不同的配置，对于 `Cargo.toml` 中未明确配置的时候，Cargo 会采取默认配置：
+
+```toml
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+```
+
+### 2. 将 Crate 发布到 Crates.io
+
+编写有用的文档注释：文档注释通常使用三个斜杠 `///` 来支持 Markdown 注解来格式化文本。
+
+```rust
+/// Adds one to the number given.
+///
+/// # Examples
+///
+/// ```
+/// let arg = 5;
+/// let answer = my_crate::add_one(arg);
+///
+/// assert_eq!(6, answer);
+/// ```
+pub fn add_one(x: i32) -> i32 {
+    x + 1
+}
+```
+
+可以使用 `Cargo doc --open` 生成文档。
+
+还有另一种风格的文档注释：`//!` ，通常用于 Crate 根文件或者模块的跟文件来提供文档。
+
+剩余发布见：[将 crate 发布到 Crates.io](https://kaisery.github.io/trpl-zh-cn/ch14-02-publishing-to-crates-io.html#创建-cratesio-账号)
+
+### 3. Cargo 工作空间
+
+随着项目开发的深入，库 crate 会持续增大，会拆分为多个库 crate。对于这种情况 Cargo 提供了一种**工作空间**(workspaces) 的功能，能够帮助管理多个相关协同开发的包。
+
+工作空间是一系列共享同学的 Cargo.lock 和输出目录的包。
