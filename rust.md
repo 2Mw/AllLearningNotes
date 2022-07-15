@@ -1997,6 +1997,100 @@ fn main() {
 
 使用克隆会增加引用的数量，使用 `Rc::strong_count` 来获取当前的计数。
 
+### 3. RefCell\<T>和内部可变性模式
+
+内部可变性(interior mutability)是 rust 中一种设计模式，即使在有不可变引用情况下也可以改变数据。使用 `unsafe` 代码来模糊 rust 通常的可变性和借用规则。
+
+`RefCell` 产生的错误类型是运行时错误，不是编译错误。其只适用于**单线程**场景。
+
+`RefCell<T>` 允许在运行时执行可变借用检查，所以可以在 `RefCell<T>` 自身不可变的情况下修改内部的值。
+
+```rust
+fn main() {
+    let x = 5;
+    // 发送错误
+    let y = &mut x;
+}
+```
+
+🔵内部可变性的例子：mock 对象
+
+在创建不可变和可变引用分别使用 `&` 和 `&mut` 语法。对于 `RefCell<T>` 来说，则是 `borrow` 和 `borrow_mut` 方法，这属于 `RefCell<T>` 安全 API 的一部分。
+
+* `borrow` 方法返回 `Ref<T>` 类型的智能指针
+
+* `borrow_mut` 方法返回 `RefMut<T>` 类型的智能指针。
+
+```rust
+pub trait Messenger {
+    fn send(&self, msg: &str);
+}
+
+struct MockMessenger {
+    sent_messages: Vec<String>,
+}
+
+impl Messenger for MockMessenger {
+    fn send(&self, message: &str) {
+        // 这里会报错
+        self.sent_messages.push(String::from(message));
+    }
+}
+```
+
+因为如果在实现 `send` 方法中将 `&self` 改成可变引用，那么就不符合 `Messenger` trait 的要求了。因此就需要使用到 `RefCell<T>` 类型了。
+
+```rust
+struct MockMessenger {
+    sent_messages: RefCell<Vec<String>>,
+}
+
+impl MockMessenger {
+    fn new() -> MockMessenger {
+        MockMessenger {
+            sent_messages: RefCell::new(vec![]),
+        }
+    }
+}
+
+impl Messenger for MockMessenger {
+    fn send(&self, message: &str) {
+        self.sent_messages.borrow_mut().push(String::from(message));
+    }
+}
+```
+
+和先前学习的引用规则相同，同一时刻作用域内只允许有多个不可变引用或者单个可变引用。否则会在运行时 panic。
+
+🔵结合 `Rc<T>` 和 `RefCell<T>` 拥有多个可变数据所有者：
+
+```rust
+#[derive(Debug)]
+enum List {
+    Cons(Rc<RefCell<i32>>, Rc<List>),
+    Nil,
+}
+
+use crate::List::{Cons, Nil};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+fn main() {
+    let value = Rc::new(RefCell::new(5));
+
+    let a = Rc::new(Cons(Rc::clone(&value), Rc::new(Nil)));
+
+    let b = Cons(Rc::new(RefCell::new(3)), Rc::clone(&a));
+    let c = Cons(Rc::new(RefCell::new(4)), Rc::clone(&a));
+
+    *value.borrow_mut() += 10;
+
+    println!("a after = {:?}", a);
+    println!("b after = {:?}", b);
+    println!("c after = {:?}", c);
+}
+```
+
 ## 十一. 无畏并发
 
 本章将要涉及到的内容：
@@ -2169,3 +2263,235 @@ fn main() {
 🔵`sync` 运行多线程访问
 
 `Sync` 标记 trait 表明实现了 `Sync` 的类型可以安全的在多个线程中拥有其值的引用。
+
+## 十二. 模式与模式匹配
+
+结合使用模式和 `match` 表达式以及其他结构可以提供更多对程序控制流的支配权。模式由如下一些内容组合而成：
+
+- 字面值
+- 解构的数组、枚举、结构体或者元组
+- 变量
+- 通配符
+- 占位符
+
+### 1. 模式的位置
+
+match 分支：
+
+```rust
+match VALUE {
+    PATTERN => EXPRESSION,
+    PATTERN => EXPRESSION,
+    PATTERN => EXPRESSION,
+}
+```
+
+特定的模式 `_` 可以匹配所有情况，而不绑定任何变量。
+
+if let 表达式：
+
+```rust
+fn main() {
+    let favorite_color: Option<&str> = None;
+    let is_tuesday = false;
+    let age: Result<u8, _> = "34".parse();
+
+    if let Some(color) = favorite_color {
+        println!("Using your favorite color, {}, as the background", color);
+    } else if is_tuesday {
+        println!("Tuesday is green day!");
+    } else if let Ok(age) = age {
+        if age > 30 {
+            println!("Using purple as the background color");
+        } else {
+            println!("Using orange as the background color");
+        }
+    } else {
+        println!("Using blue as the background color");
+    }
+}
+```
+
+while let 条件循环：
+
+```rust
+fn main() {
+    let mut stack = Vec::new();
+
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+
+    while let Some(top) = stack.pop() {
+        println!("{}", top);
+    }
+}
+```
+
+let 语句
+
+```rust
+fn main() {
+    let (x, y, z) = (1, 2, 3);
+}
+```
+
+函数参数：
+
+```rust
+fn print_coordinates(&(x, y): &(i32, i32)) {
+    println!("Current location: ({}, {})", x, y);
+}
+
+fn main() {
+    let point = (3, 5);
+    print_coordinates(&point);
+}
+```
+
+### 2. 模式可反驳性
+
+模式分为两种形式：可反驳的和不可反驳的。任何匹配传递可能值的模式都是不可反驳的。
+
+```rust
+// 不可反驳的
+let x = 5;
+// 可反驳的，因为可能为 None
+if let Some(x) = a;
+```
+
+* 函数参数、 `let` 语句和 `for` 循环只能接受不可反驳的模式，因为通过不匹配的值程序无法进行有意义的工作。
+* `if let` 和 `while let` 表达式被限制为只能接受可反驳的模式
+
+```rust
+fn main() {
+    let some_option_value: Option<i32> = None;
+    // 使用不可反驳强行接受可反驳，会编译错误
+    let Some(x) = some_option_value;
+    // 使用可反驳接受不可反驳，编译器会发出警告
+    if let x = 5 {
+        println!("{}", x);
+    };
+}
+```
+
+### 3. 其他匹配模式
+
+多个模式匹配：
+
+```rust
+fn main() {
+    let x = 1;
+
+    match x {
+        1 | 2 => println!("one or two"),
+        3 => println!("three"),
+        _ => println!("anything"),
+    }
+}
+```
+
+通过 `..` 匹配范围：
+
+```rust
+let x = 5;
+
+match x {
+    1..=5 => println!("one through five"),
+    _ => println!("something else"),
+}
+// char 类型
+let x = 'c';
+
+match x {
+    'a'..='j' => println!("early ASCII letter"),
+    'k'..='z' => println!("late ASCII letter"),
+    _ => println!("something else"),
+}
+```
+
+解构结构体：
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p = Point { x: 0, y: 7 };
+
+    let Point { x: a, y: b } = p;
+    assert_eq!(0, a);
+    assert_eq!(7, b);
+}
+```
+
+解构结构体简写形式：
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p = Point { x: 0, y: 7 };
+
+    match p {
+        Point { x, y: 0 } => println!("On the x axis at {}", x),
+        Point { x: 0, y } => println!("On the y axis at {}", y),
+        Point { x, y } => println!("On neither axis: ({}, {})", x, y),
+    }
+}
+```
+
+使用 `_v` 来忽略未使用的变量：
+
+```rust
+fn main() {
+    let _x = 5;	// 忽略 rust 未使用变量的警告
+    let y = 10;
+}
+```
+
+使用 `..` 忽略剩余值：
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+    z: i32,
+}
+
+let origin = Point { x: 0, y: 0, z: 0 };
+
+match origin {
+    Point { x, .. } => println!("x is {}", x),
+}
+```
+
+忽略2：
+
+```rust
+let numbers = (2, 4, 8, 16, 32);
+
+match numbers {
+    (first, .., last) => {
+        println!("Some numbers: {}, {}", first, last);
+    }
+}
+```
+
+匹配守卫：
+
+```rust
+let num = Some(4);
+
+match num {
+    Some(x) if x < 5 => println!("less than five: {}", x),
+    Some(x) => println!("{}", x),
+    None => (),
+}
+```
+
