@@ -2129,7 +2129,16 @@ MySQL中用户权限分为几种：
   GRANT SELECT(id), INSERT (id,a) ON mydb.mytbl TO 'ua'@'%' with grant option;
   ```
 
-  
+
+### 31. 自增ID用完怎么办？
+
+无符号整型(unsigned int)是4个字节(2^32^-1)，应该将id设置为8个字节的 bigint unsigned
+
+如果没有创建主键，InnoDB表会指定长度为6字节的row_id。
+
+1. 表的自增 id 达到上限后，再申请时它的值就不会改变，进而导致继续插入数据时报主键冲突的错误。
+
+2. row_id 达到上限后，则会归 0 再重新递增，如果出现相同的 row_id，后写的数据会覆盖之前的数据。
 
 ## 其他
 
