@@ -647,7 +647,7 @@
 
 原文：CHEN B, WANG Y, LIU Z, et al. Enhancing Explicit and Implicit Feature Interactions via Information Sharing for Parallel Deep CTR Models[C]//Proceedings of the 30th ACM International Conference on Information & Knowledge Management.2021:3757-3766. 
 
-简介：EDCN 网络是华为技术团队提出的与模型无关的基于并行架构的推荐算法，该算法主要分为两个主要的模块：Bridge Module 和 Regulation Module，分别用于解决大多并行架构存在的 Embedding 过度共享问题以及中间层(比如crossnet和mlp)之间显式特征与隐式特征之间参数共享不足的问题，bridge module 负责将中间层每一层的输出进行融合参数共享，regulation module 负责。作者将这两个模块应用到众多并行架构网络上发现在 DCN 网络上改进效果较优，因此称为 EDCN。
+简介：EDCN 网络是华为技术团队提出的与模型无关的基于并行架构的推荐算法，该算法主要分为两个主要的模块：Bridge Module 和 Regulation Module，分别用于解决大多并行架构存在的 Embedding 过度共享问题以及中间层(比如crossnet和mlp)之间显式特征与隐式特征之间参数共享不足的问题，bridge module 负责将中间层每一层的输出进行融合参数共享，regulation module负责将重新融合后的信息选择分别训练不同的特征数据后再分发给并行架构。作者将这两个模块应用到众多并行架构网络上发现在 DCN 网络上改进效果较优，因此称为 EDCN。
 
 关键词：推荐系统；CTR 预测；
 
@@ -685,6 +685,45 @@
      相比之下 Bridge Module 能够融合 mlp 和 crossnet 输出的显式特征和隐式特征进行参数共享，让模型在 back propagation 的时候让梯度变缓；然后通过 regulation module 重新分配给 mlp 和 crossnet。
 
    相形见绌，GateNet是灌水文章的嫌疑更大了。
+
+### 2207
+
+#### MaskNet
+
+原文：Wang Z, She Q, Zhang J. MaskNet: introducing feature-wise multiplication to CTR ranking models by instance-guided mask[J]. arXiv preprint arXiv:2102.07619, 2021.
+
+#### FiBiNet
+
+原文：Huang T, Zhang Z, Zhang J. FiBiNET: combining feature importance and bilinear feature interaction for click-through rate prediction[C]//Proceedings of the 13th ACM Conference on Recommender Systems. 2019: 169-177.
+
+### 2208
+
+#### DIN
+
+![image-20220816084441744](PaperReading.assets/image-20220816084441744.png)
+
+原文：Zhou G, Zhu X, Song C, et al. Deep interest network for click-through rate prediction[C]//Proceedings of the 24th ACM SIGKDD international conference on knowledge discovery & data mining. 2018: 1059-1068.
+
+简介：DIN 网络是由阿里巴巴团队提出的类注意力机制算法，其注意力机制体现在 Embedding 中多值特征下的池化，根据训练目标广告与用户行为历史数据的权重，有效提取中与目标广告相关度较高的特征。作者还提出两种训练技巧，一是使用新型的激活函数 PReLU 和 Dice 来进行模型训练，由于先前大部分工作使用的硬折点(Hard Rectified Point)都是 0，使用 Dice 可以动态调整折点；而是使用 Mini-Batch Aware Regularization (MBA) 正则化来防止过拟合，由于使用的特征具有显著的“**长尾效应**”，即很多feature id只出现了几次，只有小部分feature id出现多次，这在训练过程中增加了很多噪声，并且**加重了过拟合**，而 MBA 算法可以针对长尾效应做出有效的解决方案，并且可以很大程度上减少 L2 正则化的计算复杂度。
+
+关键词：推荐系统；CTR 预测；
+
+数据集：
+
+1. Amazon(Electro)
+2. Movie-Lens
+3. Alibaba dataset
+
+解决的问题：
+
+1. 解决原先工作中存在的多值特征定长的问题，可以对特征进行灵活处理
+2. 使用 PReLU 和 Dice 新型激活函数动态调整折点，更适应不同数据的分布。
+3. 使用 MBA 算法解决数据集中特征存在的长尾效应，解决过拟合问题。
+
+我的评价：
+
+1. 这篇文章提出了很多开创性的工作，比如 Dice 激活函数，MBA 正则化算法以及 GAUC 的评估方式都在很多实际生产应用中实践，非常值得学习和复现。
+2. 这篇文章的模型算不上复杂，但是其对比的流行数据集较少，比如 Avazu，Criteo等数据集。
 
 ## RS-Wiki
 
