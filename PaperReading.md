@@ -706,7 +706,7 @@
 
 简介：DIN 网络是由阿里巴巴团队提出的类注意力机制算法，其注意力机制体现在 Embedding 中多值特征下的池化，根据训练目标广告与用户行为历史数据的权重，有效提取中与目标广告相关度较高的特征。作者还提出两种训练技巧，一是使用新型的激活函数 PReLU 和 Dice 来进行模型训练，由于先前大部分工作使用的硬折点(Hard Rectified Point)都是 0，使用 Dice 可以动态调整折点；而是使用 Mini-Batch Aware Regularization (MBA) 正则化来防止过拟合，由于使用的特征具有显著的“**长尾效应**”，即很多feature id只出现了几次，只有小部分feature id出现多次，这在训练过程中增加了很多噪声，并且**加重了过拟合**，而 MBA 算法可以针对长尾效应做出有效的解决方案，并且可以很大程度上减少 L2 正则化的计算复杂度。
 
-关键词：推荐系统；CTR 预测；
+关键词：推荐系统；CTR 预测；点击率预测；
 
 数据集：
 
@@ -724,6 +724,26 @@
 
 1. 这篇文章提出了很多开创性的工作，比如 Dice 激活函数，MBA 正则化算法以及 GAUC 的评估方式都在很多实际生产应用中实践，非常值得学习和复现。
 2. 这篇文章的模型算不上复杂，但是其对比的流行数据集较少，比如 Avazu，Criteo等数据集。
+
+### M5
+
+![图片](PaperReading.assets/640.png)
+
+原文：[多模态多兴趣多场景技术在Disney流媒体推荐召回中的应用](https://mp.weixin.qq.com/s/5d7hXEY1tPmCjqCT2CiZiA)
+
+简介：多模态多兴趣多场景（Multi-Modal Multi-Interest Multi-Scenario Matching，M5）技术的召回模型
+
+关键词：推荐系统；召回模型；
+
+数据集：
+
+我的评价：
+
+1. 现代推荐系统通常遵循“召回-粗排-精排-重排”的多阶段级联范式。找回是作为推荐系统的最底层，找回阶段通常会从候选集合中检索相对少量的相关内容提供给后续阶段进行更细粒度的排序。因此找回阶段决定了总体候选集合的质量，是推荐系统的瓶颈。
+2. 早期采用协同过滤的方式进行召回，现大多使用**[双塔模型](https://zhuanlan.zhihu.com/p/358781457)**进行召回。双塔模型分别生成 user 和 item 的 embedding 向量，并且通过内积等方式计算用户对视频的偏好。线上推理阶段工业界采用最近邻检索等方法根据 user embedding 从视频库中检索最相似的视频。双塔模型可以有效利用用户和视频中丰富的特征，捕捉复杂的特征交互提升个性化，允许高效的检索。
+3. 文中还提到使用多模态 Embedding：即使用普通的 id embedding 和 cg(content graph) embedding ，后者是采用与图神经网络结合的 embedding 方法，使用 word2vec 以及 GraphSAGE 训练得到 cg embedding。
+4. 对于 transformer 导致模型过大的处理，文章在输出上添加 Masked-Language-Modeling(MLM) 模块，随机 mask 掉一部分用户的行为，在 self-attention 模块的输出端对这些 mask 进行重建，性能会得到显著提升并且 scaling 策略也能为模型带来持续的优化。
+5. 在多场景融合方面使用 SMoE 以及场景 id 辨别场景之间的不同。
 
 ## RS-Wiki
 
