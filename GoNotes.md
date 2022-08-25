@@ -1775,15 +1775,17 @@ func main() {
 }
 ```
 
-
-
-### 上下文context
+## Context
 
 >上下文 context.Context是Go 语言中用来设置截止日期、同步信号，传递请求相关值的结构体。
 
 [Go 语言并发编程与 Context](https://draveness.me/golang/docs/part3-runtime/ch06-concurrency/golang-context/)
 
-<h4>context.Context结构体</h4>
+[Go组件：context学习笔记与源码阅读](https://mp.weixin.qq.com/s/OCpVRwtiphFRZgu9zdae5g)
+
+### 为什么需要 context？
+
+Context 最重要的功能是：取消、超时、附加值。
 
 ```go
 type Context interface {
@@ -1799,42 +1801,100 @@ type Context interface {
 * `Err` — 返回 context.Context 结束的原因，它只会在 Done 方法对应的 Channel 关闭时返回非空的值；如果 context.Context 被取消，会返回 Canceled 错误；如果 context.Context 超时，会返回 DeadlineExceeded 错误；
 * `Value`— 从 context.Context 中获取键对应的值，对于同一个上下文来说，多次调用 Value 并传入相同的 Key 会返回相同的结果，该方法可以用来传递请求特定的数据；
 
+### Context 基础用法
+
+1. 创建 Context
+
+   ```go
+   // 创建父级 Context
+   ctx := context.TODO()
+   ctx := context.Background()
+   ```
+
+   这两个方法返回的 context 内容都是一样的，一般用作父 Context
+
+2. context 的类型
+
+   ```go
+   func WithCancel(parent Context) (ctx Context, cancel CancelFunc)
+   context.WithCancel()
+   
+   func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)
+   context.WithTimeout()
+   
+   func WithDeadline(parent Context, d time.Time) (Context, CancelFunc)
+   context.WithDeadline()
+   
+   func WithValue(parent Context, key, val any) Context
+   context.WithValue()
+   ```
+
+3. `WithCancel()` 根据传入的 context 生成子 context 和一个取消函数。这个函数相当重要，当父 context 有相关取消操作，或者之间调用 cancel 函数的话，子 context 会被取消。
+
+   一般操作比较耗时或者涉及远程调用等，都会在输入参数里带上一个ctx，当遇到某种条件，比如程序出错，就取消掉子 Context ，这样子 Context 绑定的协程也可以跟着退出。
+
+   ```go
+   func Do(ctx context.Context, ...) {
+     ctx, cancel := context.WithCancel(parentCtx)
+     
+     // 实现某些业务逻辑
+     
+     // 当遇到某种条件，比如程序出错，就取消掉子Context，这样子Context绑定的协程也可以跟着退出
+     if err != nil {
+       cancel()
+     }
+   }
+   ```
+
+4. `WithTimeout()`，这个函数一般是给 Context 附加一个超时控制，当超时的时候可以从 `ctx.Done()` 返回的 Channel 中读取到值，协程可以通过这个方式判断执行时间是否满足时间。
+
+   模板代码：
+
+   ```go
+   
+   // 一般操作比较耗时或者涉及远程调用等，都会在输入参数里带上一个ctx，这也是公司代码规范里提倡的
+   func Do(ctx context.Context, ...) {
+     ctx, cancel := context.WithTimeout(parentCtx)
+     
+     // 实现某些业务逻辑
+   
+     for {
+       select {
+        // 轮询检测是否已经超时
+         case <-ctx.Done():
+           return
+         // 有时也会附加一些错误判断
+         case <-errCh:
+           cancel()
+         default:
+       }
+     }
+   }
+   ```
+
+5. `WithDeadline()`，用于在截止时间取消函数
+
+6. `WithValue()`，用于保存一些链路追踪信息，比如 API 服务中会有来保存一些来源 IP，请求参数等。
+
+   grpc-go 里的 metadata 就使用这个方法将结构体存储在 ctx 里。
+
+   ```go
+   func NewOutgoingContext(ctx context.Context, md MD) context.Context {
+       return context.WithValue(ctx, mdOutgoingKey{}, rawMD{md: md})
+   }
+   ```
+
+### Context 的特征
+
+1. 树型结构，每次调用WithCancel, WithValue, WithTimeout, WithDeadline 实际是为当前节点在追加子节点。
+2. 继承性：如果某个节点取消，其对应的字数也会全部取消
+3. 多样性：不同节点之间可以是不同 context 的实现，因此每个节点会附带不同的功能。
+
+
+
+
+
 <h4>使用context同步信号</h4>
-
-```go
-func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	go handle(ctx, 500*time.Millisecond)	// ctx时限为1s，设置请求时间为500ms
-	select {
-	case <-ctx.Done():
-		fmt.Println("main", ctx.Err())
-	}
-}
-
-func handle(ctx context.Context, duration time.Duration) {
-	select {
-	case <-ctx.Done():
-		fmt.Println("handle", ctx.Err())
-	case <-time.After(duration):
-		fmt.Println("process request with", duration)
-	}
-}
-
-// 输出
-/*
-process request with 500ms
-main context deadline exceeded
-*/
-
-// 当请求时间为1500ms的时候
-
-/*
-main context deadline exceeded
-handle context deadline exceeded
-*/
-```
 
 上下文 `context.Context` 在 Go 语言中用来设置截止日期、同步信号，传递请求相关值的结构体。
 
@@ -1872,11 +1932,10 @@ handle context deadline exceeded
    2022/05/07 21:01:41.536615 Start
    2022/05/07 21:01:44.567277 process request with 3s
    2022/05/07 21:01:46.574656 main context deadline exceeded
-   复制代码
    ```
-
+   
    可见五秒后输出定时结果。
-
+   
 2. 使用 context 实现父子协程之间的同步中断
 
    ```go
@@ -1919,11 +1978,10 @@ handle context deadline exceeded
          }
       }
    }
-   复制代码
    ```
-
+   
    输出：
-
+   
    ```
    2022/05/07 21:17:05 Father is working
    2022/05/07 21:17:05 Son is working
@@ -3786,6 +3844,32 @@ func init() {
 ### Viper
 
 > 可以将传入的参数写入到配置文件中，并且下次可读取。
+
+## Kitex
+
+Kitex 字节跳动内部的 Golang 微服务 RPC 框架，具有**高性能**、**强可扩展**的特点，在字节内部已广泛使用。如果对微服务性能有要求，又希望定制扩展融入自己的治理体系，Kitex 会是一个不错的选择。
+
+有以下几个特点：
+
+* 使用自研的高性能网络库 [Netpoll](https://github.com/cloudwego/netpoll)，性能相较 go net 具有显著优势。
+
+* RPC 消息协议默认支持 **Thrift**、**Kitex Protobuf**、**gRPC**。Thrift 支持 Buffered 和 Framed 二进制协议；Kitex Protobuf 是 Kitex 自定义的 Protobuf 消息协议，协议格式类似 Thrift；gRPC 是对 gRPC 消息协议的支持，可以与 gRPC 互通。除此之外，使用者也可以扩展自己的消息协议。
+
+### 安装准备
+
+首先需要安装代码生成工具：
+
+安装 kitex 和 thriftgo
+
+```sh
+go install github.com/cloudwego/kitex/tool/cmd/kitex@latest
+go install github.com/cloudwego/thriftgo@latest
+# 验证
+kitex --version
+thriftgo --version
+```
+
+
 
 ## 设计模式
 
