@@ -283,7 +283,7 @@ void merge(vector<int>& nums1, int m, vector<int>& nums2, int n) {
 
 > 难度：⭐⭐⭐
 
-<img src="https://i.loli.net/2021/08/03/wn42tmfZ57aVkE1.png" alt="image-20200909175231320" style="zoom:45%;" />
+<img src="https://i.loli.net/2021/08/03/wn42tmfZ57aVkE1.png" alt="image-20200909175231320" style="zoom: 67%;" />
 
 关键词：双指针，单链表逆置
 
@@ -1301,7 +1301,9 @@ vector<int> topology(int n, vector<vector<int>>& prerequisites) {
 }
 ```
 
+### 树的直径
 
+[1207. 大臣的旅费](https://www.acwing.com/problem/content/1209/)
 
 ## 排序
 
