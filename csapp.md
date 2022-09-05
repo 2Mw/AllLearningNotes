@@ -1040,3 +1040,609 @@ Aborted
     ```
 
     比较明了。
+
+### 2. Boob Lab - WP
+
+如何使用 GDB：[100个gdb小技巧](https://wizardforcel.gitbooks.io/100-gdb-tips/content/)
+
+1. Phase 1
+
+   首先查看函数 `phase_1` ：
+
+   ```sh
+   (gdb) disassemble phase_1
+   Dump of assembler code for function phase_1:
+   => 0x0000000000400ee0 <+0>:     sub    $0x8,%rsp
+      0x0000000000400ee4 <+4>:     mov    $0x402400,%esi
+      0x0000000000400ee9 <+9>:     callq  0x401338 <strings_not_equal>
+      0x0000000000400eee <+14>:    test   %eax,%eax
+      0x0000000000400ef0 <+16>:    je     0x400ef7 <phase_1+23>
+      0x0000000000400ef2 <+18>:    callq  0x40143a <explode_bomb>
+      0x0000000000400ef7 <+23>:    add    $0x8,%rsp
+      0x0000000000400efb <+27>:    retq
+   End of assembler dump.
+   ```
+
+   可以看到需要通过函数 `strings_not_equal` 函数才能躲过 `explode_bomb`，因此查看 `strings_not_equal` 函数：
+
+   ```sh
+   (gdb) disassemble strings_not_equal
+   Dump of assembler code for function strings_not_equal:
+      0x0000000000401338 <+0>:     push   %r12
+      0x000000000040133a <+2>:     push   %rbp
+      0x000000000040133b <+3>:     push   %rbx
+      0x000000000040133c <+4>:     mov    %rdi,%rbx
+      0x000000000040133f <+7>:     mov    %rsi,%rbp
+      // 计算 a 字符串的长度
+      0x0000000000401342 <+10>:    callq  0x40131b <string_length>
+      0x0000000000401347 <+15>:    mov    %eax,%r12d
+      // 计算 b 字符串的长度
+      0x000000000040134a <+18>:    mov    %rbp,%rdi
+      0x000000000040134d <+21>:    callq  0x40131b <string_length>
+      0x0000000000401352 <+26>:    mov    $0x1,%edx
+      // 比较两个字符串长度，如果不相同就跳到 99 处
+      0x0000000000401357 <+31>:    cmp    %eax,%r12d
+      0x000000000040135a <+34>:    jne    0x40139b <strings_not_equal+99>
+      // 判断字符串是否为空，如果空也返回真（但是一般情况下不可能输入为空字符串）
+      0x000000000040135c <+36>:    movzbl (%rbx),%eax
+      0x000000000040135f <+39>:    test   %al,%al
+      0x0000000000401361 <+41>:    je     0x401388 <strings_not_equal+80>
+      0x0000000000401363 <+43>:    cmp    0x0(%rbp),%al
+      0x0000000000401366 <+46>:    je     0x401372 <strings_not_equal+58>
+      0x0000000000401368 <+48>:    jmp    0x40138f <strings_not_equal+87>
+      // =====逐个比较字符串，循环开始 =====
+      0x000000000040136a <+50>:    cmp    0x0(%rbp),%al
+      0x000000000040136d <+53>:    nopl   (%rax)
+      0x0000000000401370 <+56>:    jne    0x401396 <strings_not_equal+94>
+      // 判断对比相同，同时+1
+      0x0000000000401372 <+58>:    add    $0x1,%rbx
+      0x0000000000401376 <+62>:    add    $0x1,%rbp
+      0x000000000040137a <+66>:    movzbl (%rbx),%eax
+      0x000000000040137d <+69>:    test   %al,%al
+      0x000000000040137f <+71>:    jne    0x40136a <strings_not_equal+50>
+      // ===== 循环结束 =====
+      0x0000000000401381 <+73>:    mov    $0x0,%edx
+      0x0000000000401386 <+78>:    jmp    0x40139b <strings_not_equal+99>
+      0x0000000000401388 <+80>:    mov    $0x0,%edx
+      0x000000000040138d <+85>:    jmp    0x40139b <strings_not_equal+99>
+      0x000000000040138f <+87>:    mov    $0x1,%edx
+      0x0000000000401394 <+92>:    jmp    0x40139b <strings_not_equal+99>
+      0x0000000000401396 <+94>:    mov    $0x1,%edx
+      0x000000000040139b <+99>:    mov    %edx,%eax
+      0x000000000040139d <+101>:   pop    %rbx
+      0x000000000040139e <+102>:   pop    %rbp
+      0x000000000040139f <+103>:   pop    %r12
+      0x00000000004013a1 <+105>:   retq
+   End of assembler dump.
+   ```
+
+   通过查看寄存器 rdi 和 rsi 查看函数信息：
+
+   ```sh
+   (gdb) x/s $rdi
+   0x603780 <input_strings>:       "123"
+   (gdb) x/s $rsi
+   0x402400:       "Border relations with Canada have never been better."
+   ```
+
+   因此可以知道这是对比两个字符串是否相等。到这一步就可以知道 phase 1 的答案了。
+
+   进一步分析 `strings_not_equal` 函数，计算两个字符串的长度，不相同则将 edx 置为 1，返回 rax ，然后逐个对比字符，直至遇到 `\0`。
+
+2. phase 2
+
+   查看 `phase_2` 函数：
+
+   ```sh
+   (gdb) disassemble phase_2
+   Dump of assembler code for function phase_2:
+      0x0000000000400efc <+0>:     push   %rbp
+      0x0000000000400efd <+1>:     push   %rbx
+      0x0000000000400efe <+2>:     sub    $0x28,%rsp
+      0x0000000000400f02 <+6>:     mov    %rsp,%rsi
+      0x0000000000400f05 <+9>:     callq  0x40145c <read_six_numbers>
+      // 第一位必须是 1
+      0x0000000000400f0a <+14>:    cmpl   $0x1,(%rsp)
+      0x0000000000400f0e <+18>:    je     0x400f30 <phase_2+52>
+      0x0000000000400f10 <+20>:    callq  0x40143a <explode_bomb>
+      0x0000000000400f15 <+25>:    jmp    0x400f30 <phase_2+52>
+      // 比较索引 arr[i] * 2 == arr[i+1]
+      0x0000000000400f17 <+27>:    mov    -0x4(%rbx),%eax
+      0x0000000000400f1a <+30>:    add    %eax,%eax
+      0x0000000000400f1c <+32>:    cmp    %eax,(%rbx)
+      0x0000000000400f1e <+34>:    je     0x400f25 <phase_2+41>
+      0x0000000000400f20 <+36>:    callq  0x40143a <explode_bomb>
+      0x0000000000400f25 <+41>:    add    $0x4,%rbx
+      // 是否达到数组末尾
+      0x0000000000400f29 <+45>:    cmp    %rbp,%rbx
+      0x0000000000400f2c <+48>:    jne    0x400f17 <phase_2+27>
+      0x0000000000400f2e <+50>:    jmp    0x400f3c <phase_2+64>
+      // 将数组索引为 1 传给rbx
+      0x0000000000400f30 <+52>:    lea    0x4(%rsp),%rbx
+      // 将数组索引为 5（0x18=24） 传给rbp
+      0x0000000000400f35 <+57>:    lea    0x18(%rsp),%rbp
+      0x0000000000400f3a <+62>:    jmp    0x400f17 <phase_2+27>
+      0x0000000000400f3c <+64>:    add    $0x28,%rsp
+      0x0000000000400f40 <+68>:    pop    %rbx
+      0x0000000000400f41 <+69>:    pop    %rbp
+      0x0000000000400f42 <+70>:    retq
+   End of assembler dump.
+   ```
+
+   遇到一个叫 `read_six_numbers` 的函数，查看其代码，可以知道其是读取 6 个数字的函数：
+
+   ```sh
+   (gdb) disassemble read_six_numbers
+   Dump of assembler code for function read_six_numbers:
+      0x000000000040145c <+0>:     sub    $0x18,%rsp
+      // rsi 应该是 int* 指针
+      0x0000000000401460 <+4>:     mov    %rsi,%rdx
+      0x0000000000401463 <+7>:     lea    0x4(%rsi),%rcx
+      0x0000000000401467 <+11>:    lea    0x14(%rsi),%rax
+      // 将输入字符串存入栈
+      0x000000000040146b <+15>:    mov    %rax,0x8(%rsp)
+      0x0000000000401470 <+20>:    lea    0x10(%rsi),%rax
+      0x0000000000401474 <+24>:    mov    %rax,(%rsp)
+      0x0000000000401478 <+28>:    lea    0xc(%rsi),%r9
+      0x000000000040147c <+32>:    lea    0x8(%rsi),%r8
+      0x0000000000401480 <+36>:    mov    $0x4025c3,%esi
+      0x0000000000401485 <+41>:    mov    $0x0,%eax
+      0x000000000040148a <+46>:    callq  0x400bf0 <__isoc99_sscanf@plt>
+      // 大于 5 个数字才能通过
+      0x000000000040148f <+51>:    cmp    $0x5,%eax
+      0x0000000000401492 <+54>:    jg     0x401499 <read_six_numbers+61>
+      0x0000000000401494 <+56>:    callq  0x40143a <explode_bomb>
+      0x0000000000401499 <+61>:    add    $0x18,%rsp
+      0x000000000040149d <+65>:    retq
+   End of assembler dump.
+   ```
+
+   根据对 `phase_2` 函数的分析，答案为 `1 2 4 8 16 32`
+
+3. phase 3
+
+   查看 `phase_3` 函数：
+
+   ```sh
+   (gdb) disassemble phase_3
+   Dump of assembler code for function phase_3:
+   	// 分配一个 24 字节的空间
+      0x0000000000400f43 <+0>:     sub    $0x18,%rsp
+      // 按照两个地址相差大小，推测是 int 或者 float
+      0x0000000000400f47 <+4>:     lea    0xc(%rsp),%rcx
+      0x0000000000400f4c <+9>:     lea    0x8(%rsp),%rdx
+      // %d %d
+      0x0000000000400f51 <+14>:    mov    $0x4025cf,%esi
+      0x0000000000400f56 <+19>:    mov    $0x0,%eax
+      0x0000000000400f5b <+24>:    callq  0x400bf0 <__isoc99_sscanf@plt>
+      // 必须是两个参数
+      0x0000000000400f60 <+29>:    cmp    $0x1,%eax
+      0x0000000000400f63 <+32>:    jg     0x400f6a <phase_3+39>
+      0x0000000000400f65 <+34>:    callq  0x40143a <explode_bomb>
+      // 不能大于 7
+      0x0000000000400f6a <+39>:    cmpl   $0x7,0x8(%rsp)
+      0x0000000000400f6f <+44>:    ja     0x400fad <phase_3+106>
+      0x0000000000400f71 <+46>:    mov    0x8(%rsp),%eax
+      // ==== 跳转到数组对应的地址 ====
+      0x0000000000400f75 <+50>:    jmpq   *0x402470(,%rax,8)
+      0x0000000000400f7c <+57>:    mov    $0xcf,%eax
+      0x0000000000400f81 <+62>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400f83 <+64>:    mov    $0x2c3,%eax
+      0x0000000000400f88 <+69>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400f8a <+71>:    mov    $0x100,%eax
+      0x0000000000400f8f <+76>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400f91 <+78>:    mov    $0x185,%eax
+      0x0000000000400f96 <+83>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400f98 <+85>:    mov    $0xce,%eax
+      0x0000000000400f9d <+90>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400f9f <+92>:    mov    $0x2aa,%eax
+      0x0000000000400fa4 <+97>:    jmp    0x400fbe <phase_3+123>
+      0x0000000000400fa6 <+99>:    mov    $0x147,%eax
+      0x0000000000400fab <+104>:   jmp    0x400fbe <phase_3+123>
+      0x0000000000400fad <+106>:   callq  0x40143a <explode_bomb>
+      0x0000000000400fb2 <+111>:   mov    $0x0,%eax
+      0x0000000000400fb7 <+116>:   jmp    0x400fbe <phase_3+123>
+      0x0000000000400fb9 <+118>:   mov    $0x137,%eax
+      // 第二个参数与 eax 对比
+      0x0000000000400fbe <+123>:   cmp    0xc(%rsp),%eax
+      0x0000000000400fc2 <+127>:   je     0x400fc9 <phase_3+134>
+      0x0000000000400fc4 <+129>:   callq  0x40143a <explode_bomb>
+      0x0000000000400fc9 <+134>:   add    $0x18,%rsp
+      0x0000000000400fcd <+138>:   retq
+   End of assembler dump.
+   ```
+
+   关键部分就是 `jmpq   *0x402470(,%rax,8)` 语句，这里应该是存储的地址数组，根据第一个参数的值跳转的对应的地址，因此查看 `0x402470` 内存：
+
+   ```
+   (gdb) x/8xg 0x402470
+   0x402470:       0x0000000000400f7c      0x0000000000400fb9
+   0x402480:       0x0000000000400f83      0x0000000000400f8a
+   0x402490:       0x0000000000400f91      0x0000000000400f98
+   0x4024a0:       0x0000000000400f9f      0x0000000000400fa6
+   ```
+
+   可以看到分别有 8 个地址，这也解释了为什么第一个参数不能大于 7.
+
+   每个地址对应一个 eax 值，这个 eax 是和第二个参数进行对比，因此本题有多个答案：
+
+   ```
+   0 207
+   1 311
+   2 707
+   3 256
+   4 389
+   5 206
+   6 682
+   7 327
+   ```
+
+4. phase 4
+
+   首先查看 `phase_4` 函数：
+
+   ```sh
+   (gdb) disassemble phase_4
+   Dump of assembler code for function phase_4:
+      0x000000000040100c <+0>:     sub    $0x18,%rsp
+      0x0000000000401010 <+4>:     lea    0xc(%rsp),%rcx
+      0x0000000000401015 <+9>:     lea    0x8(%rsp),%rdx
+      0x000000000040101a <+14>:    mov    $0x4025cf,%esi
+      0x000000000040101f <+19>:    mov    $0x0,%eax
+      0x0000000000401024 <+24>:    callq  0x400bf0 <__isoc99_sscanf@plt>
+      0x0000000000401029 <+29>:    cmp    $0x2,%eax
+      0x000000000040102c <+32>:    jne    0x401035 <phase_4+41>
+      // 判断第一个参数必须小于等于 15
+      0x000000000040102e <+34>:    cmpl   $0xe,0x8(%rsp)
+      0x0000000000401033 <+39>:    jbe    0x40103a <phase_4+46>
+      0x0000000000401035 <+41>:    callq  0x40143a <explode_bomb>
+      // 判断函数 func4
+      0x000000000040103a <+46>:    mov    $0xe,%edx
+      0x000000000040103f <+51>:    mov    $0x0,%esi
+      0x0000000000401044 <+56>:    mov    0x8(%rsp),%edi
+      0x0000000000401048 <+60>:    callq  0x400fce <func4>
+      0x000000000040104d <+65>:    test   %eax,%eax
+      0x000000000040104f <+67>:    jne    0x401058 <phase_4+76>
+      // 第二个参数必须为 0
+      0x0000000000401051 <+69>:    cmpl   $0x0,0xc(%rsp)
+      0x0000000000401056 <+74>:    je     0x40105d <phase_4+81>
+      0x0000000000401058 <+76>:    callq  0x40143a <explode_bomb>
+      0x000000000040105d <+81>:    add    $0x18,%rsp
+      0x0000000000401061 <+85>:    retq
+   End of assembler dump.
+   ```
+
+   其中出现了判断函数 `func4`，查看：
+
+   ```sh
+   (gdb) disassemble func4
+   Dump of assembler code for function func4:
+      0x0000000000400fce <+0>:     sub    $0x8,%rsp
+      0x0000000000400fd2 <+4>:     mov    %edx,%eax
+      0x0000000000400fd4 <+6>:     sub    %esi,%eax
+      0x0000000000400fd6 <+8>:     mov    %eax,%ecx
+      0x0000000000400fd8 <+10>:    shr    $0x1f,%ecx
+      0x0000000000400fdb <+13>:    add    %ecx,%eax
+      0x0000000000400fdd <+15>:    sar    %eax
+      // eax = 7
+      0x0000000000400fdf <+17>:    lea    (%rax,%rsi,1),%ecx
+      // ecx = 7
+      0x0000000000400fe2 <+20>:    cmp    %edi,%ecx
+      0x0000000000400fe4 <+22>:    jle    0x400ff2 <func4+36>
+      0x0000000000400fe6 <+24>:    lea    -0x1(%rcx),%edx
+      0x0000000000400fe9 <+27>:    callq  0x400fce <func4>
+      0x0000000000400fee <+32>:    add    %eax,%eax
+      0x0000000000400ff0 <+34>:    jmp    0x401007 <func4+57>
+      0x0000000000400ff2 <+36>:    mov    $0x0,%eax
+      0x0000000000400ff7 <+41>:    cmp    %edi,%ecx
+      0x0000000000400ff9 <+43>:    jge    0x401007 <func4+57>
+      0x0000000000400ffb <+45>:    lea    0x1(%rcx),%esi
+      0x0000000000400ffe <+48>:    callq  0x400fce <func4>
+      0x0000000000401003 <+53>:    lea    0x1(%rax,%rax,1),%eax
+      0x0000000000401007 <+57>:    add    $0x8,%rsp
+      0x000000000040100b <+61>:    retq
+   End of assembler dump.
+   ```
+
+   大致func4 C语言形式为：
+
+   ```c
+   int func4(int a, int b, int c) {
+       int eax = c - b;
+       eax = (eax + (eax >> 31)) >> 1;
+       int ecx = eax + b;
+       if(a <= ecx){
+           eax = 0;
+           if(a>=ecx) {
+               return eax;
+           } else {
+               b = ecx + 1;
+               eax = func4(a,b,c);
+               eax = eax * 2 +1;
+           }
+   
+       }else {
+           eax = func4(a, b, ecx - 1);
+           eax = eax * 2;
+       }
+       return eax;
+   }
+   ```
+
+   由于最终想要 func4 返回结果为0，其中既要满足 a<= ecx 又要满足 a>= ecx ，则需要 a = ecx，通过计算可以得到 a = 7。
+
+   本函数主要考察的是位运算。
+
+   得到答案 `7 0`
+
+5. phase 5
+
+   查看 `phase_5` 函数：
+
+   ```assembly
+   (gdb) disassemble phase_5
+   Dump of assembler code for function phase_5:
+      0x0000000000401062 <+0>:     push   %rbx
+      0x0000000000401063 <+1>:     sub    $0x20,%rsp
+      0x0000000000401067 <+5>:     mov    %rdi,%rbx
+      0x000000000040106a <+8>:     mov    %fs:0x28,%rax
+      0x0000000000401073 <+17>:    mov    %rax,0x18(%rsp)
+      0x0000000000401078 <+22>:    xor    %eax,%eax
+      // 判断字符串长度是否为 6
+      0x000000000040107a <+24>:    callq  0x40131b <string_length>
+      0x000000000040107f <+29>:    cmp    $0x6,%eax
+      0x0000000000401082 <+32>:    je     0x4010d2 <phase_5+112>
+      0x0000000000401084 <+34>:    callq  0x40143a <explode_bomb>
+      0x0000000000401089 <+39>:    jmp    0x4010d2 <phase_5+112>
+      // 
+      0x000000000040108b <+41>:    movzbl (%rbx,%rax,1),%ecx
+      0x000000000040108f <+45>:    mov    %cl,(%rsp)
+      0x0000000000401092 <+48>:    mov    (%rsp),%rdx
+      // 将数字限制在 0-0xf 范围内
+      0x0000000000401096 <+52>:    and    $0xf,%edx
+      0x0000000000401099 <+55>:    movzbl 0x4024b0(%rdx),%edx
+      // char[rax]=str[c&0xf]
+      0x00000000004010a0 <+62>:    mov    %dl,0x10(%rsp,%rax,1)
+      0x00000000004010a4 <+66>:    add    $0x1,%rax
+      // 判断字符串长度是否为 6
+      0x00000000004010a8 <+70>:    cmp    $0x6,%rax
+      0x00000000004010ac <+74>:    jne    0x40108b <phase_5+41>
+      0x00000000004010ae <+76>:    movb   $0x0,0x16(%rsp)
+      // 将拼接后的字符串与0x40245e的字符串进行比较是否一致
+      0x00000000004010b3 <+81>:    mov    $0x40245e,%esi
+      0x00000000004010b8 <+86>:    lea    0x10(%rsp),%rdi
+      0x00000000004010bd <+91>:    callq  0x401338 <strings_not_equal>
+      0x00000000004010c2 <+96>:    test   %eax,%eax
+      0x00000000004010c4 <+98>:    je     0x4010d9 <phase_5+119>
+      0x00000000004010c6 <+100>:   callq  0x40143a <explode_bomb>
+      0x00000000004010cb <+105>:   nopl   0x0(%rax,%rax,1)
+      0x00000000004010d0 <+110>:   jmp    0x4010d9 <phase_5+119>
+      0x00000000004010d2 <+112>:   mov    $0x0,%eax
+      0x00000000004010d7 <+117>:   jmp    0x40108b <phase_5+41>
+      0x00000000004010d9 <+119>:   mov    0x18(%rsp),%rax
+      0x00000000004010de <+124>:   xor    %fs:0x28,%rax
+      0x00000000004010e7 <+133>:   je     0x4010ee <phase_5+140>
+      0x00000000004010e9 <+135>:   callq  0x400b30 <__stack_chk_fail@plt>
+      0x00000000004010ee <+140>:   add    $0x20,%rsp
+      0x00000000004010f2 <+144>:   pop    %rbx
+      0x00000000004010f3 <+145>:   retq
+   End of assembler dump.
+   ```
+
+   关键点在与 `0x4024b0` 处的数组进行对比，查看其数据：
+
+   ```
+   (gdb) x/s 0x4024b0
+   0x4024b0 <array.3449>:  "maduiersnfotvbylSo you think you can stop the bomb with ctrl-c"
+   ```
+
+   > 这里 char 应该是使用数组定义的，不是使用字符串定义初始化的，所有尾部没有 `\0` 字符。
+
+   `0x40245e` 处的字符串为：
+
+   ```sh
+   (gdb) x/s 0x40245e
+   0x40245e:       "flyers"
+   ```
+
+   所以这个题的思路就是将字符串输入的每个字符和 0xf 作与运算得到的`maduiersnfotvbyl` char 数组的索引，拼接成 flyers。
+
+   因此答案为：`IONEFG` (非唯一)
+
+6. phase_6
+
+   查看 `phase_6` 代码：
+
+   ```assembly
+   (gdb) disassemble phase_6
+   Dump of assembler code for function phase_6:
+      0x00000000004010f4 <+0>:     push   %r14
+      0x00000000004010f6 <+2>:     push   %r13
+      0x00000000004010f8 <+4>:     push   %r12
+      0x00000000004010fa <+6>:     push   %rbp
+      0x00000000004010fb <+7>:     push   %rbx
+      // 50 字节的栈
+      0x00000000004010fc <+8>:     sub    $0x50,%rsp
+      0x0000000000401100 <+12>:    mov    %rsp,%r13
+      0x0000000000401103 <+15>:    mov    %rsp,%rsi
+      0x0000000000401106 <+18>:    callq  0x40145c <read_six_numbers>
+      0x000000000040110b <+23>:    mov    %rsp,%r14
+      0x000000000040110e <+26>:    mov    $0x0,%r12d
+      // ==== 循环 a start ====
+      0x0000000000401114 <+32>:    mov    %r13,%rbp
+      0x0000000000401117 <+35>:    mov    0x0(%r13),%eax
+      // 数字必须小于等于 6 且各不相同
+      0x000000000040111b <+39>:    sub    $0x1,%eax
+      0x000000000040111e <+42>:    cmp    $0x5,%eax
+      0x0000000000401121 <+45>:    jbe    0x401128 <phase_6+52>
+      0x0000000000401123 <+47>:    callq  0x40143a <explode_bomb>
+      0x0000000000401128 <+52>:    add    $0x1,%r12d
+      // 是否遍历完毕 6 个数字
+      0x000000000040112c <+56>:    cmp    $0x6,%r12d
+      0x0000000000401130 <+60>:    je     0x401153 <phase_6+95>
+      // r12d 为索引
+      0x0000000000401132 <+62>:    mov    %r12d,%ebx
+      // ==== 循环 b start ====
+      0x0000000000401135 <+65>:    movslq %ebx,%rax
+      // int[rax]
+      0x0000000000401138 <+68>:    mov    (%rsp,%rax,4),%eax
+      // 不能与第一个元素相同
+      0x000000000040113b <+71>:    cmp    %eax,0x0(%rbp)
+      0x000000000040113e <+74>:    jne    0x401145 <phase_6+81>
+      0x0000000000401140 <+76>:    callq  0x40143a <explode_bomb>
+      0x0000000000401145 <+81>:    add    $0x1,%ebx
+      0x0000000000401148 <+84>:    cmp    $0x5,%ebx
+      0x000000000040114b <+87>:    jle    0x401135 <phase_6+65>   
+      0x000000000040114d <+89>:    add    $0x4,%r13
+      0x0000000000401151 <+93>:    jmp    0x401114 <phase_6+32>
+      // ==== 循环 a/b end ====
+      0x0000000000401153 <+95>:    lea    0x18(%rsp),%rsi
+      0x0000000000401158 <+100>:   mov    %r14,%rax
+      // 使用 7 - 数组中每个元素
+      0x000000000040115b <+103>:   mov    $0x7,%ecx
+      0x0000000000401160 <+108>:   mov    %ecx,%edx
+      0x0000000000401162 <+110>:   sub    (%rax),%edx
+      0x0000000000401164 <+112>:   mov    %edx,(%rax)
+      0x0000000000401166 <+114>:   add    $0x4,%rax
+      0x000000000040116a <+118>:   cmp    %rsi,%rax
+      0x000000000040116d <+121>:   jne    0x401160 <phase_6+108>
+      
+      0x000000000040116f <+123>:   mov    $0x0,%esi
+      0x0000000000401174 <+128>:   jmp    0x401197 <phase_6+163>
+      // 数组元素 > 1
+      0x0000000000401176 <+130>:   mov    0x8(%rdx),%rdx
+      0x000000000040117a <+134>:   add    $0x1,%eax
+      0x000000000040117d <+137>:   cmp    %ecx,%eax
+      0x000000000040117f <+139>:   jne    0x401176 <phase_6+130>
+      0x0000000000401181 <+141>:   jmp    0x401188 <phase_6+148>
+      // 数组元素 <= 1
+      0x0000000000401183 <+143>:   mov    $0x6032d0,%edx
+      // long[rsi] = 0x6032d0 5
+      0x0000000000401188 <+148>:   mov    %rdx,0x20(%rsp,%rsi,2)
+      0x000000000040118d <+153>:   add    $0x4,%rsi
+      0x0000000000401191 <+157>:   cmp    $0x18,%rsi
+      0x0000000000401195 <+161>:   je     0x4011ab <phase_6+183>
+      // ecx 数组的元素 int[rsi]
+      0x0000000000401197 <+163>:   mov    (%rsp,%rsi,1),%ecx
+      0x000000000040119a <+166>:   cmp    $0x1,%ecx
+      0x000000000040119d <+169>:   jle    0x401183 <phase_6+143>
+      0x000000000040119f <+171>:   mov    $0x1,%eax
+      0x00000000004011a4 <+176>:   mov    $0x6032d0,%edx
+      0x00000000004011a9 <+181>:   jmp    0x401176 <phase_6+130>
+      // 对 long 数组进行操作，long数组中保存的是地址（类型是long）
+      0x00000000004011ab <+183>:   mov    0x20(%rsp),%rbx
+      0x00000000004011b0 <+188>:   lea    0x28(%rsp),%rax
+      0x00000000004011b5 <+193>:   lea    0x50(%rsp),%rsi
+      0x00000000004011ba <+198>:   mov    %rbx,%rcx
+      // === 循环 C start === rcx = long[i], rax = &long[i + 1]
+      // *(long[0]+8) = long[i+1]
+      0x00000000004011bd <+201>:   mov    (%rax),%rdx
+      0x00000000004011c0 <+204>:   mov    %rdx,0x8(%rcx)
+      0x00000000004011c4 <+208>:   add    $0x8,%rax
+      0x00000000004011c8 <+212>:   cmp    %rsi,%rax
+      0x00000000004011cb <+215>:   je     0x4011d2 <phase_6+222>
+      // =long[i+1]
+      0x00000000004011cd <+217>:   mov    %rdx,%rcx
+      0x00000000004011d0 <+220>:   jmp    0x4011bd <phase_6+201>
+      // ==== 循环 C end ===
+      0x00000000004011d2 <+222>:   movq   $0x0,0x8(%rdx)
+      0x00000000004011da <+230>:   mov    $0x5,%ebp
+      0x00000000004011df <+235>:   mov    0x8(%rbx),%rax
+      0x00000000004011e3 <+239>:   mov    (%rax),%eax
+      0x00000000004011e5 <+241>:   cmp    %eax,(%rbx)
+      0x00000000004011e7 <+243>:   jge    0x4011ee <phase_6+250>
+      0x00000000004011e9 <+245>:   callq  0x40143a <explode_bomb>
+      0x00000000004011ee <+250>:   mov    0x8(%rbx),%rbx
+      0x00000000004011f2 <+254>:   sub    $0x1,%ebp
+      0x00000000004011f5 <+257>:   jne    0x4011df <phase_6+235>
+      0x00000000004011f7 <+259>:   add    $0x50,%rsp
+      0x00000000004011fb <+263>:   pop    %rbx
+      0x00000000004011fc <+264>:   pop    %rbp
+      0x00000000004011fd <+265>:   pop    %r12
+      0x00000000004011ff <+267>:   pop    %r13
+      0x0000000000401201 <+269>:   pop    %r14
+      0x0000000000401203 <+271>:   retq
+   End of assembler dump.
+   ```
+
+   对应的 C 语言形式：
+
+   ```c
+   void p6(int num[]) {
+       // i = r12d
+       for(int i = 0; i < 6; i ++) {
+           if(num[i] > 6)bomb();
+           
+           for(int j = i + 1; j <= 5; j ++) {
+               if(num[j]==num[i])bomb();
+           }
+       }
+       
+   	for(int i = 0; i < 6; i ++) {
+           num[i] = 7 - num[i];
+       }
+       
+       // i -- rsi -- 163
+       // 过程2
+       long ll[6];	// ll - rbx
+       for(int i = 0; i < 6; i ++) {
+           int rdx = 0x6032d0;
+           if(num[i] > 1) {
+               int j = 1;	// j -- eax
+               do {
+                   rdx = rdx + 0x10;	// 处理过
+                   j++;
+               }while(j != num[i]);
+           } 
+           ll[i++] = rdx;
+       }
+       // 过程3
+       int rbx = ll[0], rcx = rbx;
+       for(int i = 1; i < 5; i++) {
+           // 201
+           *(rcx + 8) = ll[i];
+           rcx = ll[i];
+       }
+       
+       long rbx = (long)(&ll[0]);
+       
+       for(int i = 1; i < 5; i++) {
+           int rax = *(int*)(rbx+8);
+           int eax = *(int *)(long*)(rax)
+           if(*(rbx) >= eax) {
+               rbx = *(long*)(rbx+8);
+           } else bomb();
+       }
+       
+   }
+   ```
+
+   重要数组信息：
+
+   ```
+   (gdb) x/16xg 0x6032d0
+   0x6032d0 <node1>:       0x000000010000014c      0x00000000006032e0
+   0x6032e0 <node2>:       0x00000002000000a8      0x00000000006032f0
+   0x6032f0 <node3>:       0x000000030000039c      0x0000000000603300
+   0x603300 <node4>:       0x00000004000002b3      0x0000000000603310
+   0x603310 <node5>:       0x00000005000001dd      0x0000000000603320
+   0x603320 <node6>:       0x00000006000001bb      0x0000000000000000
+   ```
+
+   大致意思就是：
+
+   7 - nums[i] 后的数组假如为 1 2 3 4 5 6 减一之后分别对应数组 [0x6032d0, 0x6032e0, 0x6032f0, 0x603300, 0x603310, 0x603320] 的索引，这些地址分别对应的值为 [0x14c, 0xa8, 0x39c, 0x2b3, 0x1dd, 0x1bb]，由于最后需要要求对数值进行降序排列。
+
+   而且有过程2可以知道需要满足 *(ll[i]) >= **(ll[i+1]) && *(ll[i] + 8) = ll[i+1]，所以：
+
+   
+
+| value |  ll[i]   | *ll[i+1] |
+| :---: | :------: | :------: |
+| 0x39c | 0x6032f0 |          |
+| 0x2b3 | 0x603300 |          |
+| 0x1dd | 0x603310 |          |
+| 0x1bb | 0x603320 |          |
+| 0x14c | 0x6032d0 |          |
+| 0xa8  | 0x6032e0 |          |
+
