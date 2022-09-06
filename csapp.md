@@ -733,6 +733,92 @@ Aborted
 
 🔵Union
 
+## 四. 程序优化
+
+### 1. 常见优化技巧
+
+* Code Motion 代码移动
+
+  ```c
+  void func(int m, int n) {
+      for(int j = 0; j < n; j++) {
+          a[m * n + j] = b[j];
+      }
+  }
+  
+  void func(int m, int n) {
+      // 防止重复计算浪费资源
+      int k = m * n;
+      for(int j = 0; j < n; j++) {
+          a[l + j] = b[j];
+      }
+  }
+  ```
+
+* Share Common Subexpressions 共享常用子表达式
+
+  ```c
+  up		=	arr[(x-1)*m + j];
+  down	=	arr[(x+1)*m + j];
+  
+  // 优化
+  
+  int k = x * m + j;
+  up 	= arr[k - m];
+  down = arr[k + m]
+  ```
+
+* Procedure Call Optimization (strlen problem) 函数调用优化
+
+  这里出现的问题就是每次循环都需要调用 `strlen` 函数，在函数返回值始终不变的情况下，重复调用时十分耗费资源。
+
+  ```c
+  void lower(char *s) {
+      size_t i;
+      for (i = 0; i < strlen(s); i++)
+          if (s[i] >= 'A' && s[i] <= 'Z')
+              s[i] -= ('A' - 'a');
+  }
+  
+  // 优化 for 循环调用多次 strlen
+  
+  void lower(char *s) {
+      size_t i;
+      size_t len = strlen(s);
+      for (i = 0; i < len; i++)
+          if (s[i] >= 'A' && s[i] <= 'Z')
+              s[i] -= ('A' - 'a');
+  }
+  ```
+
+  
+
+* Memory aliasing
+
+  aliasing 就是当程序的不同部分引用内存中相同位置时候，可以使用一个内存数据结构覆盖另一个数据结构
+
+  说人话就是对一片内存区域既进行查询又进行修改。
+
+  ```c
+  void sum_rows1(double *a, double *b, long n) {
+      for(int i = 0; i < n; i ++) {
+          b[i] = 0;
+          int ni = n * i;
+          for(int j = 0; i < n; j ++) {
+              b[i] += a[ni + j];
+          }
+      }
+  }
+  ```
+
+  ![image-20220906222653246](csapp.assets/image-20220906222653246.png)
+
+  图中 B 指向 A + 3 的位置，之后 B 的值时根据 A 中每一行之后决定的；B 中数值进行修改相当于也对 A 进行了修改，从而影响了 B 中的结果。
+
+* 
+
+### 2.
+
 ## Appendix
 
 ### 1. datalab-wp
