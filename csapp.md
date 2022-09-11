@@ -848,6 +848,41 @@ Aborted
 
   比如 Loop Unrolling，Branch Prediction Through Loop
 
+## 五. 内存结构
+
+### 1. Basic
+
+硬盘数据访问分为以下阶段：
+
+<img src="csapp.assets/image-20220909125138182.png" alt="image-20220909125138182" style="zoom:67%;" />
+
+当在上个磁道数据传输完毕后，探针移动到下一个信息所存储的磁道位置，等待区域旋转到探针位置，最终读取数据。其中数据传输的相比于其他阶段可以忽略不记。
+
+<img src="csapp.assets/image-20220911214534762.png" alt="image-20220911214534762" style="zoom:80%;" />
+
+🔵Locality
+
+Principle of Locality (局部性原理): Programs tend to use data and instructions with addresses near or equal to those they used recently.
+
+局部性分为两种：
+
+* 时间局部性：最近引用项很可能在不仅的将来继续引用。 
+* 空间局部性：最近被访问过单元地址附近很有可能也会被访问。
+
+往往越好使用局部性原理对应的程序性能也会越好。比如在遍历二维数组的时候，先从行遍历还是先从列开始遍历，如果先从列开始进行遍历，对于空间局部性来说就很不友好，因此两者遍历方式最终导致的性能差异也会很大。
+
+<img src="csapp.assets/image-20220911223053715.png" alt="image-20220911223053715" style="zoom:80%;" />
+
+缓存概念的出现就是基于局部性原理。如果寄存器想要获取内存中的数据信息，首先寄存器从缓存中找对应的数据，如果找到(hit)则可以直接返回给寄存器，如果未命中(Miss)则需要将主存中的数据传输到缓存中，再传给寄存器。
+
+缓存未命中的类型：
+
+* Cold(Compulsory) miss: 冷 miss 的原因是因为缓存为空，无法命中是必然的
+* Conflict miss：冲突未命中，这和缓存的实现方式有关（下一节）
+* Capacity miss: 这归结于缓存的大小是固定的，而需要访问的缓存数据范围较大。
+
+![image-20220911224322667](csapp.assets/image-20220911224322667.png)
+
 ## Appendix
 
 ### 1. datalab-wp
