@@ -2361,3 +2361,88 @@ PASS: Would have posted the following:
 ```
 
 ### 4. Cache lab
+
+lab 分为两个小实验：
+
+1. 模拟实现高速缓存（200-300行代码）cache simulator
+
+   其实就是对课堂知识的巩固，使用代码的形式来进一步了解缓存的工作原理。
+
+   > 可以进一步了解 n 路组相联映射，以及 LRU 的使用场景。
+
+   CSAPP 将高速缓存这一节讲得好的原因就是有 set、line、block 的概念，通过 CPU 发送的地址将其解析为 tag、set index 以及 block offset，根据解析后的数据定位到缓存的位置。如果缓存中每个 set 有多个 line 并且 line 都被占用的时候，就需要使用 LRU 算法淘汰掉最久未访问过的 line。
+
+   Cache 是由一个个 Block 构成，因此定义：
+
+   ```c
+   typedef struct {
+       bool v;			// valid flag
+       int tag;		// tag
+       bool* data;		// data
+       int version;	// For LRU evict.
+   } Block;
+   
+   typedef Block* Cache;
+   ```
+
+   其中前三个属性是 Block 中必要的属性，第四个属性 version 用于标记当前 set 中的更新时间，越大表示数据越新，用于 LRU 算法来淘汰旧的 Block。
+
+   解析地址：
+
+   ```c
+   long addr = op[i].addr;
+   int set = (addr >> arg.b) & ((1 << arg.s) - 1);
+   int tag = addr >> (arg.b + arg.s);
+   ```
+
+   根据题目要求的 4 个操作，L 表示加载数据，I 表示加载指令，S 表示存储数据，M 表示修改数据。
+
+   在对 CPU 发送来的地址进行解析后，就可以找到对应的 set。由于使用 LRU 淘汰算法，因此需要对 set 中所有的 line 进行版本号比较，淘汰最低的版本号，并且对操作的 block 赋值最新的版本号。
+
+   如果在这个 set 中对比有效位和 tag 都一致，就表示 hit 缓存命中。
+
+   ```c
+   // lines index range: [set * E, (set+1)*E)
+   // Firstly, replace the block which has the most small version number in this set
+   // Set the biggest version number + 1 as the pertinent block's version number.
+   int minv = 0x7fffffff, maxv = -1, iminv = 0;;
+   bool found = false;
+   int found_idx = 0;
+   for(int j = set * arg.e; j < (set+1)*arg.e; j++) {
+       // minv = min(minv, cache[j].v);
+       if (cache[j].version < minv) {
+           iminv = j;
+           minv = cache[j].version;
+       }
+       maxv = max(maxv, cache[j].version);
+       if(cache[j].version && tag == cache[j].tag) {
+           found = true;
+           found_idx = j;
+           hit++;
+       }
+   }
+   ```
+
+   由于 M 操作，最终还需要写回/直写数据到内存，因此还会 hit 一次；对于其他操作，如果 block 已存在其他数据的情况下未命中，会对 block 数据进行清除 evict，因此对于操作的判断逻辑为：
+
+   ```c
+   int op_idx = found ? found_idx: iminv;
+   // printf("%c %llx,%d ", op[i].t, op[i].addr, op[i].size);
+   if(op[i].t == 'M')hit++;
+   if (!found) {
+       miss++;
+       if (cache[iminv].v) evict++;
+   }
+   ```
+
+   最终更新操作的 block 的属性（有效位，tag 以及版本号）：
+
+   ```c
+   cache[op_idx].v = true;
+   cache[op_idx].tag = tag;
+   cache[op_idx].version = maxv + 1;
+   ```
+
+   
+
+2. 优化矩阵转置函数，来降低缓存未命中率 （Blocking 技术）
