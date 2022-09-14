@@ -963,25 +963,72 @@ d-cache 表示数据缓存，i-cache 表示指令缓存。
 
 99% 的命中率要比 97% 性能高两倍。
 
+🔵高速缓存对程序性能的影响
+
+<img src="csapp.assets/image-20220914113516135.png" alt="image-20220914113516135" style="zoom:67%;" />
+
+对于步长为 1 的引用模式，Core i7 会自动识别步长为 1 的顺序读取方式，采用硬件预取(prefetching)的机制，可以明显看到步长为 1 的顺序访问方式最优。
+
+对于时间局部性来说，在这个 i7 芯片上大小为 32KB （大概长度为 8000 的 int 数组）以下的数据会存放在 L1 缓存区，小于 256KB 的数据会存放在 L2 缓存区，更大的会存放在 L3 或者 主存中进行存储。如果业务中可以拆分为多个小型区域存放在 L1 缓冲区，则可以大幅度利用时间局部性来提高程序执行速度。
+
 🔵空间局部性优化典型案例
 
 根据内存山（csapp封面）的内容，最典型的优化方案就是矩阵乘法：
 
 如果采用 ijk 的方式进行相乘：
 
-![image-20220912163339030](csapp.assets/image-20220912163339030.png)
+<img src="csapp.assets/image-20220912163339030.png" alt="image-20220912163339030" style="zoom:67%;" />
 
 对于矩阵 B 来说就很不符合空间局部性的要求，缓存命中率几乎为 0.
 
 而对于 kij 的方式来说：
 
-![image-20220912163450569](csapp.assets/image-20220912163450569.png)
+<img src="csapp.assets/image-20220912163450569.png" alt="image-20220912163450569" style="zoom:67%;" />
 
 对空间局部性的优化。
 
 🔵时间局部性优化
 
-通常使用 blocking 的技术
+> 由于 Core i7 有完善的预取(prefetching)硬件，分块对于矩阵乘法并不会有太多的提升。可以在没有预取的设备上获得极大的性能收益。
+
+通常使用 blocking(分块) 的技术来优化程序的时间局部性。
+
+额外补充材料：[waside-blocking](http://csapp.cs.cmu.edu/public/waside/waside-blocking.pdf)
+$$
+C = AB
+$$
+![image-20220914122413453](csapp.assets/image-20220914122413453.png)
+
+上图是一种 bijk 的矩阵乘法形式。基本思想就是将矩阵 A 和 C 拆分成 $1\times bsize$ 行条状数组，将 B 拆分为 $bsize \times bsize$ 的块状数组。然后进行以下运算：
+
+```c
+void bijk(array A, array B, array C, int n, int bsize) {
+    // n 是矩阵的边长
+    // en 表示原矩阵可以正好 bsize*bsize 方块的长度
+    int en = bsize * (n / bsize);
+    for (int kk = 0; kk < en; kk += bsize) {
+        for (int jj = 0; jj < en; jj += bsize) {
+            for(int i = 0; i < n; i++) {
+                for(j = jj; j < jj + bsize; j++) {
+                    double sum = c[i][j];
+                    for(k = kk; k < kk + bsize; k++) {
+                        sum += A[i][k] * B[k][j];
+                    }
+                    c[i][j] = sum;
+                }
+            }
+        }
+    }
+}
+```
+
+jk 循环多次重复使用 A 矩阵的行条状数组，相比于 kji 的乘法方式进一步提高的时间局部性。
+
+对于 i 循环，又多次重复使用 B 矩阵中的块状数组，也提高了对 B 矩阵的时间局部性。
+
+当数组过于小的时候可以不使用分块技术。
+
+分块技术受矩阵大小和缓存的配置信息（block 数据大小，line 的数量以及cache大小）都有关系，不好掌控最好的优化方法。
 
 ## Appendix
 
@@ -2446,3 +2493,210 @@ lab 分为两个小实验：
    
 
 2. 优化矩阵转置函数，来降低缓存未命中率 （Blocking 技术）
+
+   参考：[CSAPP:Lab4-Cache Lab](https://zhuanlan.zhihu.com/p/142942823)
+
+   有题目设置环境 $s = 5, E = 1, b = 5$，可以知道每个 block 的大小是 32 字节，可以存储 8 个 int 值。
+
+   当遍历矩阵第一个元素的时候，CPU 会将连续 8 个 int 值存入到缓存中：
+
+   <img src="csapp.assets/image-20220914161802768.png" alt="image-20220914161802768" style="zoom:50%;" />
+
+   并且由于访问矩阵 A 步长为 1，因此不用担心 A 矩阵的空间局部性。
+
+   在 $32\times 32$ 大小的矩阵情况下，如果要将 A 矩阵的第一行 32 个元素复制到 B 矩阵中第一列中，那么在 B 矩阵中每次只写入第一列元素，并且将每一行对应 8 个元素都存入缓存。当访问到 B[8\][0\] 的时候缓存 conflict miss，就会覆盖访问 B[0\][0] 时候写入缓存的数据；依次类推，每次只对缓存中第一个字节的位置进行修改，从而造成对 B 矩阵的时间局部性较低。
+
+   当对 A 矩阵每一行前 8 个元素进行转置操作处理时候，A 矩阵占用缓存大小为 32KB，而 B 矩阵占用缓存大小为 32*8 KB，而 32\*8 KB 大小中只有 1/8 的部分被利用。**因此影响 cache 效率的关键就是减少对 B 矩阵写入 miss。**
+
+   <img src="csapp.assets/image-20220914162527211.png" alt="image-20220914162527211" style="zoom:50%;" />
+
+   因此对矩阵 A 和 B 进行 $8\times 8$ 大小的分块（Blocking），每次只对子矩阵进行转置。当对 A 矩阵第 2 行进行转置操作时候，就可以 hit 缓存中已保存的 B 的子矩阵的数据。因此编写代码：
+
+   ```c
+   if (M == 32) {
+       for(int i = 0; i < M; i += 8) {
+           for(int j = 0; j < N; j += 8) {
+               for(int ii = i; ii < i + 8; ii++) {
+                   for(int jj = j; jj < j + 8; jj++)
+                       B[jj][ii] = A[ii][jj];
+               }
+           }
+       }
+   }
+   ```
+
+   测试结果为：
+
+   ```sh
+   $ ./test-trans -M 32 -N 32
+   
+   Function 0 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 0 (Transpose submission): hits:1710, misses:343, evictions:311
+   
+   Function 1 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 1 (Simple row-wise scan transpose): hits:870, misses:1183, evictions:1151
+   
+   Summary for official submission (func 0): correctness=1 misses=343
+   
+   TEST_TRANS_RESULTS=1:343
+   ```
+
+   miss 次数为 343 离满分要求 300 还有一段。
+
+   通过观察可以发现，当对 A[0\][0\] 移动到 B[0\][0\] 的时候会发现，**两者映射的都是同一片缓存区**，同理 A[1\][1] 和 B[1\][1]。当读取 A[0\][0] 时候对缓存修改，写入 B[0\][0] 的时候会将原先的缓存区有进行修改，造成多次 miss。因此可以选择使用临时变量将 A 子矩阵 8 个元素存储起来。
+
+   ```c
+   int t1, t2, t3, t4, t5, t6, t7, t8;
+   if (M == 32) {
+       for(int i = 0; i < M; i += 8) {
+           for(int j = 0; j < N; j += 8) {
+               for(int k = i; k < i + 8; k++) {
+                   t1 = A[k][j];
+                   t2 = A[k][j+1];
+                   t3 = A[k][j+2];
+                   t4 = A[k][j+3];
+                   t5 = A[k][j+4];
+                   t6 = A[k][j+5];
+                   t7 = A[k][j+6];
+                   t8 = A[k][j+7];
+   
+                   B[j][k] = t1;
+                   B[j+1][k] = t2;
+                   B[j+2][k] = t3;
+                   B[j+3][k] = t4;
+                   B[j+4][k] = t5;
+                   B[j+5][k] = t6;
+                   B[j+6][k] = t7;
+                   B[j+7][k] = t8;
+               }
+           }
+       }
+   }
+   ```
+
+   最终结果：
+
+   ```sh
+   $ ./test-trans -M 32 -N 32
+   
+   Function 0 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 0 (Transpose submission): hits:1766, misses:287, evictions:255
+   
+   Function 1 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 1 (Simple row-wise scan transpose): hits:870, misses:1183, evictions:1151
+   
+   Summary for official submission (func 0): correctness=1 misses=287
+   
+   TEST_TRANS_RESULTS=1:287
+   ```
+
+   ---
+
+   对于 $64\times 64$ 的矩阵乘法，根据 $32 \times 32$ 的做法的思路：
+
+   <img src="csapp.assets/image-20220914173654157.png" alt="image-20220914173654157" style="zoom:50%;" />
+
+   ```c
+   if (M == 64) {
+       for(int i = 0; i < M; i += 8) {
+           for(int j = 0; j < N; j += 4) {
+               for(int k = i; k < i + 8; k++) {
+                   t1 = A[k][j];
+                   t2 = A[k][j+1];
+                   t3 = A[k][j+2];
+                   t4 = A[k][j+3];
+   
+                   B[j][k] = t1;
+                   B[j+1][k] = t2;
+                   B[j+2][k] = t3;
+                   B[j+3][k] = t4;
+               }
+           }
+       }
+   
+   }
+   ```
+
+   没有达到最好的做法：
+
+   ```sh
+   $ ./test-trans -M 64 -N 64
+   
+   Function 0 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 0 (Transpose submission): hits:6546, misses:1651, evictions:1619
+   
+   Function 1 (2 total)
+   Step 1: Validating and generating memory traces
+   Step 2: Evaluating performance (s=5, E=1, b=5)
+   func 1 (Simple row-wise scan transpose): hits:3474, misses:4723, evictions:4691
+   
+   Summary for official submission (func 0): correctness=1 misses=1651
+   
+   TEST_TRANS_RESULTS=1:1651
+   ```
+
+   ---
+
+   第三个要求比较宽松，只需要简单分块即可：
+
+   ```c
+   if (M ==  61) {
+       int bsize = 16;
+       for(int i = 0; i < N; i += bsize) {
+           for(int j = 0; j < M; j += bsize) {
+               for(int k = i; k < i + bsize && k < N; k++) {
+                   for(int l = j; l < j + bsize && l < M; l++)
+                       B[l][k] = A[k][l];
+               }
+           }
+       }
+   }
+   ```
+
+   最终成绩：
+
+   ```sh
+   $ ./driver.py
+   Part A: Testing cache simulator
+   Running ./test-csim
+   Your simulator     Reference simulator
+   Points (s,E,b)    Hits  Misses  Evicts    Hits  Misses  Evicts
+   3 (1,1,1)       9       8       6       9       8       6  traces/yi2.trace
+   3 (4,2,4)       4       5       2       4       5       2  traces/yi.trace
+   3 (2,1,4)       2       3       1       2       3       1  traces/dave.trace
+   3 (2,1,3)     167      71      67     167      71      67  traces/trans.trace
+   3 (2,2,3)     201      37      29     201      37      29  traces/trans.trace
+   3 (2,4,3)     212      26      10     212      26      10  traces/trans.trace
+   3 (5,1,5)     231       7       0     231       7       0  traces/trans.trace
+   6 (5,1,5)  265189   21775   21743  265189   21775   21743  traces/long.trace
+   27
+   
+   
+   Part B: Testing transpose function
+   Running ./test-trans -M 32 -N 32
+   Running ./test-trans -M 64 -N 64
+   Running ./test-trans -M 61 -N 67
+   
+   Cache Lab summary:
+   Points   Max pts      Misses
+   Csim correctness          27.0        27
+   Trans perf 32x32           8.0         8         287
+   Trans perf 64x64           4.0         8        1651
+   Trans perf 61x67          10.0        10        1992
+   Total points    49.0        53
+   ```
+
+   由上述了解：分块技术受矩阵大小和缓存的配置信息（block 数据大小，line 的数量以及cache大小）都有关系，不好掌控最好的优化方法。
+
+   
+
