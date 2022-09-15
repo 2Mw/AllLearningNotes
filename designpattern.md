@@ -8,7 +8,7 @@
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
-[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=133) P133
+[BV1Np4y1z7BU](https://www.bilibili.com/video/BV1Np4y1z7BU?p=137) P137
 
 推荐网站：https://refactoringguru.cn/
 
@@ -2167,3 +2167,4 @@ classDiagram
 * 黑箱备忘录实现了内部状态的封装
 * 符合单一职责原则
 * 如果需要保存的状态信息过多，会占用较大的系统资源
+
