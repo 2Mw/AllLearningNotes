@@ -1253,7 +1253,69 @@ fork 函数是创建相同代码、相同变量的程序副本，execve 是在�
 
 <img src="csapp.assets/image-20220918152059273.png" alt="image-20220918152059273" style="zoom:80%;" />
 
+### 3. 信号 Signals
 
+如果后台任务足够多就会出现[内存泄漏](https://en.wikipedia.org/wiki/Memory_leak)，这样系统可能会因此而崩溃。
+
+信号是 OS 由于某些事件传递给进程的信息。
+
+![image-20220919141801021](csapp.assets/image-20220919141801021.png)
+
+```sh
+$ kill -l
+1) SIGHUP       2) SIGINT       3) SIGQUIT      4) SIGILL       5) SIGTRAP
+6) SIGABRT      7) SIGBUS       8) SIGFPE       9) SIGKILL     10) SIGUSR1
+11) SIGSEGV     12) SIGUSR2     13) SIGPIPE     14) SIGALRM     15) SIGTERM
+16) SIGSTKFLT   17) SIGCHLD     18) SIGCONT     19) SIGSTOP     20) SIGTSTP
+21) SIGTTIN     22) SIGTTOU     23) SIGURG      24) SIGXCPU     25) SIGXFSZ
+26) SIGVTALRM   27) SIGPROF     28) SIGWINCH    29) SIGIO       30) SIGPWR
+31) SIGSYS      34) SIGRTMIN    35) SIGRTMIN+1  36) SIGRTMIN+2  37) SIGRTMIN+3
+38) SIGRTMIN+4  39) SIGRTMIN+5  40) SIGRTMIN+6  41) SIGRTMIN+7  42) SIGRTMIN+8
+43) SIGRTMIN+9  44) SIGRTMIN+10 45) SIGRTMIN+11 46) SIGRTMIN+12 47) SIGRTMIN+13
+48) SIGRTMIN+14 49) SIGRTMIN+15 50) SIGRTMAX-14 51) SIGRTMAX-13 52) SIGRTMAX-12
+53) SIGRTMAX-11 54) SIGRTMAX-10 55) SIGRTMAX-9  56) SIGRTMAX-8  57) SIGRTMAX-7
+58) SIGRTMAX-6  59) SIGRTMAX-5  60) SIGRTMAX-4  61) SIGRTMAX-3  62) SIGRTMAX-2
+63) SIGRTMAX-1  64) SIGRTMAX
+```
+
+以上是 linux 中传递给进程信号类型.
+
+任意给定时间点内只能由一个特定类型的 pending 信号 (pending 信号就是内核发送但是没收到)。而且需要注意的是信号处理不是一个队列，如果当前有一个待处理的信号，其他信号就会被丢弃。
+
+🔵在进程组中发送信号
+
+<img src="csapp.assets/image-20220919152130939.png" alt="image-20220919152130939" style="zoom:80%;" />
+
+通过 `getpgrp()` 和 `setpgid()` 来获取进程组的信息。
+
+```sh
+# 向 10086 进程发送信号
+kill -9 10086
+# 向 10086 这个进程组所有子进程发送信号
+kill -9 -10086
+```
+
+🔵如何编写安全的信号处理接口(handler)
+
+* 让 handler 尽量简单
+
+* handler中仅调用 async-signal-safety 属性的函数，比如 printf sprintf malloc exit 函数不安全。
+
+  可重入函数是将所有的数据都保存在自己的堆栈上，没有全局变量，这种函数是可重入(reentrant)的。async-signal-safety 函数都是可重入或者不可被信号打断的。
+
+  ![image-20220919162330022](csapp.assets/image-20220919162330022.png)
+
+  linux 可以查看使用命令 `man 7 signal` 查看 async-signal-safety 函数。 `printf` 会在打印之前获取一个锁(全局变量)，在获取锁之后如果获得信号被打断，在 handler 中也调用  `printf` 函数，又需要获取锁，就会出现死锁的现象。
+
+* 在开始和退出的时候保存和加载 errno (全局变量)，防止被其他 handler 覆盖。
+
+* 在访问共享数据的时候应该临时阻塞信号来防止共享数据被破坏，否则可能会出现数据不一致的情况。
+
+* 声明全局变量为 `volatile` ，防止将数据写入寄存器，进程直接对内存进行读写，防止数据不一致。
+
+* 对于原子变量，应该设置类型为 `sig_atomic` 类型，保证读写原子性。
+
+* 不能使用信号来统计事件，因为信号是可以被覆盖的。
 
 ## Appendix
 
