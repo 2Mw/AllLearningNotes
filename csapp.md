@@ -3237,3 +3237,209 @@ lab 分为两个小实验：
 
 本节实验的目的是熟悉程序控制和信号处理，写一个简单的支持 job 控制 的 Unix Shell。
 
+这个实验的重点：
+
+1. 熟悉在 Linux 下异常信号处理的工作原理
+2. 熟悉在 C 语言下信号捕获和屏蔽的实现细节
+
+难点：
+
+1. 需要熟悉 C 语言各种信号捕获屏蔽函数和各种配置参数
+2. 三种信号的触发条件：
+   * `SIGCHLD`：子进程状态发生变化（死亡，暂停，恢复）就会触发信号。
+   * `SIGTSTP`：发生键盘事件 `Ctrl-Z`，默认事件是程序暂停。
+   * `SIGINT`：发生键盘事件 `Ctrl-C`，默认事件是程序停止。
+3. 回收(reap)子程序，即使用 `wait` 或者 `waitpid` 函数：
+   * `wait(&state)` 函数相当于 `waitpid(-1, &state, option)`，其返回值大于 0 为进程 ID
+   * 用户可以根据 state 的值查看程序的状态，使用宏函数 `WIFEXITED`, `WIFSTOPPED`, `WIFSIGNALED` 来查看是否退出、停止以及收到信号。
+   * option 配置：
+     * `NULL` 表示只有子程序发生死亡事件的时候才会返回，否则会一直阻塞。
+     * `WNOHANG` 表示不阻塞程序的运行，如果没有能获取到状态的程序（即发生状态变化的子程序）则直接返回为 0.
+     * `WUNTRACED` 表示如果程序状态出现暂停也可以返回。
+4. 面临的并发问题：
+   * 子进程可能会在父进程添加到其任务队列之前结束，如果子进程先结束就会触发父程序的回收子进程流程，就会出现删除不存在的进程的情况。
+   * 由于 Linux 中信号隐式阻塞机制，父进程发送信号该子程序后，子程序发生状态变化后返回 `SIGCHLD` 信号给父进程，如果此时父进程已经有 `SIGCHLD` 信号，就会导致子进程的信号被抛弃。
+   * 对于共享资源的访问需要保证操作的原子性
+
+实验中需要完成 7 个函数的编写：
+
+```c
+void eval(char *cmdline);
+int builtin_cmd(char **argv);
+void do_bgfg(char **argv);
+void waitfg(pid_t pid);
+
+void sigchld_handler(int sig);
+void sigtstp_handler(int sig);
+void sigint_handler(int sig);
+```
+
+eval 函数：
+
+```c
+// ....
+sigset_t mask_all, prev, one;
+sigfillset(&mask_all);
+sigemptyset(&one);
+sigaddset(&one, SIGCHLD);
+sigprocmask(SIG_BLOCK, &one, &prev);
+
+pid_t pid = -1;
+if ((pid = fork()) == 0)
+{
+    setpgid(0, 0);
+    if (verbose)
+        printf("[Child]pid:%d, gpid:%d\n", getpid(), getpgrp());
+    sigprocmask(SIG_SETMASK, &prev, NULL);
+    if (execve(argv[0], argv, NULL) < 0)
+    {
+        printf("%s: Command not found\n", argv[0]);
+        exit(0);
+    }
+}
+
+if (pid > 0)
+{
+    int state = bg ? BG : FG;
+    sigprocmask(SIG_BLOCK, &mask_all, NULL);
+    addjob(jobs, pid, state, cmdline);
+    sigprocmask(SIG_SETMASK, &prev, NULL);
+    if (!bg)
+    {
+        ppid = pid;
+        waitfg(pid);
+    }
+    else
+    {
+        struct job_t *j = getjobpid(jobs, pid);
+        printf("[%d] (%d) %s", j->jid, j->pid, j->cmdline);
+    }
+}
+// ....
+```
+
+在这个函数中需要注意的点：
+
+* 并发问题 1：必须要保证将任务添加到队列中，才可以对任务进行删除。因此父进程屏蔽掉 `SIGCHLD` 信号，等待添加任务完毕之后，再接触对 `SIGCHLD` 信号的屏蔽。
+* 并发问题 3：对于共享资源 `jobs` 的访问需要保证其操作的原子性，保证其不会被打断。
+* 如果是前台(Foreground)任务，父进程应该等待 (`waitfg`)
+* 如果内核向父进程发送一个信号，那么其同一个进程组内的所有进程都会收到同一个信号；如果我们指向暂停一个进程，并不像暂停其他进程，那么就会遇到麻烦。因此使用 `setpgid(0, 0)` 为 shell 中每个子进程分配一个独立的进程组，并且子进程信号还是能发送给 shell 进程。
+
+```c
+void waitfg(pid_t pid) {
+    while (1) {
+        struct job_t *j = getjobpid(jobs, pid);
+        if (j != NULL && j->state == FG)sleep(0.001);
+        else break;
+    }
+    return;
+}
+```
+
+对于等待前台任务只需要轮询检测 pid 的 job 状态是否仍在前台即可。
+
+对于 Handler，`SIGINT` 和 `SIGTSTP` 的信号都是发送给当前的前台进程的，因此 shell 只需要对前台进程发送信号即可：
+
+```c
+void sigint_handler(int sig)
+{
+    int olderr = errno;
+
+    sigset_t mask, prev;
+    sigfillset(&mask);
+    struct job_t *j;
+    if ((j = getjobpid(jobs, ppid)) != NULL)
+    {
+        sigprocmask(SIG_BLOCK, &mask, &prev);
+        printf("Job [%d] (%d) terminated by signal %d\n", j->jid, j->pid, sig);
+        j->state = UNDEF;
+        kill(ppid, SIGINT);
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    }
+
+    errno = olderr;
+    return;
+}
+
+void sigtstp_handler(int sig)
+{
+    int olderr = errno;
+
+    sigset_t mask, prev;
+    sigfillset(&mask);
+    struct job_t *j;
+    if ((j = getjobpid(jobs, ppid)) != NULL && j->state == FG)
+    {
+        sigprocmask(SIG_BLOCK, &mask, &prev);
+        kill(ppid, SIGTSTP);
+        ppid = -1;
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    }
+
+    errno = olderr;
+    return;
+}
+```
+
+这里需要注意并发问题 2：再向子进程发送信号之前应该屏蔽掉 `SIGCHLD` 信号，等发送信号完毕之后再解除屏蔽。
+
+最后一个即是对 `SIGCHLD` 信号的处理，这也是比较麻烦的情况：
+
+收到 `SIGCHLD` 信号可能有以下几种情况：
+
+* 子进程正常退出，`WIFEXITED(state)` 会为真。
+* 子进程收到父进程 `SIGINT` 退出，通过软件实现 `j->state = UNDEF`，如果收到其他进程的 `SIGINT` 信号，需要通过函数 `WIFSIGNALED(state)` 查看是否收到信号，并且根据 `WTERMSIG(state)` 是否收到的是 SIGINT 函数来判断进程的状态，来对子进程队列 `jobs` 进行操作。
+* 子进程收到 `SIGTSTP` 暂停，通过宏函数 `WIFSTOPPED(state)` 会为真。
+* 子进程收到父进程 `SIGCONT` 继续运行，这种情况无需处理，直接忽略。
+
+```c
+void sigchld_handler(int sig)
+{
+    int olderr = errno;
+    // Set mask
+    sigset_t mask, prev;
+    sigfillset(&mask);
+    pid_t pid = -1;
+    int state;
+    if (verbose)
+        printf("[%d] recv SIGCHLD.\n", getpid());
+    sigprocmask(SIG_BLOCK, &mask, &prev);
+    while ((pid = waitpid(-1, &state, WUNTRACED | WNOHANG)) > 0)
+    {
+        struct job_t *j = getjobpid(jobs, pid);
+        if (WIFEXITED(state) || j->state == UNDEF)
+        {
+            // Normal exit and SIGINT
+            if (verbose)
+                printf("[%d]Child(%d) exit with state: %d\n", getpid(), pid, j->state);
+            deletejob(jobs, pid);
+            // sigprocmask(SIG_SETMASK, &prev, NULL);
+        }
+        else if (WIFSTOPPED(state) && j->state == FG)
+        {
+            // sigprocmask(SIG_BLOCK, &mask, &prev);
+            if (verbose)
+                printf("[%d]Child(%d) recv SIGTSTP.\n", getpid(), pid);
+            printf("Job [%d] (%d) stopped by signal %d\n", j->jid, j->pid, SIGTSTP);
+            j->state = ST;
+        } else if (WIFSIGNALED(state)) {
+            int s = WTERMSIG(state);
+            if (s == SIGINT) {
+                printf("Job [%d] (%d) terminated by signal %d\n", j->jid, j->pid, s);
+                deletejob(jobs, pid);
+            } else if (s == SIGTSTP) {
+                printf("Job [%d] (%d) stopped by signal %d\n", j->jid, j->pid, SIGTSTP);
+                j->state = ST;
+            }
+        }
+    }
+    fflush(stdout);
+    sigprocmask(SIG_SETMASK, &prev, NULL);
+    if (verbose)
+        printf("[%d] Over SIGCHLD.\n", getpid());
+    errno = olderr;
+    return;
+}
+```
+
+并且还需要注意并发问题 3，对于共享资源需要进行保护其不可被打断。
