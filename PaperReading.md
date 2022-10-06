@@ -871,6 +871,35 @@
 
    为防止出现特征穿越，各统计量的统计时间都要放在样本事件的业务时间之前，如上图时间轴所示，Train predictor阶段只能在其之前的Counting部分做统计计数。最终把各粒度的统计量特征变换后的值拼接为一整个特征向量。
 
+### 2210
+
+#### Youtube DNN
+
+![image-20221004163608121](PaperReading.assets/image-20221004163608121.png)
+
+原文：Covington P, Adams J, Sargin E. Deep neural networks for youtube recommendations[C] //Proceedings of the 10th ACM conference on recommender systems. 2016: 191-198.
+
+简介：Youtube DNN 是一种比较知名的推荐算法，其主要分为两个部分：Candidate Generation 和 Ranking。Candidate 负责从大规模原始数据中挑选用户感兴趣的视频，Ranking 是对于 Candidate Generation 处理后的视频数据进一步进行细分排序，最终得到推荐结果。
+
+关键词：推荐系统；召回模型；
+
+数据集：
+
+* Youtube 内部数据集
+
+解决的问题：
+
+1. 可以在大规模数据场景下仍然有较好的性能。
+1. 以前的推荐算法更偏向于推荐过去的内容，没有好的时效性。Youtube DNN 通过为视频信息添加了 Example Age 时序特征来解决这个问题。
+1. 数据过于稀疏导致之前的算法容易过拟合。
+
+我的评价：
+
+1. Youtube DNN 可以算是开创性的推荐算法召回模型了，介绍了漏斗模型的推荐流程，提出塔模型的雏形。
+2. Youtube DNN 在 Candidate Generation 部分改正了原先算法中存在的训练问题，即如果对训练集进行随机采样挑选的话，可能存在使用未来的数据预测之前的结果，也可以称为特征穿越，在逻辑和实际应用中都不太合理。
+3. Youtube DNN 在Ranking部分还需要进行手工特征工程，其中最大的挑战就是对特征时序部分的特征工程。
+4. 在不同特征中如何使用同一类型的 ID 的时候（比如用户观看历史中视频 ID，用户喜欢视频中的视频 ID），应该使用同一种 Embedding 进行处理。
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
@@ -996,10 +1025,21 @@
 
 单 Embedding 向量召回：每个 user 和 item 在一个时刻只用一个 embedding 向量表示
 
-* Youtube DNN 召回：
-* 双塔模型：
+* 单塔召回：user和item的embedding向量都出自同一个网络，比如 Youtube DNN
+* 双塔召回：user和item的embedding向量分别出自两个网络，比如谷歌的 [NRM](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/6c8a86c981a62b0126a11896b7f6ae0dae4c3566.pdf)
+* 长短期兴趣召回：阿里的 [SDM](https://arxiv.org/pdf/1909.00385v2.pdf)
 
 多 Embedding 向量召回：用于用户多兴趣表达
+
+* 阿里的 [MIND](https://arxiv.org/pdf/1904.08030v1.pdf)
+
+树匹配召回(TDM深度树匹配召回（复杂模型+全库搜索）)：
+
+* 阿里的 TDM
+
+目前大部分互联网公司的搜索/推荐/广告系统的召回模块都是采用多路召回，是并发存在的，各路召回模型之间互不影响，最后将所有的召回结果做merge，这样做的原因是每个召回算法的建模出发点都是不一样的，各种召回策略各有利弊，可以相互弥补不足，各取所长，使最终的效果更好，正所谓三个臭皮匠，顶个诸葛亮。
+
+树召回的复杂性和笨重感限制了其在工业界的广泛应用，无论是理论上还是工程上都还有待完善的空间，因此，树召回虽然自称是第3代召回算法，但并不意味着第2代基于向量的召回算法就过时了，就目前看，基于向量的召回仍然是主流，而且在树召回提出之后阿里近两年发表的好几篇论文都是基于向量的召回。至于图召回，网络上对它的评价是有前景的值得探索的一个研究方向。
 
 ## 参考文献
 
