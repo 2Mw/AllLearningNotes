@@ -2,7 +2,7 @@
 
 [TOC]
 
-## Memory Manage
+## 0x1. Memory Manage
 
 
 The data and variables in program are allocated in virtual memory. The are two important area in memory: stack and heap. The parameters function called, return value and local variable are almost allocated in stack and those are managed by compiler.
