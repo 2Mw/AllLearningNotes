@@ -1739,7 +1739,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 int munmap(void *addr, size_t length);
 ```
 
-### 7. 动态内存分配
+### 7. 动态内存分配——基础
 
 动态内存分配是在堆中维护一连续的变量内存块，内存分配是通过分配器(Allocator)实现，有两种类型的分配器：
 
@@ -1779,7 +1779,7 @@ int munmap(void *addr, size_t length);
 
   1. 隐式列表，根据长度来判断下一个内存块的位置。不需要定义隐式表的变量。
 
-     ![image-20221004144548556](csapp.assets/image-20221004144548556.png)
+     ![image-20221004144548556](C:/Users/张三/Desktop/image-20221004144548556.png)
 
   2. 显式链表，将所有的空闲块都链接起来
 
@@ -1816,6 +1816,96 @@ int munmap(void *addr, size_t length);
    有没有可以**优化**之处呢？
 
    * 什么时候需要 footer ？只有在进行内存块释放的时候才需要检测 footer，对于已分配的内存块完全不需要 footer。
+
+### 8. 动态内存分配——进阶
+
+🔵 显式空闲列表
+
+![image-20221006162353310](csapp.assets/image-20221006162353310.png)
+
+对于已分配的内存块和以前一样，对于空闲的内存块可以在其中添加 Next 和 Prev 指针，组成一个单链表。然后分配器只需要维护所有**空闲**的内存块，在逻辑上相当于双向链表。
+
+![image-20221006162626370](csapp.assets/image-20221006162626370.png)
+
+对于空闲内存块所占用内存为 4 个 word：header，footer，next，prev 各一个字长。
+
+**分配内存：**
+
+<img src="csapp.assets/image-20221006164054421.png" alt="image-20221006164054421" style="zoom:67%;" />
+
+在一般情况下，分配内存需要修改 6 个指针，比较简单一些。
+
+**释放内存：**
+
+对于新释放的内存块，需要重新加入到空闲列表中去。但是新的内存块放入到哪里去？放在链表头还是链表尾，还是按照地址顺序插入链表中，释放内存有以下两者策略：
+
+* 头插法（Last-in-first-out policy）
+
+  即将新释放的内存块插入到显式空闲列表头部。
+
+  优点：简单而且只有常数时间
+
+  缺点：有研究表明会比按地址排序的策略产生更严重的碎片
+
+* 按地址顺序(Address-ordered policy)
+
+  将空闲块按照地址排列顺序进行插入
+
+  优点：产生的碎片较少
+
+  缺点：需要线性时间的查找
+
+  通常这种会有人使用平衡树(比如红黑树)来进行快速搜索和插入但是常数因子会很大，而且速度非常快的分离列表(segregated lists)具有非常小的常数因子
+
+> 宗旨：先做简单的事情，然后逐步优化，不需要过早优化。
+
+释放内存会面临的 4 中情况：
+
+<img src="csapp.assets/image-20221006185016763.png" alt="image-20221006185016763" style="zoom: 33%;" /><img src="csapp.assets/image-20221006185037787.png" alt="image-20221006185037787" style="zoom:33%;" />
+
+<img src="csapp.assets/image-20221006185104514.png" alt="image-20221006185104514" style="zoom:33%;" /><img src="csapp.assets/image-20221006185120173.png" alt="image-20221006185120173" style="zoom:33%;" />
+
+🔵 分离空闲列表
+
+![image-20221006193324240](csapp.assets/image-20221006193324240.png)
+
+分离空闲列表是迄今为止性能最好的分配器之一，其可以提高程序性能吞吐量和内存利用率
+
+### 9. 垃圾回收 GC
+
+垃圾回收算法算是隐式内存管理，可以自动回收已分配的堆内存，应用无需手动 free.
+
+系统是如何知道哪些内存是可以被释放的？
+
+* 通常情况下由于不同条件无法确切知道哪片内存将来会被使用
+* 但是可以根据如果没有任何指针指向这些内存块来判断
+
+系统是如何确定指针的？
+
+* 内存管理可以区分指针和非指针
+* 所有的指针都指向内存块的起始位置
+* 不能藏任何指针，即不可用将指针转为一个整形
+
+经典的 GC 算法：
+
+* Mark & Sweep Collection 标记清除法
+
+  ![image-20221006195427345](csapp.assets/image-20221006195427345.png)
+
+  从根节点出发，不可达的节点就是垃圾，可以进行回收。
+
+  可以运行在 malloc 函数中，如果可分配的内存不足就触发垃圾回收算法，其分为两个阶段：
+
+  1. Mark：从根节点开始，对于每个可达的内存块设置标志位
+  2. Sweep：遍历整个堆并且释放所有未做标记的内存块。
+
+* Reference counting 引用计数法
+
+* Copying Collection 复制法
+
+* Generational Collectors 分代法
+
+> 更多垃圾回收内容的可以查看书 《Garbage Collection: Algorithms for Automatic Dynamic Memory》
 
 ## Appendix
 
