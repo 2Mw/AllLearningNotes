@@ -1848,7 +1848,7 @@ int munmap(void *addr, size_t length);
 
 对于新释放的内存块，需要重新加入到空闲列表中去。但是新的内存块放入到哪里去？放在链表头还是链表尾，还是按照地址顺序插入链表中，释放内存有以下两者策略：
 
-* 头插法（Last-in-first-out policy）
+* 头插法（First-in-first-out policy）
 
   即将新释放的内存块插入到显式空闲列表头部。
 
@@ -3822,4 +3822,383 @@ void sigchld_handler(int sig)
 
 > lab 所给文件中并没有 traces 文件，额外的 traces 文件下载：https://github.com/lsw8075/malloc-lab (只需要使用其中的 traces 文件夹即可)，然后修改 lab 中 `config.h` 中默认测试的文件目录。
 
-在书的 599 页讲了很多常用便捷的宏命令，善用好这些宏命令可以更加快速编程。
+在书的 599 页讲了很多常用便捷的宏命令，善用好这些宏命令可以更加快速编程。Malloc Lab 如果使用最简单的代码很容易通过，但是达到很高的分数需要很多精细的性能调优，教授们精心设置的 trace 文件就是引导学生掌握一个新的优化技巧，十分推荐动手做。
+
+在 gcc 编译的时候添加 `-g` 在 gdb 中可以查看源代码信息，如果想查看宏信息使用 `-g3`：
+
+```sh
+gcc -Wall -O2 -m32 -g -o mdriver mdriver.o mm.o memlib.o fsecs.o fcyc.o clock.o ftimer.o -lm
+```
+
+如果使用 `math.h` 文件建议后面添加 `-lm` flag。
+
+**思想**：使用**分离空闲链表**(segregate list)的形式来管理内存中的空闲块。空闲链表的大小划分范围为 $(2^{n-1},2^n]$
+
+![image-20221011200334550](csapp.assets/image-20221011200334550.png)
+
+每个空闲块的形式如图，最小块的大小为 4 字大小，每个空闲链表表头，表头中不含任何内容，链表的数量为 $LN$。红色的线表示正好为 8 正数倍的地址开头。
+
+假设在 32 为机器上，字的大小为 4 字节（使用 $WSIZE$ 表示）。首先需要进行初始化，先向内核申请空间链表头所需要的大小，总共需要 $4*LN+4$，其中后面的 4 是为了对齐使用。
+
+```c
+int mm_init(void)
+{
+    // 首先初始化 LN 个分离空闲链表头
+    size_t overall_size = LN * (MIN_BLK_SIZE) + WSIZE; // link headers and Padding size
+    if ((HEAP_START = mem_sbrk(overall_size)) == (void *)-1)
+        return -1;
+
+    // Padding header
+    PUT(HEAP_START, 0);
+    void *p = HEAP_START + WSIZE;
+    for (size_t i = 0; i < LN; i++)
+    {
+        // Header
+        PUT(p, PACK(MIN_BLK_SIZE, 1));
+        // Next
+        PUT(p + WSIZE, 0);
+        // Prev
+        PUT(p + WSIZE * 2, 0);
+        // Footer
+        PUT(p + WSIZE * 3, PACK(MIN_BLK_SIZE, 1));
+        // Store to global variable
+        seg[i] = p + WSIZE; // 指向 BLOCK 部分
+
+        p = p + WSIZE * 4;
+    }
+
+    return 0;
+}
+```
+
+由于使用分离列表来维护空闲块的位置，因此需要完成两个 API 函数，插入空闲列表和从空闲列表中删除。每个空闲列表处理相当于处理双向链表，其次需要关注对于各空闲块中属性的修改和维护。
+
+插入空闲列表支持两种方式：
+
+* FIFO 头插法模式，效率较高，但是会产生较多碎片（根据实验效果来看，产生的碎片几乎可以忽略）
+* 按照地址排序模式，有着较好的内存利用率，但是从实验结果来看会明显降低计算吞吐量。
+
+```c
+/**
+ * Insert free block to correspondding segregated list with address order.
+ */
+void insert_to_list(void *bp)
+{
+    // 1. find which list belongs to
+    size_t size = GET_SIZE_INFO(HDRP(bp));
+    int idx = round(log2(size));
+    idx = idx >= LN ? LN - 1 : idx;
+    void *cur = seg[idx];
+    void *nxt_bp = GET_NEXT_ADDR(cur);
+    if (IST_METHOD == 1)
+    {
+        // 2a. find an appropriate position
+        // void *pre_bp = GET_PREV_ADDR(cur);
+        while (nxt_bp != (void *)0 && bp > nxt_bp)
+        {
+            cur = nxt_bp;
+            nxt_bp = GET_NEXT_ADDR(nxt_bp);
+        }
+    }
+    else if (IST_METHOD == 2)
+    {
+        // 2b. FIFO insert
+        // nothing
+    }
+
+    // 3. Set fields information
+    // Set next field in previous block
+    PUT(cur + WSIZE, bp);
+    // Set prev and next field in bp
+    PUT(bp, cur);            // prev
+    PUT(bp + WSIZE, nxt_bp); // next
+    // Set prev field in next block
+    if (nxt_bp != NULL)
+        PUT(nxt_bp, bp);
+}
+```
+
+从空闲列表中删除空闲块：
+
+```c
+/**
+ * Remove block from correspondding list
+ * 1. find which segregate list belongs to according SIZE info
+ * 2. find which block is bp in corresponding list
+ * 3. remove this block from list
+ */
+void remove_from_list(void *bp)
+{
+    // 1. find which list belongs to
+    size_t size = GET_SIZE_INFO(HDRP(bp));
+    int idx = round(log2(size));
+    idx = idx >= LN ? LN - 1 : idx;
+    void *cur = seg[idx];
+    // 2. find which block is bp
+    void *pre = NULL;
+    void *next = GET_NEXT_ADDR(cur);
+    while (cur != bp && cur != NULL)
+    {
+        pre = cur;
+        cur = next;
+        if (next)
+            next = GET_NEXT_ADDR(next);
+    }
+
+    if (cur == NULL)
+    {
+        // Use to debug.
+        printf("[ERROR]NOT FOUND addr: %lx.\n", bp);
+        return; // 404 not found
+    }
+    else
+    {
+        PUT(pre + WSIZE, next);
+        if (next)
+            PUT(next, pre);
+
+        /**
+         * NOTE TO ME: This maybe redundant.
+         */
+        PUT(bp, 0);
+        PUT(bp + WSIZE, 0);
+    }
+}
+```
+
+释放内存块实现比较简单，只需要将对应的标志位修改，然后再查看周围是否可合并即可：
+
+```c
+/*
+ * mm_free - Freeing a block does nothing.
+ */
+void mm_free(void *ptr)
+{
+    size_t s = GET_SIZE_INFO(HDRP(ptr));
+
+    PUT(HDRP(ptr), PACK(s, 0));
+    PUT(FTRP(ptr), PACK(s, 0));
+
+    coalesce(ptr);
+}
+```
+
+在合并内存块的时候需要考虑<a href="#8. 动态内存分配——进阶">四种情况</a>，如果被合并的空闲块要从对应的分离列表中及时删除，并且需要注意查看下一个内存块的时候考虑是否越界的问题：
+
+```c
+/**
+ * Check if address excceed the heap
+ */
+int if_excceed(void *p)
+{
+    if (p > (mem_heapsize() + HEAP_START))
+        return 1;
+    else
+        return 0;
+}
+
+/**
+ * Merge free blocks and insert into segregate lists.
+ */
+void *coalesce(void *bp)
+{
+    void *pre_bp = PREV_BLKP(bp);
+    void *nxt_bp = NEXT_BLKP(bp);
+    size_t prev_alloc = GET_ALLOC_INFO(FTRP(pre_bp));
+    size_t next_alloc = if_excceed(nxt_bp) ? 1 : GET_ALLOC_INFO(HDRP(nxt_bp));
+    size_t size = GET_SIZE_INFO(HDRP(bp));
+
+    if (prev_alloc && next_alloc)
+    {
+    }
+    else if (prev_alloc && !next_alloc)
+    {
+        // remove nxt_bp in its list
+        remove_from_list(nxt_bp);
+        size += GET_SIZE_INFO(HDRP(nxt_bp));
+        PUT(HDRP(bp), PACK(size, 0));
+        PUT(FTRP(nxt_bp), PACK(size, 0));
+    }
+    else if (!prev_alloc && next_alloc)
+    {
+        size += GET_SIZE_INFO(HDRP(pre_bp));
+        remove_from_list(pre_bp);
+        PUT(HDRP(pre_bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0));
+        bp = pre_bp;
+    }
+    else
+    {
+        size += GET_SIZE_INFO(HDRP(pre_bp)) + GET_SIZE_INFO(HDRP(nxt_bp));
+        // remove_from_list(bp);
+        remove_from_list(pre_bp);
+        remove_from_list(nxt_bp);
+        PUT(HDRP(pre_bp), PACK(size, 0));
+        PUT(FTRP(nxt_bp), PACK(size, 0));
+        bp = pre_bp;
+    }
+
+    insert_to_list(bp);
+    return bp;
+}
+```
+
+在分配内存块方面，主要有两个流程：
+
+1. 先从已分配空闲列表中查找有没有符号要求的空闲内存块
+2. 如果没有满足情况的，就向内核请求继续分配堆
+
+```c
+/*
+ * mm_malloc - Allocate a block by incrementing the brk pointer.
+ *     Always allocate a block whose size is a multiple of the alignment.
+ */
+void *mm_malloc(size_t size)
+{
+    // pre. validation check
+    if (size == 0)
+        return NULL;
+
+    // 1. check if has free block
+    size = ALIGN(size + WSIZE * 2); // Add the header and footer size
+    if (size < MIN_BLK_SIZE)
+        size = MIN_BLK_SIZE;
+
+    int idx = round(log2(size));
+    idx = idx >= LN ? LN - 1 : idx;
+    void *bp = NULL;
+    void *p;
+    for (; idx < LN; idx++)
+    {
+        void *p = GET_NEXT_ADDR(seg[idx]);
+        // First fit
+        while (p != NULL && GET_SIZE_INFO(HDRP(p)) < size)
+            p = GET_NEXT_ADDR(p);
+
+        if (p != NULL)
+        {
+            bp = p;
+            break;
+        }
+    }
+
+    // Can not find fit free block
+    if (bp == NULL)
+        bp = extend_heap(size / WSIZE);
+
+    // extend heap is in seg list, fit block is also in list.
+    remove_from_list(bp);
+
+    // bp point to free block
+    // Learn: 不需要剩下很小的碎片
+    if (GET_SIZE_INFO(HDRP(bp)) >= MIN_BLK_SIZE + size)
+    {
+        // if allocated block greater than size
+        void *p = bp + size;
+        size_t o_size = GET_SIZE_INFO(HDRP(bp)) - size;
+        PUT(HDRP(p), o_size);
+        PUT(FTRP(p), o_size);
+        insert_to_list(p);
+    }
+    else
+    {
+        size = GET_SIZE_INFO(HDRP(bp));
+    }
+
+    // set bp block size
+    PUT(HDRP(bp), PACK(size, 1));
+    PUT(FTRP(bp), PACK(size, 1));
+
+    return bp;
+}
+```
+
+<h4>🚩小细节：</h4>
+
+假如释放一个小于 4 个字大小空闲块，插入到分离链表中就无法承载 header, footer, next, prev 四个域的内容。因此比如在请求分配 16 字节以下大小的内存时候，应该设置最小值为 16.
+
+在分配内存块的时候，如果分离空闲链表中有合适大小的内存块可分配，如果可分配内存块大小大于请求大小，就需要可分配内存块进行分割，充分利用内存块。
+
+![image-20221011210036055](csapp.assets/image-20221011210036055.png)
+
+如果剩余空间小于最小空闲块，那么这个剩余空间无法利用，就直接算为请求块的一部分，即内部碎片；如果剩余空间大于等于最小空闲块的大小，则可以将剩余的块重新添加到分离链表中进行再利用。
+
+<h4>🔵初步实验结果：</h4>
+
+![image-20221011211010753](csapp.assets/image-20221011211010753.png)
+
+可以看到使用 address order 勉强可以达到及格分，使用 FIFO order 可以明显提高内存分配吞吐量，在部分实验上小幅度降低利用率。
+
+<h4>🚩性能调优：</h4>
+
+* 程序剖析工具 `gprof`
+
+  参考链接：[Linux性能优化gprof使用 - 博客园](https://www.cnblogs.com/youxin/p/7988479.html)
+
+  gprof用于分析函数调用耗时，可用之抓出最耗时的函数，以便优化程序。
+
+  1. gcc -pg 编译程序
+  2. 运行程序，程序退出时生成 gmon.out
+  3. gprof -b ./prog gmon.out 查看输出
+
+* 分析 `binary-bal.rep` trace 文件（56分 -> xx 分）
+
+  通过 gprof 查看程序中所占用时间的：
+
+  ![image-20221011215404003](csapp.assets/image-20221011215404003.png)
+
+  可以看到 `mm_malloc` 占用了 68.75% 的时间。
+
+  查看这个 trace 文件的内存分配过程：
+
+  ```
+  a 0 64
+  a 1 448
+  a 2 64
+  a 3 448
+  a 4 64
+  a 5 448
+  a 6 64
+  a 7 448
+  a 8 64
+  ....
+  f 1
+  f 3
+  f 5
+  ....
+  a 4000 512
+  a 4001 512
+  a 4002 512
+  ....
+  f 0
+  f 2
+  f 4
+  ...
+  ```
+
+  其大致操作为：
+
+  1. 间隔分配大小为 a, b, a, b .... 的内存块
+  2. 释放所有大小为 b 的内存块
+  3. 再分配大小 c = a + b 大小的内存块
+  4. 释放所有双数索引操作的内存块
+
+  ![image-20221011221326987](csapp.assets/image-20221011221326987.png)
+
+  可以看到，当分配 512字节内存的时候，由于内存中含有巨大的空闲空间但是没有一片是可以直接使用的。
+
+  拟采用的策略：
+
+  1. 如果分离空闲链表中找不到一块满足请求大小的内存块，进入第二步
+
+  2. 首先设置 CHUNK_SIZE （为一个常量，比如 4096 字节）
+
+     * 如果请求大小 < CHUNK_SIZE，首先分配一块请求大小（比如 22 字节）的内存块，剩余平分为当前所属分离列表分区中可以存放最大内存块的大小（22字节大小所属链对应大小为 32 字节）。在插入空闲列表的时候如果采用的是头插法，则按照地址逆序插入，逆序插入正序使用，并且由于合并操作的存在，可以减少碎片。否则会出现下图的情况
+
+       ![image-20221011223727105](csapp.assets/image-20221011223727105.png)
+
+     * 如果请求大小 >= CHUNK_SIZE，则直接分配对应的大小。
+
+  3. 
+
+* 
