@@ -4141,7 +4141,7 @@ void *mm_malloc(size_t size)
   2. 运行程序，程序退出时生成 gmon.out
   3. gprof -b ./prog gmon.out 查看输出
 
-* 分析 `binary-bal.rep` trace 文件（56分 -> xx 分）
+* 分析 `binary-bal.rep` trace 文件（56分 -> 72 分）和 `binary2-bal.rep` trace 文件（50 分 -> 88 分）和
 
   通过 gprof 查看程序中所占用时间的：
 
@@ -4193,12 +4193,145 @@ void *mm_malloc(size_t size)
 
   2. 首先设置 CHUNK_SIZE （为一个常量，比如 4096 字节）
 
-     * 如果请求大小 < CHUNK_SIZE，首先分配一块请求大小（比如 22 字节）的内存块，剩余平分为当前所属分离列表分区中可以存放最大内存块的大小（22字节大小所属链对应大小为 32 字节）。在插入空闲列表的时候如果采用的是头插法，则按照地址逆序插入，逆序插入正序使用，并且由于合并操作的存在，可以减少碎片。否则会出现下图的情况
+     * 如果请求大小 < CHUNK_SIZE，首先分配一块请求大小（比如 22 字节）的内存块，剩余平分为当前所属分离列表分区中可以存放最大内存块的大小（22字节大小所属链对应大小为 32 字节）。在插入空闲列表的时候如果采用的是头插法，则**按照地址逆序**插入，逆序插入正序使用，并且由于合并操作的存在，可以减少碎片。否则会出现下图的情况
 
        ![image-20221011223727105](csapp.assets/image-20221011223727105.png)
 
      * 如果请求大小 >= CHUNK_SIZE，则直接分配对应的大小。
 
-  3. 
+  初步结果：
 
-* 
+  ![image-20221012133154816](csapp.assets/image-20221012133154816.png)
+
+  可以看到在 `binary-bal.rep` (7) 和 `binary2-bal.rep`(8) trace 文件上的提升内存利用率显著提高了 30%，`binary2-bal.rep`(8) 的吞吐量提高了 10 倍。
+
+* 分析 `realloc-bal.rep`(9) 文件 (21 分 -> 99 分)和 `realloc2-bal.rep`(10) 文件 (58 分 -> 89 分)
+
+  realloc 函数只使用最朴素的方法：
+
+  ```c
+  /*
+   * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
+   */
+  void *mm_realloc(void *ptr, size_t size)
+  {
+      if (size == 0)
+      {
+          if (ptr != NULL)
+              mm_free(ptr);
+          return NULL;
+      }
+  
+      if (ptr == NULL)
+          return mm_malloc(size);
+  
+      // ptr != NULL and size > 0
+      void *newptr = mm_malloc(size);
+      size_t copySize = MIN(size, GET_SIZE_INFO(HDRP(ptr)));
+      memcpy(newptr, ptr, copySize);
+      mm_free(ptr);
+      return newptr;
+  }
+  ```
+
+  即 realloc = malloc 新地址 + free 旧地址。如果一直 realloc 的存储容量不断变大，就需要不断创建新内存，不能很好的利用内存区域从而造成极大的浪费，这也是 realloc 利用率低的原因，并且由于不断的分配大内存，在复制数据的过程中占用过多 CPU 资源，因此吞吐量也变低了。
+
+  因此对于内存块应该减少重新分配的次数，如果可以在原内存块的基础上扩展；如果实在不能扩展就将重新分配。
+
+  ```c
+  // size > old_size
+  //  对于 FIFO order，如果大块内存遇到后面有十分小的内存进行占用的时候，将其移动到小的内存块分离链表中去（不允许）
+  if (coalesceEndForSize(ptr, size))
+  {
+      // case 1: if adjacent has free blocks behind ptr then coalesce it, if reach the border of heapsize then extend.
+      newptr = ptr;
+  }
+  else
+  {
+      // case 2: not a border pointer and no enough memory even though coalesce blocks at the back of ptr.
+      // have to malloc memory
+      newptr = mm_malloc(size);
+      memcpy(newptr, ptr, old_size);
+      mm_free(ptr);
+  }
+  ```
+
+  其中 `coalesceEndForSize` 函数为：
+
+  ```c
+  /**
+   * Only coalesce the block those behind bp for `size`,
+   * if will stop if the overall size coalesced block is greater equal than `size`.
+   * if no enough memory, return false and if has enough memory, return true;
+   */
+  int coalesceEndForSize(void *bp, size_t size)
+  {
+      size_t init_size = GET_SIZE_INFO(HDRP(bp));
+      int alloc = GET_ALLOC_INFO(HDRP(bp));
+      void *cur = bp;
+      void *nxt_blk = NEXT_BLKP(bp);
+      while (nxt_blk != NULL && !if_excceed(nxt_blk) && !GET_ALLOC_INFO(HDRP(nxt_blk)))
+      {
+          // Not exceed the heap size and not allocated.
+          init_size += GET_SIZE_INFO(HDRP(nxt_blk));
+          remove_from_list(nxt_blk);
+          if (init_size >= size)
+              break;
+          cur = nxt_blk;
+          nxt_blk = NEXT_BLKP(nxt_blk);
+      }
+  
+      if (init_size >= size + MIN_BLK_SIZE)
+      {
+          size_t ex_size = init_size - size;
+          // Create new block
+          void *new_blk = bp + size;
+          PUT(HDRP(new_blk), PACK(ex_size, 0));
+          PUT(FTRP(new_blk), PACK(ex_size, 0));
+          insert_to_list(new_blk);
+          init_size = size;
+      }
+  
+      // If block are in the border of heap size, just extend the heap and coalesce
+      if (init_size < size && if_excceed(bp + init_size))
+      {
+          size_t need_size = ALIGN(size - init_size);
+          void *np = extend_heap(need_size / WSIZE, 0);
+          init_size += GET_SIZE_INFO(HDRP(np));
+      }
+  
+      PUT(HDRP(bp), PACK(init_size, alloc));
+      PUT(FTRP(bp), PACK(init_size, alloc));
+      return init_size >= size;
+  }
+  ```
+
+  函数的执行大致流程为：
+
+  1. 查看后续相邻的块是否为空闲块，如果为空闲块则直接合并，如果不是空闲块则退出
+  2. 如果合并后的空闲块大小远大于请求大小则进行拆分
+  3. 如果这个内存块在堆的边界，只需要扩展堆大小即可。
+
+  通过优化重新分配内存策略，大幅度减少了不同内存位置的复制操作：
+
+  ![image-20221013170639320](csapp.assets/image-20221013170639320.png)
+
+  因此极大提高了分配吞吐量，分数也分别从 23分 -> 61分(realloc-bal.rep) ，57分 -> 63分(realloc2-bal.rep).
+
+  但是内存利用率仍然很低。感觉 realloc 的场景类似于：程序大部分变量只分配小空间大小，少部分变量因为业务场景内存占用会逐渐提高。因此主要思想就是：
+
+  1. 让小对象的内存占用大部分时间只局限在一部分区域
+  2. 大对象的内存地址大部分时间维持在堆的边界，减少大对象重新分配内存地址复制数据的次数。
+
+  因此我这里采用在初始化的时候就预分配小对象的空间，减少小对象的分配到大对象的地址之后的情况。由于实验要求的限制，这里使用固定的永不释放的块来固定小空间的大小：
+
+  ![image-20221013172709577](csapp.assets/image-20221013172709577.png)
+
+  在采取小对象内存预分配后：
+
+  ![image-20221013184934427](csapp.assets/image-20221013184934427.png)
+
+  吞吐量和内存占用率大幅度提升，内存占用率直逼 99%，吞吐量也提高了 1.5 倍左右。
+
+* 剩余一个 `coalescing-bal.rep` trace 文件由于其分配的内存本来就小，优化难度陡升，最终成绩 91 分。
+
