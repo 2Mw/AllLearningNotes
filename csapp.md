@@ -1937,6 +1937,101 @@ int munmap(void *addr, size_t length);
 
 > 更多垃圾回收内容的可以查看书 《Garbage Collection: Algorithms for Automatic Dynamic Memory》
 
+## 十. 网络编程
+
+### 1. Basic
+
+常见端口号：
+
+1. echo server: 7
+2. ssh server: 22
+3. email server: 25/smtp
+4. web server: 80/http
+
+更多对应端口号可以查看 `/etc/services` 文件。
+
+![image-20221014154812412](csapp.assets/image-20221014154812412.png)
+
+当客户端连接服务端的时候，内核会给客户端分配一个临时端口 51213。
+
+### 2. Socket 编程
+
+在所有 Unix I/O 设备、网络都被建模为文件。对于 kernel 来说，socket 就是交流的窗口；对于应用来说，socket 就是**文件描述符**可以让应用向网络中进行读写。其与普通文件最大的区别就是应用打开 socket 描述符的方式。
+
+![image-20221014155903650](csapp.assets/image-20221014155903650.png)
+
+Socket 地址结构：
+
+![image-20221014160308945](csapp.assets/image-20221014160308945.png)
+
+![image-20221014160330506](csapp.assets/image-20221014160330506.png)
+
+`sockaddr_in` 结构体是 `sockaddr` 的子类。
+
+CS 架构流程图：
+
+![image-20221014163917078](csapp.assets/image-20221014163917078.png)
+
+解释：
+
+1. `getaddreinfo()` 函数
+
+   ```c
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <netdb.h>
+   
+   int getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
+               struct addrinfo **res);
+   
+   void freeaddrinfo(struct addrinfo *res);
+   
+   const char *gai_strerror(int errcode);
+   ```
+
+   其中 result 返回的是一个链表，比如一个域名可能对应多个 IP 地址。并且会自己 free。
+
+   ![image-20221014191947536](csapp.assets/image-20221014191947536.png)
+
+2. `socket()` 函数：客户端和服务器端用来创建一个 socket 文件修饰符
+
+   ```c
+   int socket(int domain, int type, int protocol);
+   
+   // 通常使用
+   int fd = socket(AF_INET, SOCKE_STREAM, 0);
+   ```
+
+3. `bind()` 函数：专门用于服务器端将 fd 和 网络地址绑定在一起
+
+   ```c
+   int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+   ```
+
+4. `listen` 函数：用于告诉内核这是一个服务器而不是客户端
+
+   ```c
+   int listen(int sockfd, int backlog);
+   ```
+
+5. `accept` 函数：用来接收客户端的连接
+
+   ```c
+   int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+   ```
+
+   其会返回一个新的 fd 用于同客户端进行交流。
+
+6. `connect` 函数：用于客户端连接服务端
+
+   ```c
+   int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+   ```
+
+当客户端发送一个 EOF 信息给服务器端的时候，服务器端才会结束对于客户端连接的处理。因此可以看到服务器端的网络 IO 模型只是单纯的串行模式，无法在较短时间内处理多连接。各种优化可以参见**网络 IO 复用模型**。
+
+
+
 ## Appendix
 
 ### 1. datalab-wp
