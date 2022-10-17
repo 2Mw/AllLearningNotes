@@ -1691,7 +1691,7 @@ Intel i7 的内存系统架构：
 
 >这一节可以更好理解 `fork` 和 `execve` 的工作原理。
 
-内存映射：虚拟内存区域通过与磁盘对象关联来进行初始化。
+内存映射：虚拟内存区域通过与磁盘对象关联来进行初始化。将磁盘上某文件一部分或者整个文件映射到应用程序地址空间某个地址范围的一种机制。
 
 虚拟内存区域初始化方式：
 
@@ -1730,14 +1730,58 @@ fork 函数不是单独的将两个进程的虚拟内存都指向相同的物理
 
 🔵用户级别的内存映射
 
+![Linux 内存映射函数 mmap（）函数详解_Linux](csapp.assets/resize,m_fixed,w_750.webp)
+
 Linux 内核中还提供了用户级别的内存映射：
 
 ```c
 #include <sys/mman.h>
-
+// 映射
+// addr 表示要映射到内存区域的起始地址，通常是 NULL，表示由内核来指定该内存地址。
+// length 表示需要映射的内存区域大小
+// prot 表示希望的内存保护标志 PROT_EXEC(可执行), PROT_READ, PROT_WRITE, PROT_NONE(不可访问)
+// flags 指定映射对象的类型，映射选项和映射页是否共享
+// fd 文件描述符 （open 函数返回）
+// offset 被映射文件的起始偏移量
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+// 解除映射
 int munmap(void *addr, size_t length);
 ```
+
+mmap系统调用使得进程之间通过映射同一个普通文件实现共享内存。普通文件被映射到进程地址空间后，进程可以像访问普通内存一样对文件进行访问，不必再调用 `read()`，`write()` 等操作。
+
+相比于使用 `fread` 或者 `fwrite` 函数，由于不需要写入缓冲区，因此会加快文件的读取和写入速度，如果进程需要在内核空间和用户空间两者之间大量数据传输操作的话，效率是十分高的。`mmap` 函数也可以实现在多个进程之间进行共享内存。
+
+什么时候内存映射最有用？
+
+* 对于需要随机访问的大型文件
+* 对于需要一次读入内存然后频繁访问的小文件
+* 对于需要在应用程序之间共享的数据
+
+🔵 零拷贝、mmap 和 sendFile 区别
+
+参考：
+
+* [细细阅读，3张图带你理解，零拷贝，mmap和sendFile](https://xie.infoq.cn/article/a34cf4d2c6556d6c81be17303)
+* [一文带你，彻底了解，零拷贝Zero-Copy技术](https://xie.infoq.cn/article/340769913d2202f6387550dd8)
+
+传统 IO 执行流程：
+
+![img](csapp.assets/71801dc9f3918d69b96ff457935083fd.png)
+
+总共经过 4 次拷贝：DMA 拷贝 -> CPU 拷贝 -> CPU拷贝 -> DMA 拷贝
+
+mmap 执行流程：
+
+![img](csapp.assets/b3b29d44d420da75a69b7f04e112c756.png)
+
+由于会直接将磁盘文件映射到虚拟内存中，所以少了一次 CPU 拷贝。
+
+sendFile 流程：
+
+![img](csapp.assets/b0fc4c692e15d8f5d3bc760bca2c5162.png)
+
+进行网络 io 时直接将加载到内存的数据发送到 socket 缓冲区中。
 
 ### 7. 动态内存分配——基础
 
@@ -2193,7 +2237,69 @@ int sem_post(sem_t *s); /* V(s) */
 
 3. 函数总返回指向同一个全局变量的指针
 
+### 6. IO 多路复用
 
+参考：
+
+* [Linux IO模式及 select、poll、epoll详解](https://segmentfault.com/a/1190000003063859)
+* [9.2 I/O 多路复用：select/poll/epoll](https://xiaolincoding.com/os/8_network_system/selete_poll_epoll.html#epoll)
+
+当一个read操作发生时，它会经历两个阶段：
+
+1. 等待数据准备 (Waiting for the data to be ready)
+2. 将数据从内核拷贝到进程中 (Copying the data from the kernel to the process)
+
+正式因为这两个阶段，linux系统产生了下面五种网络模式的方案。
+
+* 阻塞 I/O（blocking IO）
+* 非阻塞 I/O（nonblocking IO）
+* I/O 多路复用（ IO multiplexing）
+* 信号驱动 I/O（ signal driven IO）
+* 异步 I/O（asynchronous IO）
+
+![clipboard.png](csapp.assets/bVm1c5.png)
+
+select / epoll 好处在于单个线程可以同时处理多个网络连接 IO。
+
+🔵 select / poll
+
+当进程调用 select 的时候，会遍历所有 fd，如果没有事件发生整个进程会阻塞，当有事件发生内核会唤醒 `select` ，但是 select 不知道哪个 socket 含有信息，还需要重新遍历所有 fd。
+
+`poll` 和 `select` 流程类似。
+
+🔵epoll
+
+![img](csapp.assets/epoll.png)
+
+epoll 有两个优点：
+
+1. 在内核中使用红黑树来跟踪进程所有待检测的 fd，通过 `epoll_ctl()` 函数将 fd 添加到红黑树中。可以大幅度减少 fd 的数据拷贝和分配。
+2. epoll 使用事件驱动的机制。内核中维护一个链表来记录就绪事件，当某个 socket 有事件发生的时候，内核会将对应 socket 添加到就绪列表中，当用户调用 `epoll_wait()` 的时候，只需要返回事件的个数，不用像 `select` 遍历整个列表。
+
+模板：
+
+```c
+int s = socket(AF_INET, SOCK_STREAM, 0);
+bind(s, ...);
+listen(s, ...)
+
+int epfd = epoll_create(...);
+epoll_ctl(epfd, ...); //将所有需要监听的socket添加到epfd中
+
+while(1) {
+    int n = epoll_wait(...);
+    for(接收到数据的socket){
+        //处理
+    }
+}
+```
+
+epoll 支持两种事件触发模式：
+
+* 边缘触发(edge-triggered, ET)，当被监控的 socket 描述符上有可读事件发生的时候，服务器端只会从读取一次，在没有新事件发生之前，不会再通知。边缘触发模式一般和非阻塞 IO 搭配使用。
+* 水平触发(level-triggered, LT)【默认】，只要被监控的 socket 有事件发生，服务器端就会不断的从 `epoll_wait` 中苏醒，直到就绪事件被全部读取完毕。其目的就是告诉我们有数据需要读取。
+
+一般来说，边缘触发相比于水平触发可以减少系统调用的次数。使用多路复用 IO 一般要配合非阻塞 IO 进行使用。
 
 ## Appendix
 
