@@ -2279,6 +2279,8 @@ epoll 有两个优点：
 模板：
 
 ```c
+#include <sys/epoll.h>
+
 int s = socket(AF_INET, SOCK_STREAM, 0);
 bind(s, ...);
 listen(s, ...)
@@ -4699,3 +4701,233 @@ void *mm_malloc(size_t size)
 
 * 剩余一个 `coalescing-bal.rep` trace 文件由于其分配的内存本来就小，优化难度陡升，最终成绩 91 分。
 
+### 7. Proxy lab
+
+这个 lab 中涉及到了 C 网络 io API 的熟悉和使用，加深网络编程的印象，还涉及到了并发模型比如读者-写者问题，消费者-生产者模型。
+
+对于消费 clientfd 使用线程池的形式进行实现，避免创建线程和回收线程的开销：
+
+```c
+int main(int argc, char **argv)
+{
+    signal(SIGPIPE, SIG_IGN);
+    if (argc < 2)
+    {
+        fprintf(stderr, "Usage: %s port.\n", argv[0]);
+        exit(0);
+    }
+
+    pthread_t tid;
+    socklen_t clientlen;
+    struct sockaddr_storage clientaddr;
+
+
+    int listen_fd = Open_listenfd(argv[1]), connfd;
+    sbuf_init(&buf, BUFFER_SIZE);
+
+    for (size_t i = 0; i < CORES; i++)
+        Pthread_create(&tid, NULL, worker, NULL);
+
+    while (1)
+    {
+        clientlen = sizeof(struct sockaddr_storage);
+        connfd = Accept(listen_fd, (SA *)&clientaddr, &clientlen);
+        // printf("Accept: %d\n", connfd);
+        sbuf_insert(&buf, connfd);
+    }
+    
+    return 0;
+}
+
+void *worker(void *vargp)
+{
+    Pthread_detach(pthread_self());
+    while (1)
+    {
+        int connfd = sbuf_remove(&buf);
+        forward(connfd);
+        Close(connfd);
+        sleep(0.05);
+    }
+    
+}
+```
+
+在对网页缓存进行访问的时候可以使用到读者-写者问题（由于过于实验数据简单未实现）：
+
+```c
+#define CACHE_LINE 10
+
+struct Cache
+{
+    char *key;
+    char *value;
+    struct Cache *next;
+};
+
+typedef struct
+{
+    struct Cache *head;
+    int n;
+    sem_t mutex;
+    // sem_t items;
+    // sem_t slots;
+} CacheHandler;
+
+void cache_handler_init(CacheHandler *h);
+void cache_insert(CacheHandler *sp, char *key, char *value);
+struct Cache *cache_init(struct Cache *c);
+void cache_deinit(struct Cache *c);
+char *cache_get(CacheHandler *sp, char *key);
+```
+
+其中 CacheHandler 用来监控和管理整个 Cache，并且由于存在缓存替换的问题，所以使用链表头插法的形式来实现 LRU 算法。
+
+展示以下最核心的 `cache_insert` 函数：
+
+```c
+void cache_insert(CacheHandler *sp, char *key, char *value)
+{
+    P(&sp->mutex);
+    struct Cache *c = sp->head;
+    struct Cache *entry = NULL;
+    int cnt = 0;
+    while (c->next != NULL)
+    {
+        cnt++;
+        if (strcmp(c->next->key, key) == 0)
+        {
+            entry = c->next;
+            c->next = entry->next;
+            break;
+        }
+        if (cnt == sp->n)
+        {
+            // free memory
+            cache_deinit(c->next);
+            c->next = NULL;
+            break;
+        }
+
+        c = c->next;
+    }
+
+    if (entry == NULL)
+    {
+        entry = cache_init(NULL);
+        entry->key = key;
+        entry->value = value;
+    }
+
+    entry->next = sp->head->next;
+    sp->head->next = entry;
+
+    V(&sp->mutex);
+}
+```
+
+在连接到服务器的 clientfd 使用消费者-生产者模式进行处理：
+
+```c
+void sbuf_insert(sbuf_t *sp, int item)
+{
+    P(&sp->slots);
+    P(&sp->mutex);
+    sp->buf[(++sp->rear) % (sp->n)] = item;
+    V(&sp->mutex);
+    V(&sp->items);
+}
+
+/**
+ * remove an item from buffer
+ */
+int sbuf_remove(sbuf_t *sp)
+{
+    P(&sp->items);
+    P(&sp->mutex);
+    int item = sp->buf[(++sp->front) % (sp->n)];
+    V(&sp->mutex);
+    V(&sp->slots);
+    return item;
+}
+```
+
+最终就是代理转发函数：（篇幅限制，部分代码省略）
+
+```c
+/**
+ * forward client request to target.
+ * if has cached then return directly, else truly request;
+ */
+void forward(int connfd)
+{
+    // 1. init
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    Pthread_once(&once, init);
+    char uri[BUF_SIZE];  // Cache key
+    char host[BUF_SIZE]; // host header
+    char *tmp;
+
+    // 2. Get client request information
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    int n = 0;
+    char buf[MAX_OBJECT_SIZE];
+    // =====
+    // 从客户端读取 host 的信息等
+    // =====
+
+    if (strlen(host) == 0)
+        return;
+
+    // 3. search cache if hit 是否命中缓存
+    char *res = cache_get(&h, uri);
+    if (res != NULL)
+    {
+        Rio_writen(connfd, res, MAX_OBJECT_SIZE);
+        return;
+    }
+
+    // 4. no then request and save to cache
+    char *port = NULL, *lefturi = NULL;
+    char hostname[256];
+    // =====
+    // 构造 proxy 发送给 target 的 header 信息
+    // =====
+
+    // 连接目标
+    int clifd = open_clientfd(hostname, port);
+    if (clifd > 0)
+    {
+        // =====
+        // 向目标发送请求头
+        // =====
+
+        // Recv
+        char obj[MAX_OBJECT_SIZE], *op = obj;
+        memset(obj, 0, sizeof(obj));
+        rio_t cli_rio;
+        rio_readinitb(&cli_rio, clifd);
+        int cnt = 0;
+        int content_length = 0;
+        while ((n = Rio_readlineb(&cli_rio, buf, MAX_OBJECT_SIZE)) != 0)
+        {
+            // =====
+            // 边从target接收 边向 src 发送
+            // =====
+
+        }
+
+        // =====
+        // 是否满足缓存的要求，是则缓存由 target 接收到的消息
+        // =====
+    }
+    return;
+}
+```
+
+最终结果：
+
+![image-20221018223408897](csapp.assets/image-20221018223408897.png)
+
+Over csapp from 2022/08/07 --- 2022/10/18
