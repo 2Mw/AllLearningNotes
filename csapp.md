@@ -576,7 +576,7 @@ struct rec {
 
 如何对齐：
 
-1. 主要数据类型为 K 字节，那么数据存储地址必须是 K 的整数倍。
+1. 主要数据类型为 K 字节，那么数据存储起始地址必须是 K 的整数倍。
 
 其中主要数据类型的定义为该结构体中最大字节的类型。
 
@@ -678,7 +678,7 @@ void echo() {
 
 ```
 4005d6:       48 83 ec 18				sub    $0x18,%rsp
-// ===== Canary start ====
+// ===== Canary start part1 ====
 4005da:       64 48 8b 04 25 28 00		mov    %fs:0x28,%rax
 4005e1:       00 00
 4005e3:       48 89 44 24 08			mov    %rax,0x8(%rsp)
@@ -688,7 +688,7 @@ void echo() {
 4005ed:       e8 ce fe ff ff			callq  4004c0 <gets@plt>
 4005f2:       48 89 e7					mov    %rsp,%rdi
 4005f5:       e8 96 fe ff ff			callq  400490 <puts@plt>
-// ===== Canary start ====
+// ===== Canary start part2====
 4005fa:       48 8b 44 24 08			mov    0x8(%rsp),%rax
 4005ff:       64 48 33 04 25 28 00		xor    %fs:0x28,%rax
 // ===== Canary Over ====
@@ -719,7 +719,7 @@ Aborted
 
 ![image-20220903132121766](csapp.assets/image-20220903132121766.png)
 
-在一般情况下，分配的 `char` 数组保存在栈帧中，并且 `gets` 会分配 20 个额外的字节；再紧接着就是上一个函数的返回地址。代码注入的思想就是修改上个函数的返回地址，跳到恶意代码的地址。
+在没有 baby canary 的情况下，分配的 `char` 数组保存在栈帧中，并且 `gets` 会分配 20 个额外的字节；再紧接着就是上一个函数的返回地址。代码注入的思想就是修改上个函数的返回地址，跳到恶意代码的地址。
 
 ![image-20220903132831160](csapp.assets/image-20220903132831160.png)
 
@@ -3918,10 +3918,14 @@ lab 分为两个小实验：
    TEST_TRANS_RESULTS=1:1651
    ```
 
+   更有解法图解：
+
+   <video class="ztext-gif GifPlayer-gif2mp4 css-1xeqk96" src="https://vdn3.vzuu.com/SD/b019a386-df99-11eb-975b-ee9e20d8f221.mp4?disable_local_cache=1&amp;bu=078babd7&amp;c=avc.0.0&amp;f=mp4&amp;expiration=1666151382&amp;auth_key=1666151382-0-0-9f097d66ff572e130113a8ba94e208d4&amp;v=tx&amp;pu=078babd7" data-thumbnail="https://pic3.zhimg.com/v2-1fd2879221364435c9416590dc66abe6_b.jpg" poster="https://pic3.zhimg.com/v2-1fd2879221364435c9416590dc66abe6_b.jpg" data-size="normal" preload="metadata" playsinline="" __idm_id__="98305" loop=""></video>
+
    ---
-
+   
    第三个要求比较宽松，只需要简单分块即可：
-
+   
    ```c
    if (M ==  61) {
        int bsize = 16;
@@ -3935,9 +3939,9 @@ lab 分为两个小实验：
        }
    }
    ```
-
+   
    最终成绩：
-
+   
    ```sh
    $ ./driver.py
    Part A: Testing cache simulator
@@ -3968,9 +3972,9 @@ lab 分为两个小实验：
    Trans perf 61x67          10.0        10        1992
    Total points    49.0        53
    ```
-
+   
    由上述了解：分块技术受矩阵大小和缓存的配置信息（block 数据大小，line 的数量以及cache大小）都有关系，不好掌控最好的优化方法。
-
+   
    
 
 ### 5. Shell lab
