@@ -995,6 +995,60 @@ SENet
 
 如何保留更多、更丰富的信息在塔的最终的Embedding中，从而有机会和对侧塔得到的Embedding交叉？
 
+<h5>4. 召回模型、粗排评估指标</h5>
+
+参考：
+
+* [召回常用评估指标](https://juejin.cn/post/6844904065638350861)
+* [Ranking算法评测指标之 CG、DCG、NDCG](https://zhuanlan.zhihu.com/p/136199536)
+
+召回指标：
+
+* Recall，用户全部点击中有多少item被召回了
+* precision，召回的item中有多少被用户点击了
+* F1@N
+* HR / ARHR@N
+
+粗排指标：
+
+* NDCG@N
+
+  在 ranking 中高相关性的文档在搜索引擎结果列表出现越早越好。即高相关性的文档出现位置越靠前，指标越高；高相关性的文档要比边缘相关的文档更有用，边缘相关的文档要比不相关的文档更有用，即高相关性的文档比一般相关性的文档更影响最终的指标得分。
+
+  累积增益(Cumulative Gain, CG)是搜索结果列表中所有文档的分级相关性得分的综合。CG 只考虑了搜索结果中文档的相关性，未考虑文档在结果列表中的位置因素。
+
+  给定一个结果列表的排序位置 p，CG 可定义为：
+  $$
+  CG_p=\sum_{i=1}^prel_i
+  $$
+  其中 $rel_i$ 表示位置 $i$ 的文档相关度。考虑位置因素可以让相关度更高的文档排在前面。
+
+  折损累计增益(Discounted cumulative gain, DCG) 提出在搜索结果列表的较低位置上如果出现相关性较高的文档时候，应该对评测得分施加惩罚，DCG 定义为：
+  $$
+  DCG_p=\sum_{i=1}^p\frac{rel_i}{\log_2(i+1)}
+  $$
+  还有一种常见的定义公式：
+  $$
+  DCG_p=\sum_{i=1}^p\frac{2^{rel_i}-1}{\log_2(i+1)}
+  $$
+  归一化折损累计增益(Normalized Discounted Cumulative Gain, NDCG) 由于搜索结果随着检索词的变化返回的数量是不一致的；二 DCG 是一个累加的值，没法针对两个不同的所有结果进行比较，因此需要进行归一化处理：
+  $$
+  \text{nDCG}_p=\dfrac{\text{DCG}_p}{\text{IDCG}_p}
+  $$
+  而 IDCG 表示在理想情况下的最大 DCG 值:
+  $$
+  \text{IDCG}_p=\sum_{i=1}^{|\text{REL}|}\frac{2^{rel_i}-1}{\log_2(i+1)}
+  $$
+  其中 |REL| 表示按照结果相关性从大到小排序，取前 p 个结果组成的集合。
+
+* Recall
+
+#### DSSM
+
+![image-20221020164937848](PaperReading.assets/image-20221020164937848.png)
+
+原文：Huang P S, He X, Gao J, et al. Learning deep structured semantic models for web search using clickthrough data[C]//Proceedings of the 22nd ACM international conference on Information & Knowledge Management. 2013: 2333-2338.
+
 
 
 ## RS-Wiki
