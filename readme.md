@@ -15,7 +15,7 @@
 * [Java 并发编程笔记](Java高并发.md) 包含 Java 包 JUC, AQS 学习笔记
 * [JVM 笔记](JVM知识.md) 包含 Java 虚拟机的学习笔记
 * [Java 实战](Java实战.md) 包含 Java 实战中的经验总结
-* [Netty 学习笔记](netty.md) 只包含对 Netty 的使用，未包含源码阅读笔记
+* [Netty 学习笔记](netty.md) 只包含对 Netty 的使用（未包含源码阅读）
 
 ## 0x3. Golang 系列
 
@@ -28,6 +28,7 @@
 
 * [MySQL 笔记](database.md) 从简单 MySQL 语法到 MySQL 进阶知识（[MySQL 实战 45 讲](https://time.geekbang.org/column/intro/100020801)）
 * [Redis 笔记](redis.md) 包含 redis 基础知识笔记
+* [CMU15-445 Database System](15445.md) CMU 数据库系统笔记（进行中）
 
 ## 0x5. 设计模式
 
