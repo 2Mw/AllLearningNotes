@@ -1049,7 +1049,20 @@ SENet
 
 原文：Huang P S, He X, Gao J, et al. Learning deep structured semantic models for web search using clickthrough data[C]//Proceedings of the 22nd ACM international conference on Information & Knowledge Management. 2013: 2333-2338.
 
+简介：DSSM 是一种使用点击数据来学习深度结构语义模型的算法，用于提高搜索关键字和搜索结果之间相关度的算法，其首先使用 word hashing 将高维的搜索关键字和搜索结果映射到低维空间中，得到对应语义特征，然后将通过使用余弦相似度计算 query 和各个 document 之间的相似度，最终通过 softmax 层得到与各个文档之间的相似度大小来得到排序结果。
 
+关键词：推荐算法；排序模型；
+
+数据集：henceforth
+
+解决的问题：
+
+1. 解决了的 SVD 计算大型稀疏矩阵需要面临的问题
+2. 之前基于深度学习的算法效果不是很好，并且限制较多
+
+我的评价：
+
+1. 这个模型算是召回和粗排的模型的鼻祖，其算法流程比较简单。先是经过 word hashing （这里我觉得可以算是 embedding）将高维的 query 和 document 转化为低维的语义特征，然后根据余弦相似度计算 query 和 document 之间的相似度，再将各个相似度通过 softmax 得到相似度排行得到排序结果。
 
 ## RS-Wiki
 
