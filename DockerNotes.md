@@ -155,7 +155,7 @@ docker run --name <container_name> -e <env_var> -d  -p <host_port:con_port> <ima
 --name="name"	 容器名字 tomcat01 tomcat02 用来区分容器
 -d				后台方式启动，相当于nohup
 -it				使用交互式运行，进入容器查看内容
--p				指定容器端口 [8080:8080]主机端口，映射到容器端口
+-p				指定 [8080:8080](主机端口:容器端口)，映射到容器端口
 -P				随机指定端口(大写)
 -e				设置环境变量
 ```
@@ -855,10 +855,8 @@ docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr
 使用自己的nginx.conf
 
 ```sh
-docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr/share/nginx/html -v E:\Notes\docker\vhost\nginx01\conf\n:/etc/nginx/nginx.conf nginx
+docker run --name nginx01 -d -p 80:80 -v E:\Notes\docker\vhost\nginx01\html:/usr/share/nginx/html -v E:\Notes\docker\vhost\nginx01\conf\nginx.conf:/etc/nginx/nginx.conf nginx
 ```
-
-
 
 ### MySQL
 
@@ -874,5 +872,11 @@ redis持久化的目录在`/data`下，`--save`表示每60秒如果有一次写�
 
 ```sh
 docker run --name redis01 -d -p 6379:6379 -v E:\Notes\docker\vhost\redis01\data:/data -v E:\Notes\docker\vhost\redis01\conf\redis.conf:/etc/redis/redis.conf redis redis-server /etc/redis/redis.conf --save 60 1
+```
+
+### PostgreSQL
+
+```sh
+docker run --name psql_a -e POSTGRES_USER=root -e POSTGRES_PASSWORD=**** -p 5433:5432 -d postgres
 ```
 
