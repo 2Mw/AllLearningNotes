@@ -1051,18 +1051,53 @@ SENet
 
 简介：DSSM 是一种使用点击数据来学习深度结构语义模型的算法，用于提高搜索关键字和搜索结果之间相关度的算法，其首先使用 word hashing 将高维的搜索关键字和搜索结果映射到低维空间中，得到对应语义特征，然后将通过使用余弦相似度计算 query 和各个 document 之间的相似度，最终通过 softmax 层得到与各个文档之间的相似度大小来得到排序结果。
 
-关键词：推荐算法；排序模型；
+关键词：NLP；排序模型；
 
 数据集：henceforth
 
 解决的问题：
 
-1. 解决了的 SVD 计算大型稀疏矩阵需要面临的问题
+1. 解决了的 SVD 计算大型稀疏矩阵需要面临的问题，降低了计算复杂度
 2. 之前基于深度学习的算法效果不是很好，并且限制较多
 
 我的评价：
 
 1. 这个模型算是召回和粗排的模型的鼻祖，其算法流程比较简单。先是经过 word hashing （这里我觉得可以算是 embedding）将高维的 query 和 document 转化为低维的语义特征，然后根据余弦相似度计算 query 和 document 之间的相似度，再将各个相似度通过 softmax 得到相似度排行得到排序结果。
+1. 通过构建 user 和 item 两个独立的子网络，将训练好的两个塔中的 user embedding 和 item embedding 各自缓存到内存数据库中。线上预测的时候只需要在内存中计算相似度运算即可。
+
+#### 谷歌双塔召回模型- Youtube2019
+
+![image-20221027181007161](PaperReading.assets/image-20221027181007161.png)
+
+原文：Yi X, Yang J, Hong L, et al. Sampling-bias-corrected neural modeling for large corpus item recommendations[C]//Proceedings of the 13th ACM Conference on Recommender Systems. 2019: 269-277.
+
+简介：
+
+关键词：
+
+数据集：
+
+解决的问题：
+
+1. 问题：youtube 将视频召回当作一个多分类问题，多分类问题中最常见的激活函数就是 softmax，而在 youtube 中视频数量是十分庞大的，当类别数量特别大的时候，使用 softmax 计算十分耗时的。工业界常用的解决办法是通过随机 mini-batch内负采样来优化损失函数，其存在的十分显著的问题就是 in-batch loss 会因为随机采样的偏差而导致模型效果不好，尤其是样本的分布出现明显的偏斜的时候。即无法保证采样后的数据分布和原始数据分布一样，从而影响模型的效果。
+
+   方法：
+
+   * 对损失函数进行了改进，使用加权对数似然函数来进行评估
+   * 提出了一种对采样概率进行自适应修正的算法，可以从流式数据中预估 item 的频率。
+
+   该算法能够在不知道候选集全部i点的情况下做出无偏差估计，并且可以自适应候选集分布的变化
+
+我的评价：
+
+参考：
+
+* [YouTube采样修正的双塔模型论文精读](https://mp.weixin.qq.com/s/us4qGD3LDgLmPy2m-qq-iw)
+* 代码：[Youtube SBC](https://github.com/datawhalechina/torch-rechub/blob/91e0e46ec74752c8496cb6e2ad917c56bb1410d0/torch_rechub/models/matching/youtube_sbc.py)
+
+学习：
+
+🔵 采样偏重修正
 
 ## RS-Wiki
 
