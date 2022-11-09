@@ -1098,6 +1098,7 @@ SENet
 我的评价：
 
 1. 就是没提供代码
+1. In particular, it causes difficulties to efficiently perform KNN on the whole catalog while keeping a low latency and low memory usage. （出自原文：[Highlights of RecSys 2019](https://medium.com/criteo-engineering/highlights-of-recsys-2019-f63e6ba828f2)）
 
 参考：
 
