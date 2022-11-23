@@ -1109,6 +1109,48 @@ SENet
 
 🔵 采样偏重修正
 
+### 2211
+
+#### Mixed Nagative Sampling
+
+![image-20221121192750705](PaperReading.assets/image-20221121192750705.png)
+
+原文：Yang J, Yi X, Zhiyuan Cheng D, et al. Mixed negative sampling for learning two-tower neural networks in recommendations[C]//Companion Proceedings of the Web Conference 2020. 2020: 441-447.
+
+简介：Mixed Nagative Sampling 是 YouTubeSBC 原班人马提出的改进版本，提出再从 corpus 中拿出 batch size 为 B' 个 item 数据作为附加训练负样本。并且在 Google Play 上取得了不错的效果。
+
+关键词：召回模型；推荐系统；负采样
+
+数据集：Google Play
+
+#### Airbnb Recommendation
+
+![image-20221122112008337](PaperReading.assets/image-20221122112008337.png)
+
+原文：Grbovic M, Cheng H. Real-time personalization using embeddings for search ranking at airbnb[C]//Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining. 2018: 311-320.
+
+#### MIND
+
+![image-20221122202912194](PaperReading.assets/image-20221122202912194.png)
+
+原文：Li C, Liu Z, Wu M, et al. Multi-interest network with dynamic routing for recommendation at Tmall[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 2615-2623.
+
+简介：MIND 是由阿里巴巴天猫团队提出的动态路由多兴趣推荐算法，其实用胶囊网络来一个用户使用多个向量来进行表示，然后根据物品和 v 个用户表示中最大相似度的值作为最终结果。
+
+关键词：召回模型；推荐算法
+
+解决的问题：之前的算法都使用单一的变量来表示用户千变万化的兴趣点，从而导致模型表达力不足。
+
+我的评价：
+
+1. 该模型由于采用的是使用多个向量来表示单个用户，更倾向于是为物品匹配用户的模式，而我更倾向于为用户匹配物品的模式。
+2. 由于现在大部分模型 serving 阶段都采用只需要计算一次 query 的方法，显然 MIND 在计算 query 的最终向量要比以前很多模型复杂的多，既需要计算该用户所观看过历史记录的 embedding，经过多兴趣提取层以及最终的 label-aware 注意力层。然而很多公司并不像阿里巴巴掌握着第一梯队的硬件计算资源，在 serving 阶段所需要耗费的资源和时间仍然较大。
+
+数据集：
+
+1. Amazon books
+2. Tmall Data
+
 ## RS-Wiki
 
 ### 1. 推荐系统评测指标
