@@ -4,7 +4,7 @@
 
 2022/11/29
 
-[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck) P10
+[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=19) P19
 
 ## 0x0 介绍
 
@@ -355,3 +355,148 @@ nginx        NodePort    10.102.23.201   <none>        80:30237/TCP   2m32s
 暴露端口在 `30237` ，访问 master ip + 端口即可。
 
 ## 0x3 资源管理
+
+在 kubernets 中所有内容都是资源，用户需要通过操作资源来对 k8s 进行管理。k8s 中最小管理单元不是容器而是 pod，所以只能将容器放在 pod 中，k8s 也不会之间管理 pod，而是通过 `pod 控制器` 来管理 pod。
+
+pod 想要对外开放，就需要 `service` 来进行处理；如果想要持久化就需要 `volume` 来进行管理。
+
+### 1. kubectl 命令
+
+kubectl 式 k8s 集群命令行工具，用于对集群本身进行管理，并且能够在集群上进行容器化应用的安装和部署，kubectl 命令语法如下：
+
+```sh
+kubectl [command] [type] [name] [flags]
+```
+
+command: 指定要对资源执行的操作，比如 create、get、delete
+
+* 基本命令：
+
+  | 命令    | 翻译 | 命令作用     |
+  | ------- | ---- | ------------ |
+  | create  | 创建 | 创建一个资源 |
+  | edit    | 编辑 | 编辑一个资源 |
+  | get     | 获取 | 获取一个资源 |
+  | patch   | 更新 | 更新一个资源 |
+  | delete  | 删除 | 删除一个资源 |
+  | explain | 解释 | 展示资源文档 |
+
+* 运行和调试
+
+  | 命令         | 翻译     | 命令作用                   |
+  | ------------ | -------- | -------------------------- |
+  | run          | 运行     | 在集群中运行一个指定的镜像 |
+  | expose       | 暴露     | 暴露资源为Service          |
+  | **describe** | 描述     | 显示资源内部信息           |
+  | logs         | 日志     | 输出容器在Pod中的日志      |
+  | attach       | 缠绕     | 进入运行中的容器           |
+  | exec         | 执行     | 执行容器中的一个命令       |
+  | cp           | 复制     | 在Pod内外复制文件          |
+  | rollout      | 首次展示 | 管理资源的发布             |
+  | scale        | 规模     | 扩（缩）容Pod的数量        |
+  | autoscale    | 自动调整 | 自动调整Pod的数量          |
+
+* 其他命令：
+
+  | 命令  | 翻译 | 命令作用               |
+  | ----- | ---- | ---------------------- |
+  | apply | 应用 | 通过文件对资源进行配置 |
+  | label | 标签 | 更新资源上的标签       |
+  | cluster-info | 集群信息 | 显示集群信息                 |
+  | version      | 版本     | 显示当前Client和Server的版本 |
+
+type：指定资源类型，比如 deployment、pod、service
+
+* 集群级别资源：
+
+  | 资源名称   | 缩写 | 资源作用     |
+  | ---------- | ---- | ------------ |
+  | nodes      | no   | 集群组成部分 |
+  | namespaces | ns   | 隔离Pod      |
+
+* pod 资源：
+
+  | 资源名称 | 缩写 | 资源作用 |
+  | -------- | ---- | -------- |
+  | Pods     | po   | 装载容器 |
+
+* pod 资源控制器：
+
+  | 资源名称                 | 缩写   | 资源作用    |
+  | ------------------------ | ------ | ----------- |
+  | replicationcontrollers   | rc     | 控制Pod资源 |
+  | replicasets              | rs     | 控制Pod资源 |
+  | deployments              | deploy | 控制Pod资源 |
+  | daemonsets               | ds     | 控制Pod资源 |
+  | jobs                     |        | 控制Pod资源 |
+  | cronjobs                 | cj     | 控制Pod资源 |
+  | horizontalpodautoscalers | hpa    | 控制Pod资源 |
+  | statefulsets             | sts    | 控制Pod资源 |
+
+* 服务发现：
+
+  | 资源名称 | 缩写 | 资源作用        |
+  | -------- | ---- | --------------- |
+  | services | svc  | 统一Pod对外接口 |
+  | ingress  | ing  | 统一Pod对外接口 |
+
+* 存储资源：
+
+  | 资源名称               | 缩写 | 资源作用 |
+  | ---------------------- | ---- | -------- |
+  | volumeattachments      |      | 存储     |
+  | persistentvolumes      | pv   | 存储     |
+  | persistentvolumeclaims | pvc  | 存储     |
+
+* 配置资源：
+
+  | 资源名称   | 缩写 | 资源作用 |
+  | ---------- | ---- | -------- |
+  | configmaps | cm   | 配置     |
+  | secrets    |      | 配置     |
+
+name：指定资源的名称，大小写敏感
+
+flags：指定额外的可选参数
+
+```sh
+kubectl get pod
+kubectl get pod pod-name
+# 查看 pod 详细信息
+kubectl get pod pod-name -o wide
+# 以 yaml 的形式查看 pod
+kubectl get pod pod_name -o yaml
+```
+
+### 2. 资源管理方式
+
+* 命令式对象管理：直接使用命令去操作 k8s 资源，简单但是只能操作活动对象，无法审计和追踪
+
+  ```sh
+  kubectl run nginx-pod --image=nginx --port=80
+  ```
+
+* 命令式对象配置：通过命令配置和配置文件去操作 k8s 资源，项目大的时候配置文件多，比较麻烦
+
+  ```sh
+  # 创建
+  kubectl create -f nginx-pod.yaml
+  # 更新
+  kubectl patch -f nginx-pod.yaml
+  # 删除
+  kubectl delete -f nginx-pod.yaml
+  ```
+
+* 声明式对象配置：通过 `apply` 命令和配置文件去操作 k8s 资源，支持目录操作，意外情况下难以调试
+
+  ```sh
+  # 相比于上面只适用于创建和更新资源
+  kubectl apply -f nginx-pod.yaml
+
+> 在 node 节点上如何运行 kubectl：
+>
+> kubectl 的运行是需要配置的，它的配置文件是 `$HOME/.kube`，在 node 节点上运行的话需要配置和 master 节点上相同的文件，在 master 节点上执行 `scp -r ~/.kube node:~/`，然后就可以在 node 节点上运行了。
+
+## 0x4 实战入门
+
+### 1. Namespace

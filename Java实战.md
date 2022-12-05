@@ -1312,15 +1312,93 @@ server{
 }
 ```
 
+## 谷粒商城
 
+[BV1np4y1C7Yf](https://www.bilibili.com/video/BV1np4y1C7Yf?p=19) P19
 
+### 1. 配置环境
 
+配置 MySQL：
 
+```sh
+docker run -p 3306:3306 --name mysql01 -v /data/mysql01/conf:/etc/mysql	-v /data/mysql01/log:/var/log/mysql -v /data/mysql01/data:/var/lib/mysql -v /data/mysql01/mysql-files:/var/lib/mysql-files -e MYSQL_ROOT_PASSWORD=root -d mysql:8.0
+```
 
+修改 MySQL 配置文件设置编码：
 
+```sh
+vim /data/mysql01/conf/my.cnf
+```
 
+```
+[client]
+default-character-set=utf8
 
+[mysql]
+default-character-set=utf8
 
+[mysqld]
+init_connect='SET collation_connection = utf8_unicode_ci'
+init_connect='SET NAMES utf8'
+character-set-server=utf8
+collation-server=utf8_unicode_ci
+skip-character-set-client-handshake
+skip-name-resolve
+```
+
+配置 redis：
+
+```sh
+# 首先创建在实体机创建 redis.conf 文件
+mkdir -p data/redis01/conf
+touch /data/redis01/conf/redis.conf
+# 运行容器
+docker run -d -p 6379:6379 --name redis01 -v /data/redis01/data:/data -v /data/redis01/conf/redis.conf:/etc/redis/redis.conf redis redis-server /etc/redis/redis.conf --save 60 1
+```
+
+使用 docker 自动启动容器：
+
+```sh
+docker update mysql01 --restart=always
+docker update redis01 --restart=always
+```
+
+为数据库创建表结构，源码地址[Link](https://share.weiyun.com/bO0OZMCv)，这些表的特点就是**没有外键**。
+
+```sql
+CREATE DATABASE  `gulimall_pms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE  `gulimall_ums` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE  `gulimall_wms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE  `gulimall_oms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE  `gulimall_sms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE  `gulimall_admin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# 然后将对应的 sql 文件在对应的库中执行
+```
+
+clone 人人开源的三个项目：renren-fast、renren-fast-vue 以及 renren-generator，用于后台管理。
+
+```sh
+# 后台管理
+git clone https://gitee.com/renrenio/renren-fast.git
+# 前端代码
+git clone https://gitee.com/renrenio/renren-fast-vue.git
+# 代码生成器
+https://gitee.com/renrenio/renren-generator.git
+```
+
+将 renren-fast 整个包移动到项目下，并且执行的 db 文件夹下的所有对应数据库在 gulimall_admin 库中执行。
+
+然后在 renren-fast-vue 目录下执行：
+
+```sh
+# 安装依赖，可以解决墙内安装问题
+cnpm install
+# 开启项目
+npm run dev
+```
+
+将 renren-generator 同样移到项目下。
 
 
 
