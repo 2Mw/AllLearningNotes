@@ -4,7 +4,7 @@
 
 2022/11/29
 
-[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=19) P19
+[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=24) P24
 
 ## 0x0 介绍
 
@@ -500,3 +500,222 @@ kubectl get pod pod_name -o yaml
 ## 0x4 实战入门
 
 ### 1. Namespace
+
+Namespace 是 k8s 中用于**多套环境的资源隔离**或者**多租户资源隔离**。默认情况下所有 pod 是可以进行互相访问的，在实际生产环境中可能不想让两个 pod 之间进行互相访问，因此可以建立两个不同的 namespace 中，来方便对不同资源的隔离使用和管理。还可以实现不同 namespace 资源配额。
+
+k8s 会默认设置几个 namespace：
+
+```sh
+> k get ns
+NAME              STATUS   AGE
+default           Active   4d22h	# 所有未指定 ns 都会被分配到这个组
+kube-flannel      Active   4d22h
+kube-node-lease   Active   4d22h		# 用于集群节点之间的心跳维护
+kube-public       Active   4d22h	# 这个所有资源可以被所有人访问包括未认证用户
+kube-system       Active   4d22h	# 所有由 k8s 系统创建的资源都存在这个 ns 下
+```
+
+查看 namespace 具体信息：
+
+```sh
+> k describe ns default
+Name:         default
+Labels:       kubernetes.io/metadata.name=default
+Annotations:  <none>
+Status:       Active
+
+No resource quota.
+
+No LimitRange resource.
+```
+
+resouce quote 就是表示对 namespace 的资源配额，LimitRange 表示针对 namespace 中每个组件的资源配额。
+
+* 创建 / 删除 namespace：
+
+  ```sh
+  kubectl create ns dev
+  kubectl delete ns dev
+  ```
+
+* 使用 yaml 来配置 namespace：
+
+  ```yml
+  apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: dev
+  ```
+
+  然后执行对应的创建和删除命令：
+
+  ```sh
+  kubectl create -f a.yaml
+  kubectl delete -f a.yaml
+  ```
+
+### 2. Pod
+
+pod 是 k8s 集群中进行管理的最小单元，程序必须要部署在容器中，而容器必须部署在 pod 中。一个 pod 可以存多个容器。
+
+查看 pod：
+
+![image-20221206123812751](kubernetes.assets/image-20221206123812751.png)
+
+查看 pod 详情：
+
+```sh
+> k get pod nginx-76d6c9b8c-6bw72 -o wide
+NAME                    READY   STATUS    RESTARTS        AGE     IP           NODE     NOMINATED NODE   READINESS GATES
+nginx-76d6c9b8c-6bw72   1/1     Running   1 (4d22h ago)   4d22h   10.244.2.5   node-2   <none>           <none>
+```
+
+pod 访问：
+
+```sh
+curl 10.244.2.5:80
+```
+
+pod 删除：
+
+```sh
+k delete pod nginx-76d6c9b8c-6bw72
+```
+
+当然这样是无法删除的，在进行 `kubctl run deployment` 的时候创建的是 **pod 控制器**，因此需要删除对应的 pod 控制器才能删除对应的 pod。
+
+```sh
+> k get deployment
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+nginx   1/1     1            1           21m
+> k delete deployment nginx
+```
+
+也可以使用 yaml 文件进行创建删除 pod
+
+### 3. Label
+
+用于为资源添加表示，用来对他们进行区分和选择。
+
+特点：
+
+* 标签一般都是以 KV 的形式添加到各个对象上
+* 一个资源对象可以有任意数量个 label
+
+定义完标签之后还需要使用标签选择器：
+
+* 基于等式的：name=slave, env != production
+* 基于集合的：name in (master, slave), tier not in (test, production)
+
+查看标签：
+
+```sh
+kubectl get pod -n dev --show-labels
+```
+
+添加标签：
+
+```sh
+kubectl label pod nginx -n dev version=1.0
+```
+
+更新标签：
+
+```sh
+kubectl label pod nginx -n dev version=1.0 --overwrite
+```
+
+筛选标签：
+
+```sh
+kubectl get pods -l "version=1.0" -n dev --show-labbels
+```
+
+删除标签：使用减号 `-` 进行删除
+
+```sh
+kubectl label pod nginx -n dev version-
+```
+
+配置文件：在 `metadata` 中添加标签
+
+```yml
+...
+metadata:
+  name: nginx01
+  namespace: dev
+  labels:
+    version: 1.0
+...
+```
+
+### 4. Depolyment
+
+k8s 中 pod 是最小控制单元，一般都是通过 pod 控制器来完成对 pod 的管理。
+
+创建：
+
+```sh
+kubectl run [name] --image=nginx --port=80 --replicas=3 -n dev
+```
+
+replicas: 表示创建的数量
+
+查看 pod 控制器：
+
+```sh
+k get deployment,pod -n dev
+k describe deployment [name]
+```
+
+删除：对应的 pod 也会被删除
+
+```sh
+k delete deployment [name]
+```
+
+对应的配置文件：
+
+![image-20221206153756599](kubernetes.assets/image-20221206153756599.png)
+
+### 5. Service
+
+每一个 pod 都会分配一个单独的 IP，然而却存在两个问题：
+
+1. Pod IP 会随着 pod 的重建而变化
+2. Pod IP 仅是集群内部的 IP，外部无法访问
+
+因此 k8s 设计 service 来解决这个问题，可以方便的实现服务发现和负载均衡。
+
+创建一个 service ：
+
+```sh
+kubectl expose deploy [deploy-name] --name=[srv-name] --type=ClusterIP --port=[srv-port] --target-port=[pod-port] -n [namespace]
+```
+
+type: `ClusterIP ` 只能在集群内部进行访问，`NodePort` 可以在集群外部进行访问
+
+删除 svc：
+
+```sh
+kubectl delete svc [svc-name]
+```
+
+设置配置：
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-nginx
+  namespace: dev
+spec:
+  ports:
+  - port: 80
+   protocol: TCP
+   targetPort: 80
+  selector:
+   run: nginx
+  type: ClusterIP
+```
+
