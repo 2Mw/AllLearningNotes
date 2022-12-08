@@ -4,7 +4,7 @@
 
 2022/11/29
 
-[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=24) P24
+[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=35) P35
 
 ## 0x0 介绍
 
@@ -719,3 +719,236 @@ spec:
   type: ClusterIP
 ```
 
+## 0x5 Pod 详解
+
+主要是学习 pod yml 配置和原理。
+
+![image-20221208144421070](kubernetes.assets/image-20221208144421070.png)
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  generateName: nginx-65df995dc8-
+  labels:
+    pod-template-hash: 65df995dc8
+    run: nginx
+  name: nginx-65df995dc8-drlzw
+  namespace: dev
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: Always
+    name: nginx
+    ports:
+    - containerPort: 80
+      protocol: TCP
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-74j7r
+      readOnly: true
+```
+
+### 1. 结构和定义
+
+Pod 有一个根容器即 Pause 容器，每个 pod 都会有一个根容器，有以下两个作用：
+
+* 以它为依据来评估整个 pod 的健康状态
+
+* 可以在根容器上设置 IP 地址，其他容器都共享这个 IP 来实现 Pod 内部网络通信。
+
+  > 这是 Pod 内部的通信，Pod 之间的通讯采用虚拟二层网络技术来实现（Flannel）
+
+如何查看 Pod yml 配置：使用 `explain` 指令
+
+```sh
+k explain pod
+k explain pod.metadata
+```
+
+查看其他属性：
+
+```sh
+k api-versions
+k api-resources
+```
+
+metadata 元数据：主要用于资源表示和说明，常用的有 name、namespace、labels 等
+
+spec 是资源配置中**最重要**的一部分，用于对各种资源配置的详细描述：
+
+* containers <[]Object>	容器列表、用于定义容器的详细信息
+* nodeName <String\>      根据 name 的值将 pod 调度到指定的 node 节点上
+* nodeSelector <Map[]>   可以根据定义的信息将 pod 调度到对应的标签 node 上
+* hostNetwork  <bool\>    是否使用主机网络模式，默认为 false，如果设置为 true 表示使用宿主机网络
+* volumes     <[]Object>   存储卷，用于定义 pod 上挂载的存储信息
+* restartPolicy  <String\>   重启策略，表示 pod 在遇到故障的时候的处理策略
+
+### 2. Pod 配置
+
+> 主要讲解 `spec` 配置
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-base
+  namespace: dev
+  labels:
+  	user: john
+spec:
+  containers:
+  - image: nginx:1.17.1			# 容器拉取镜像名称
+  	name: nginx01
+  	imagePullPolicy: Always		# 镜像拉取策略
+  	command: ["/bin/sh", "-c", "sleep 3"]	# 容器启动时候需要执行的命令
+  	args: [""]
+  	env: 					# 设置容器中的环境变量
+  	- name: "username"
+  	  value: "admin"
+  	ports:				# 容器需要暴露的端口列表
+  	- name: nginx-port
+  	  containerPort: 80
+  	resources:			# 对 pod 进行资源限额和设置
+  - image: busybox
+  	name: busybox01
+```
+
+镜像拉取策略：
+
+* Always： 总是从远程仓库拉取镜像（如果不指定版本号或者为 `latest` ，则为默认）
+* IfNotPresent：本地有则用本地，没有则从远处拉取（如果指定了版本号非 `latest`，则为默认）
+* Never：只使用本地镜像，没有就报错
+
+容器端口设置 `ports` ：
+
+* name: 端口号名称，必须保证唯一
+* containerPort：容器需要监听的端口
+* hostPort：主机上公开的端口，一般忽略
+* hostIP：需要绑定的主机 IP，一般忽略
+* protocol：端口协议，必须是 UDP、TCP、SCTP，默认TCP
+
+资源限额和配给 `resources`：
+
+> 如果不对容器资源进行限制，可能会出现吃掉大量资源导致其他容器无法运行
+
+* limits：用于限制容器的**最大**占用资源，如果超过限制就会被终止并且重启
+* requests：如果设置**最小**资源不够则无法启动
+
+```yaml
+limits:
+	cpu: "2"	# 核数
+	memory: "10Gi"	/ "500Mi"
+```
+
+### 3. 生命周期
+
+生命周期：pod 从创建到终止的过程
+
+![image-20221208162416256](kubernetes.assets/image-20221208162416256.png)
+
+1. pod 创建过程
+
+   * 用户通过 kubectl 或者其他 api 客户端提交需要创建的 pod 信息给 apiserver
+   * apiserver 开始生成 pod 对象的信息，并将信息存入 etcd，然后返回开始创建信息至客户端
+   * apiserver 开始反应 etcd 中 pod 对象的变化，使用 watch 机制来跟踪检查 apiserver 的变动
+   * 调度器收到信息后开始为 pod 分配主机并且向 apiserver 更新信息
+   * node 节点上的 kubelet 发现有 pod 调度过来，尝试调用 docker 启动容器并返回结果到 apiserver
+   * apiserver 将接收到的 pod 状态存入到 etcd 中
+
+2. 运行初始化容器(initialized container)过程
+
+   初始化容器用于做主容器的前置工作，去必须允许完成直至结束，若初始化容器运行失败那么 k8s 需要重启知道成功完成。初始化容器必须按照定义的顺序执行，当完成前一个的时候后一个才会执行。
+
+   其适用的场景：用于提供主容器镜像中不具备的程序或者代码；将各个容器串行执行，比如先开启 mysql 和 redis 之后才能开启 nginx。
+
+   案例：
+
+   ```yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: pod-base
+     namespace: dev
+     labels:
+     	user: john
+   spec:
+     containers:
+     - image: nginx:1.17.1			# 容器拉取镜像名称
+     	name: nginx01
+     	ports:				# 容器需要暴露的端口列表
+     	- name: nginx-port
+     	  containerPort: 80
+     initContainers:
+     - name: test-mysql	# 等待 mysql 启动才执行 redis 检测
+      image: busybox:1.30
+      command: ['sh', '-c', 'until ping 192.168.109.201 -c 1; do echo waiting for mysql..; sleep 2; done;']
+     - name: test-redis	# 等待 redis 启动才执行拉取 nginx
+      image: busybox:1.30
+      command: ['sh', '-c', 'until ping 192.168.109.203 -c 1; do echo waiting for mysql..; sleep 2; done;']
+   ```
+
+3. 运行主容器(main container)过程
+
+   a.  容器启动后钩子(post start)、容器终止前钩子(pre stop)
+
+   b.  容器的存活性探测(liveness probe)、就绪性探测(readiness probe)
+
+   k8s 允许在钩子函数处执行用户自定义代码，支持三种形式：
+
+   Exec 命令模式：
+
+   ```yml
+   ...
+     livenessProbe:
+        exec:
+           command:
+             -	cat
+             -	/tmp/healthy
+   ...
+   ```
+
+   TCPSocket 模式：
+
+   ```yml
+   ……
+      livenessProbe:
+         tcpSocket:
+            port: 8080
+   ……
+   ```
+
+   HTTPGet 模式：
+
+   ```yml
+   ……
+      livenessProbe:
+         httpGet:
+            path: / #URI地址
+            port: 80 #端口号
+            host: 127.0.0.1 #主机地址
+            scheme: HTTP #支持的协议，http或者https
+   ……
+   ```
+
+4. pod 终止过程
+
+   * 用户向 apiServer 发送删除 pod 对象的命令
+   * apiServer 中的 pod 对象信息会随着时间的推移而更新，在宽限期内(默认 30s)，pod 被视为 dead
+   * 将 pod 标记为 terminating 状态
+   * kubelet 在监控的 pod 对象转为 terminating 状态同时启动 pod 关闭过程
+   * 端点控制器监控到 pod 对象的关闭行为时将其所有匹配到此段点的 service 资源的端点列表中删除
+   * 如果定义了 preStop 钩子处理器，则在标记为 terminating状态后执行钩子函数
+   * pod 对象中的进程收到停止信号，超过宽限期后强行删除未停止的进程
+   * 此时 pod 对用户不可见
+
+在生命周期中会存在 5 种状态：
+
+* 挂起（pending）： apiserver 已经创建 pod 资源对象，处于尚未调度或者下载镜像的过程
+* 运行中（running）：pod 已经被调度至某个节点，并且所有容器都已经被 kubelet 创建完成
+* 成功（succeeded）：pod 种所有容器都被成功终止并且不会被重启
+* 失败（Failed）：所有容器都已经终止，但至少有一个容器终止失败，及容器返回了非 0 值的退出状态。
+* 未知（unknown）：apiserver 无法正常获取 pod 对象的状态信息，通常由网络通信失败所导致
