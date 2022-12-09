@@ -4,7 +4,7 @@
 
 2022/11/29
 
-[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=35) P35
+[BV1Qv41167ck](https://www.bilibili.com/video/BV1Qv41167ck?p=46) P46
 
 ## 0x0 介绍
 
@@ -903,7 +903,7 @@ limits:
 
    ```yml
    ...
-     livenessProbe:
+     preStop:
         exec:
            command:
              -	cat
@@ -915,7 +915,7 @@ limits:
 
    ```yml
    ……
-      livenessProbe:
+      preStop:
          tcpSocket:
             port: 8080
    ……
@@ -925,13 +925,30 @@ limits:
 
    ```yml
    ……
-      livenessProbe:
+      preStop:
          httpGet:
             path: / #URI地址
             port: 80 #端口号
             host: 127.0.0.1 #主机地址
             scheme: HTTP #支持的协议，http或者https
    ……
+   ```
+
+   容器探测：用于检测容器中的实例是否正常工作，是保障业务可用性的一种传统机制。如果经过探测，实例状态不符号预期，那么 k8s 就会把问题实例进行摘除，不承担业务流量。
+
+   * 存活侦测：用于检测实例是否正常进行，如果不行就会重启容器
+   * 就绪性探测：用于检测实例是否能介绍请求，如果不行就不会转发流量
+
+   探测方式和钩子函数一样，只需要小小修改即可：
+
+   ```yml
+   ...
+     livenessProbe:
+        exec:
+           command:
+             -	cat
+             -	/tmp/healthy
+   ...
    ```
 
 4. pod 终止过程
@@ -952,3 +969,146 @@ limits:
 * 成功（succeeded）：pod 种所有容器都被成功终止并且不会被重启
 * 失败（Failed）：所有容器都已经终止，但至少有一个容器终止失败，及容器返回了非 0 值的退出状态。
 * 未知（unknown）：apiserver 无法正常获取 pod 对象的状态信息，通常由网络通信失败所导致
+
+### 4. 调度
+
+默认情况下，pod 在 node 上运行是由调度器进行计算得到的。有四种调度方式：
+
+* 自动调度：默认
+* 定向调度：基于 NodeName 的选择，NodeSelector 标签调度
+* 亲和性调度：NodeAffinity，PodAffinity，PodAntiAffinity
+* 污点（容忍）调度：Taints，Toleration
+
+🔵定向调度：
+
+通过在 pod 上声明 NodeName 和 NodeSelector 来进行调度。这里的调度是强行的，既是目标 node 不存在也会进行调度，只不过 pod 会运行失败。
+
+NodeName 调度：
+
+```yml
+spec:
+  nodeName: node1
+```
+
+NodeSelector 调度（用于添加在指定标签上的 node ）：
+
+```yml
+spec:
+  nodeSelector:		# 填写标签键值对
+    nodeenv: pro
+```
+
+🔵亲和性调度
+
+非强制调度，如果没有满足条件的节点，会在其他的节点中找到适合的 node 进行调度。如果两个应用之间交互频繁，就需要将两者尽量靠近节约网络资源。反亲和性适用于多副本运行，将相同的程序打散到不同的 node 上。
+
+亲和性调度分为硬限制和软限制，硬限制就相当于强制调度
+
+```markdown
+pod.spec.affinity.nodeAffinity
+  requiredDuringSchedulingIgnoredDuringExecution  Node节点必须满足指定的所有规则才可以，相当于硬限制
+    nodeSelectorTerms  节点选择列表
+      matchFields   按节点字段列出的节点选择器要求列表  
+      matchExpressions   按节点标签列出的节点选择器要求列表(推荐)
+        key    键
+        values 值
+        operator 关系符 支持Exists, DoesNotExist, In, NotIn, Gt, Lt
+  preferredDuringSchedulingIgnoredDuringExecution 优先调度到满足指定的规则的Node，相当于软限制 (倾向)     
+    preference   一个节点选择器项，与相应的权重相关联
+      matchFields 按节点字段列出的节点选择器要求列表
+      matchExpressions   按节点标签列出的节点选择器要求列表(推荐)
+        key 键
+        values 值
+        operator 关系符 支持In, NotIn, Exists, DoesNotExist, Gt, Lt  
+    weight 倾向权重，在范围1-100。
+```
+
+NodeAffinity：
+
+```yml
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: nodeenv
+           operator: In
+           values: ["xxx", "yyy"]
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+       preference:
+          matchExpressions:
+            - key: k
+             operator: Exists
+             values: v
+```
+
+PodAffinity: 喜欢和哪些 pod 在一起
+
+```yml
+spec:
+  affinity: # 亲和性配置
+    podAffinity: # Pod亲和性
+      requiredDuringSchedulingIgnoredDuringExecution: # 硬限制
+        - labelSelector:
+        	# 该Pod必须和拥有标签podenv=xxx或者podenv=yyy的Pod在同一个Node上
+            matchExpressions:
+              - key: podenv
+                operator: In
+                values:
+                  - "xxx"
+                  - "yyy"
+          topologyKey: kubernetes.io/hostname
+```
+
+PodAntiAffinity: 讨厌和哪些 pod 运行在一起
+
+```yml
+spec:
+  affinity: # 亲和性配置
+    podAntiAffinity: # Pod反亲和性
+      requiredDuringSchedulingIgnoredDuringExecution: # 硬限制
+        - labelSelector:
+            matchExpressions:
+              - key: podenv
+                operator: In
+                values:
+                  - "pro"
+          topologyKey: kubernetes.io/hostname
+```
+
+🔵污点和容忍
+
+之前的调度是基于 pod 来选 node，现在污点和容忍是根据 node 是否选择 pod
+
+![image-20221209121725771](C:\Users\张三\AppData\Roaming\Typora\typora-user-images\image-20221209121725771.png)
+
+污点格式为：`key=value:effect`，effect 三种：
+
+* PreferNoSchedule: K8s 尽量避免将 pod 调度到该污点 node 上，除非没有其他节点可调度
+* NoSchedule：k8s 不会将 pod 调度到此处，也不会影响已存在的 pod
+* Noexecute：k8s 不会将 pod 调度到此处，也会将已存在的 pod 驱离
+
+```sh
+# 设置
+k taint nodes node1 key=value:effect
+# 删除污点
+k taint nodes node1 key=value-
+# 去除所有污点
+k taint nodes node1 key-
+```
+
+容忍：pod 想要调度到一个具有污点的 node 上，就需要容忍（在 pod 上设置）
+
+![image-20221209122242600](C:\Users\张三\AppData\Roaming\Typora\typora-user-images\image-20221209122242600.png)
+
+```yml
+spec:
+  tolerations: # 容忍
+    - key: "tag" # 要容忍的污点的key
+      operator: Equal # 操作符
+      value: "xudaxian" # 要容忍的污点的value
+      effect: NoExecute # 添加容忍的规则，这里必须和标记的污点规则相同
+```
+
