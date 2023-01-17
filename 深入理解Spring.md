@@ -364,6 +364,119 @@ xml 文件为：
 </beans>
 ```
 
+### 6. IoC 注解
+
+> 注解的方式要比 XML 的方式更受欢迎
+
+🔵原理：即使用反射机制来读取注解的值。
+
+自定义注解：
+
+```java
+@Target({ElementType.FIELD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Meng {
+    String value();
+}
+```
+
+测试代码：
+
+```java
+public void testA() throws Exception {
+    Class<?> clazz = Class.forName("org.yz.beans.User");
+    if (clazz.isAnnotationPresent(Meng.class)) {
+        Meng annotation = clazz.getAnnotation(Meng.class);
+        String value = annotation.value();
+        System.out.println(value);
+    }
+}
+```
+
+通过 `isAnnotationPresent` 方法来获取对应的注解是否存在，如果存在则获取注解，并且获取对应的值。
+
+那怎么对所有的源码文件进行扫描注解？知道要扫描的包，如果有注解则创建对象
+
+1. 根据 `ClassLoader` 的 `getSystemClassLoader()` 方法获取项目根目录
+2. 将项目根目录和包名进行拼接得到对应扫描包下的所有文件
+3. 然后逐个扫描所有文件即可
+
+🔵声明 Bean 的注解
+
+主要包括 4 个注解：这四个作用都是一样的，后三个只是前三个的别名，用于增强可读性
+
+* `@Component`：用在普通类的上面
+* `@Controller`：放在控制器的上面
+* `@Service`：放在service的实现类上，创建service对象
+* `@Repository`：（用在持久层类上），放在dao层实现类上，表示创建dao对象
+
+如果将 Value 只置空的话默认值是类名小写。
+
+要求：需要为 Spring 指定扫描哪些包下的文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--找到包和子包中所有的注解，按照注解创建对象，给属性赋值-->
+    <context:component-scan base-package="com.yz.ba01"/>
+    <!--导入多个包，用;或者,来分割多个包名-->
+    <context:component-scan base-package="com.yz.ba02;com.yz.ba03,com.yz.ba04"/>
+    <!--直接指定父包名，会扫描子包-->
+    <context:component-scan base-package="com.yz"/>
+
+</beans>
+```
+
+🔵选择实例化 Bean
+
+* 白名单模式：
+
+  比如说只对 `@Service` 标注的类进行实例化
+
+  ```xml
+  <context:component-scan base-package="com.yz" user-default-filters="false">
+      <context:include-filter type="annotation" expression="org.springframeword.stereotype.Service"/>
+  </context:component-scan>
+  ```
+
+  设置 `user-default-filters` 为 false 之后，所有的标注都不会被实例化，在使用 include-filter 将 Service 添加到白名单之后，只会有 `@Service` 注解生效。
+
+* 黑名单模式：
+
+  黑名单则设置 `user-default-filters` 为 true，使用 exclude-filter 标签进行过滤。
+
+  ```xml
+  <context:exclude-filter type="annotation" expression="org.springframeword.stereotype.Service"/>
+  ```
+
+🔵负责为属性注入的注解：
+
+* `@Value`：用于注入简单类型的属性，并且可以不写 set 方法。如果写 set 方法，注解也可以写在 set 方法上。并且也可以写在构造方法上。
+
+  ```java
+  @Component
+  public class User {
+      String name;
+  
+      public User(@Value("John") String name) {
+          this.name = name;
+      }
+  }
+  ```
+
+* `@Autowired`：默认是 byType，如果是 byName 的话需要配合 `@Qualifier` 使用。
+
+  ```java
+  @Autowired
+  @Qualifier("daoForMySQL")
+  ```
+
+* `@Resource`：
+
 ## 0x3 Beans 对象
 
 ### 1. Bean 作用域
@@ -456,4 +569,162 @@ com.yz.beans.User@55b0dcab
 com.yz.beans.User@6ec5e77d
 com.yz.beans.User@6ec5e77d
 ```
+
+### 2. Bean 实例化方式
+
+1. 通过构造方法实例化
+
+   在进行 Spring 上下文加载的时候使用无参构造方法进行实例化对象。
+
+2. 通过简单工厂模式实例化（不太好）
+
+   ```xml
+   <bean id="uf" class="com.yz.beans.UserFactory" factory-method="get"/>
+   ```
+
+   通过简单工厂模式类来进行创建对象，`factory-method` 中填写对应的**静态**方法。每次获取的对象仍是同一个对象，需要另外写一个工厂类来进行实例化。
+
+   ```
+   com.yz.beans.User@3c9754d8
+   com.yz.beans.User@3c9754d8
+   ```
+
+3. 通过具体工厂模式进行实例化（不太好）
+
+   ```xml
+   <bean id="userFactory" class="com.yz.beans.UserFactory"/>
+   <bean id="user" factory-bean="userFactory" factory-method="get"/>
+   ```
+
+   通过指定具体工厂类和其非静态的创建实例方法来获取 bean
+
+4. 通过 FactoryBean 接口进行实例化
+
+   第二种和第三种其中的方法都是需要我们自己实现的，这一种需要继承 FactoryBean 接口即可，相当于对于前两种的简化版本。
+
+   ```java
+   public class DogFactory implements FactoryBean<Dog> {
+       @Override
+       public Dog getObject() throws Exception {
+           return new Dog();
+       }
+   
+       @Override
+       public Class<?> getObjectType() {
+           return Dog.class;
+       }
+   
+       // 用于指定创建对象是否是单例
+       @Override
+       public boolean isSingleton() {
+           return FactoryBean.super.isSingleton();
+       }
+   }
+   ```
+
+   xml 配置：
+
+   ```xml
+   <bean id="dog" class="com.yz.beans.DogFactory"/>
+   ```
+
+   只需要指定工厂类就可以创建具体对象。
+
+> BeanFactory 和 FactoryBean 的区别：
+>
+> * BeanFactory 是 Bean 的工厂，是 Spring IoC 的顶级对象，负责创建管理 Bean 对象
+> * FactoryBean 是一个 Bean，能够辅助 Spring 中实例化其他 Bean 对象。
+
+### 3. Bean 生命周期 ※
+
+用于了解 Bean 什么时候创建、销毁以及两者前后做了什么事情。具体生命周期研究可以在 `AbstractAutowireCapableBeanFactory` 中的 `doCreateBean()` 方法进行查看。
+
+Bean 的生命周期：
+
+1. 实例化 Bean （调用无参数构造方法）
+
+2. Bean 的属性赋值（调用 set 方法）
+
+3. 检查 Bean 是否实现 `Aware` 的相关接口 `BeanNameAware` (用于传递 bean 名称)、`BeanClassLoaderAware`(用于传递 bean 类加载器)、`BeanFactoryAware` (用于传递 Bean 工厂)，并设置相关依赖。
+
+4. 初始化 Bean 之前（需要使用 `BeanPostProcessor` 的 `before` 方法）
+
+   ![image-20230117104153613](深入理解Spring.assets/image-20230117104153613.png)
+
+   这个 BeanPostProcessor 会对整个 xml 文件中的对象起作用
+
+5. 检查 Bean 是否实现 `InitializingBean` 方法，并且调用对应接口方法
+
+6. 初始化 Bean（调用 bean 的 init 方法，需要自己配），在 xml 中使用 `init-method` 指定初始化方法名称
+
+7. 初始化 Bean 之后（需要使用 `BeanPostProcessor` 的 `after` 方法）
+
+8. 使用 Bean
+
+9. 检查 Bean 是否实现 `DisposableBean` 接口，并且调用相关方法。
+
+10. 销毁 Bean（调用 bean 的 destroy 方法，需要自己配），在 xml 中使用 `init-method` 指定销毁方法名称
+
+```xml
+<!--  BeanPostProcessor  -->
+<bean class="com.yz.beans.LogBeanPostProcessor"/>
+<bean id="u" class="com.yz.beans.User" init-method="initBean" destroy-method="destroyBean"/>
+```
+
+> 对于 Bean 的作用域不同，其生命周期也不同。Spring 只对于 singleton 的对象进行完整的生命周期管理，对于其他类型的作用域，Spring 只进行创建初始化管理，其他就不管理了。
+
+对于自己创建的对象，如何纳入 Spring 进行管辖？
+
+```java
+@Test
+public void testD() {
+    User user = new User();
+    System.out.println(user);
+    DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
+    factory.registerSingleton("user", user);
+    System.out.println(factory.getBean("user", User.class));
+}
+```
+
+### 4. Bean 循环依赖问题
+
+A依赖B，B依赖A就会产生循环依赖问题。
+
+比如对于 Set 注入：
+
+```xml
+<bean id="a" class="com.yz.beans.A">
+    <property name="b" ref="b"/>
+</bean>
+
+<bean id="b" class="com.yz.beans.B">
+    <property name="a" ref="a"/>
+</bean>
+```
+
+由于两者**都是 singleton 模式**下，在 Spring 容器加载的时候就将对象创建进行 Bean 实例化，当 Bean 创建完毕后曝光，就是会将所有实例化的 Bean 存到缓存中，再对属性进行赋值。对象实例化和对象属性赋值是分两阶段进行的。
+
+如果**都**是在 prototype 情况下会报错 `BeanCurrentlyInCreationException`，如果其中任意一个是 singleton 的就不会异常。
+
+> 对于构造方法注入下，由于需要有对象才能进行赋值，始终停留在 Bean 实例化阶段，因此循环依赖会依然存在，无法解决。
+
+### 5. IoC反射原理
+
+调用方法四要素：调用对象，调用方法，参数和返回值。
+
+```java
+public void testA() throws Exception {
+    // 获取类
+    Class<?> clazz = Class.forName("com.yz.reflect.SomeService");
+    // 要素1：对象
+    Object o = clazz.newInstance();
+    // 要素2：方法
+    Method doSome = clazz.getDeclaredMethod("doSome", String.class, int.class);
+    // 要素3+4：参数和返回值
+    Object ret = doSome.invoke(o, "ok", 123);
+    System.out.println(ret);
+}
+```
+
+通过反射机制可以获取方法名，属性以及属性的类型。
 
