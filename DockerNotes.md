@@ -105,6 +105,25 @@ echo 'Over'
 pause
 ```
 
+## 在 WSL 上安装docker遇到的问题
+
+1. 由于 docker 在 k8s 1.24 之后不再是默认运行时，需要安装 cri-dockerd
+
+   ```sh
+   wget https://ghproxy.com/https://github.com/Mirantis/cri-dockerd/releases/download/v0.2.5/cri-dockerd_0.2.5.3-0.ubuntu-jammy_amd64.deb
+   dpkg -i cri-dockerd_0.2.5.3-0.ubuntu-jammy_amd64.deb
+   sed -i -e 's#ExecStart=.*#ExecStart=/usr/bin/cri-dockerd --network-plugin=cni --pod-infra-container-image=registry.aliyuncs.com/google_containers/pause:3.8#g' /usr/lib/systemd/system/cri-docker.service
+   systemctl daemon-reload
+   systemctl enable cri-docker
+   ```
+
+2. 遇到 docker 的守护进程 dockerd 因为 iptable 无法启动
+
+   ```sh
+   sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+   sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+   ```
+
 ## 配置阿里云镜像加速
 
 登陆阿里云控制台=》容器镜像服务=》镜像加速器

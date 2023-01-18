@@ -4,7 +4,7 @@
 
 Start: 2023/01/16-
 
-Video: [BV1Ft4y1g7Fb](https://www.bilibili.com/video/BV1Ft4y1g7Fb?p=40) p40
+Video: [BV1Ft4y1g7Fb](https://www.bilibili.com/video/BV1Ft4y1g7Fb?p=81) p81
 
 ## 0x1. 初步
 
@@ -475,7 +475,54 @@ public void testA() throws Exception {
   @Qualifier("daoForMySQL")
   ```
 
-* `@Resource`：
+* `@Resource`：（**推荐使用**）这个是 JDK 扩展包中的注解，默认装配只 byName，未指定 name 的时候使用属性名作为 name，未找到 name 使用 byType。
+
+  对于 JDK8 以上其使用需要引入依赖：
+
+  ```xml
+  <dependency>
+      <groupId>jakarta.annotation</groupId>
+      <artifactId>jakarta.annotation-api</artifactId>
+      <version>2.1.1</version>
+  </dependency>
+  ```
+
+  对于 Spring5 改为将 `jakarta` 改为 `javax` 即可。
+
+🔵全注解开发
+
+对于注解还需要写 `component-scan` xml 标签，可以使用全注解开发：
+
+```java
+@Configuration
+@ComponentScan({"org.yz"})
+@PropertySource({"test.properties"})
+public class SpringConfig {
+}
+```
+
+上述配置了扫描的包和对应的 Properties 文件案例，对应 Bean 代码为：
+
+```java
+@Component
+public class User {
+    @Value("${dog.name}")
+    String name;
+
+    public User() {
+    }
+}
+```
+
+在使用这个类名配置的时候创建 Spring 容器时候需要使用类 `AnnotationConfigApplicationContext`：
+
+```java
+public void testB() {
+    ApplicationContext ac = new AnnotationConfigApplicationContext(SpringConfig.class);
+    Object user = ac.getBean("user");
+    System.out.println(user);
+}
+```
 
 ## 0x3 Beans 对象
 
@@ -728,3 +775,278 @@ public void testA() throws Exception {
 
 通过反射机制可以获取方法名，属性以及属性的类型。
 
+## 0x4 AOP 切面编程
+
+增加功能就是切面，一般都是非业务功能，比如日志、事务、安全等**交叉业务**。
+
+### 1. JDK/CGLIB动态代理
+
+当对象需要保护或者需要对某个对象进行功能增强的时候就需要使用代理来进行。
+
+代理模式分为静态代理和动态代理。
+
+静态代理的缺点就是需要对每个接口都需要进行手动添加功能，对于重复的代码无法解决。动态代理是添加了字节码生成技术，在不修改原有代码的基础上，增加功能，减少重复代码，专注于业务逻辑。动态代理分为 JDK 动态代理、 CGLIB 动态代理和 Javassist 动态代理技术。
+
+> 但是 JDK 动态代理只能代理接口。CGLIB 可以代理接口和类，并且使用**继承**的关系来完成动态代理，底层效率更高。
+
+🔵JDK动态代理
+
+首先需要实现 Proxy 增强的功能：实现`InvocationHandler`的类：
+
+```java
+public class MyInvocationHandler implements InvocationHandler {
+
+    private Object target;  // SomeServiceImpl类
+
+    public MyInvocationHandler(Object target) {	// 使用构造方法来接受对应的类
+        this.target = target;
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        // 通过代理对象执行方法的时候，会调用这个invoke
+        Object res = null;
+        // 在目标方法执行前的动作
+        System.out.println("Time:" + new Date());
+        // 执行目标类的方法，通过这个method实现
+        method.invoke(target, args);
+        // 在目标方法执行后的动作
+        System.out.println("Status: OK.");
+        // 返回目标方法的执行结果
+        System.out.println(method.getName());
+        return res;
+    }
+}
+```
+
+在执行的时候借助proxy创建实例并且执行方法`Proxy.newProxyInstance`即可：
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        // 创建目标
+        SomeService target = new SomeServiceImpl();
+        // 创建InvovationHandler对象
+        InvocationHandler handler = new MyInvocationHandler(target);
+        // 重新生成SomeService对象，proxy创建代理
+        SomeService proxy = (SomeService) Proxy.newProxyInstance(target.getClass().getClassLoader(),
+                target.getClass().getInterfaces(), handler);
+        // 执行方法
+        proxy.DoOther();
+    }
+}
+```
+
+新需求：如果只需要给`DoSome()`方法添加上面两个业务，其他的方法不需要添加。
+
+只需要在`invoke`函数中添加一个判断方法名的语句即可：
+
+```java
+@Override
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    // 通过代理对象执行方法的时候，会调用这个invoke
+    Object res = null;
+    String methodName = method.getName();
+    if ("DoSome".equals(methodName)){
+        // 在目标方法执行前的动作
+        System.out.println("Time:" + new Date());
+        // 执行目标类的方法，通过这个method实现
+        method.invoke(target, args);
+        // 在目标方法执行后的动作
+        System.out.println("Status: OK.");
+        // 返回目标方法的执行结果
+    }
+    return res;
+}
+```
+
+🔵CGLIB动态代理
+
+首先需要引入依赖：
+
+```xml
+<dependency>
+    <groupId>cglib</groupId>
+    <artifactId>cglib</artifactId>
+    <version>3.3.0</version>
+</dependency>
+```
+
+对于高版本 JDK 需要对运行环境进行配置（JDK17失效，直接使用 Spring 的 AOP 吧）：
+
+* VM Options:` --add-opens java.base/java.lang=ALL-UNNAMED`
+* Program Parameters: `--add-opens java.base/sun.net.util=ALL-UNNAMED`
+
+需要为目标类添加增强代码：
+
+```java
+public class LogInterceptor implements MethodInterceptor {
+    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+        System.out.println("pre...");
+        Object ret = methodProxy.invoke(o, objects);
+        System.out.println("after...");
+        return ret;
+    }
+}
+```
+
+使用：
+
+```java
+public static void main(String[] args) {
+    Enhancer enhancer = new Enhancer();
+    // 2. 将需要增强的目标类传给 enhancer
+    enhancer.setSuperclass(Cock.class);
+    // 3. 设置回调
+    enhancer.setCallback(new LogInterceptor());
+    // 4. 生成 proxy 对象
+    Cock cock = (Cock) enhancer.create();
+    cock.howl();
+}
+```
+
+### 2. AOP简介
+
+AOP 有七个要点：
+
+* 连接点 joinpoint：插入其他业务代码的位置，比如方法执行前后，异常抛出后
+* 切点 pointcut：目标方法
+* 通知 advice：即具体代码，分为前/后置通知、环绕通知、异常代码(catch)、最终通知(finally)。
+* 切面 Aspect：切点 + 通知
+* 其他 ....
+
+切面表达式： 用于匹配方法的表达式
+
+```java
+execution(modifiers? ret-type declaring-type?name(param) throws?)
+// execution(访问权限， 方法返回值， 方法声明（参数） 异常类型)
+```
+
+* modifiers：表示访问权限类型，不写的默认表示 4 中权限(public, private, protected, default)
+* **ret-type **：表示返回值类型，必需
+* declaring-type：表示全限定类名，可选。两个点 `..` 表示当前包和子包下的所有类
+* **name(param)**：表示函数名（参数类型和个数），必需。name可以使用通配符，比如 `set*`，param 为 `()` 表示无参方法，`(..)` 表示任意方法，`(*)` 表示只有一个参数的方法，`(*, String)` 表示第一个参数随意，第二个参数是 String 的方法。
+* throws：表示抛出异常的类型
+* ?表示可选部分
+
+### 3. Spring AOP
+
+通常结合 AspectJ 来进行使用，首先添加依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-aspects</artifactId>
+    <version>5.3.9</version>
+</dependency>
+```
+
+在 Spring Config 上需要设置 AspectJ 自动扫描 `@EnableAspectJAutoProxy`：
+
+```java
+@Configuration
+@ComponentScan({"org.yz"})
+@EnableAspectJAutoProxy
+public class SpringConfig {
+}
+```
+
+添加切点代码：切点表达式这家拍卖行 `org.yz.beans..*` 表示当前包和子包下所有类所有方法都添加前置通知。并且需要使用 `@Aspect` 标注其是一个切面类。
+
+```java
+@Component
+@Aspect
+public class LogAspect {
+    @Before("execution(* org.yz.beans..*(..))")
+    public void before() {
+        System.out.println("前置通知");
+    }
+}
+```
+
+🔵其他通知：
+
+* 前置通知 `@Before` 
+
+* 后置通知 `@AfterReturning`
+
+* 环绕通知 `@Around`，在前置之前，后置之后。
+
+  >可以在目标方法前和后面都可以使用，能够修改目标方法的执行结果。相当于JDK动态代理
+  >
+  >参数：ProceedingJoinPoint，父类是JoinPoint。等同于JDK动态代理的Method
+  >
+  >功能强大，不只能修改引用类型，还能改数值类型。
+
+  实例代码：
+
+  ```java
+  @Around("execution(* com.yz.service.*..DoAround())")
+  public Object myAround(JoinPoint jp) throws Throwable {
+  
+      Object o = null;
+      System.out.println("Before");
+      o = jp.proceed();  // 相当 method.invoke();，并且用o接受目标方法的返回值
+      System.out.println("After");
+      return 11;	// 返回11
+  }
+  
+  // Do Around 的值，返回值为0
+  @Override
+  public int DoAround() {
+      System.out.println("=========DoAround========");
+      return 0;
+  }
+  ```
+
+  测试代码：
+
+  ```java
+  @Test
+  public void test03(){
+      String config = "ac.xml";
+      ApplicationContext ac = new ClassPathXmlApplicationContext(config);
+      SomeService proxy = (SomeService) ac.getBean("SomeService");
+      Object u = proxy.DoAround();
+      System.out.println("得到返回值"+u);	// 将目标方法的返回值改为 11
+  }
+  /*
+  Before
+  =========DoAround========
+  After
+  得到返回值11
+  */
+  ```
+
+* 异常通知(catch) `@AfterThrowing`
+
+  ```java
+  @AfterThrowing(value = "execution(* com.yz.service.*..DoAround())", throwing = "ex")
+  public void myAfterThrowing(Exception ex){
+      System.out.println("发生异常，发送邮件");
+  }
+  ```
+
+* 最终通知(finally) `@After`
+
+🔵其他注解：
+
+* `@Order(int)`：用于多个切点使用在同一个方法上的时候的优先级，数值越小优先级越高。
+
+* `@Pointcut`：用于复用切点表达式
+
+  ```java
+  @Pointcut("execution(* com.yz.service.*..DoAfter())")
+  public void mypt(){
+      //无需代码
+  }
+  
+  @After("mypt()")
+  public void myAfter(){
+      System.out.println("Job clear.");
+  }
+  ```
+
+## 0x5 Spring事务
+
+在一个业务中，通常是多条 DML 语句共同联合才能完成，这些必须全部成功整个事务才会成功，才能保证数据的安全。
