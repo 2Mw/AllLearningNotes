@@ -1050,3 +1050,173 @@ public class LogAspect {
 ## 0x5 Spring事务
 
 在一个业务中，通常是多条 DML 语句共同联合才能完成，这些必须全部成功整个事务才会成功，才能保证数据的安全。
+
+### 1. JDBC template
+
+将 `JdbcTemplate` 对象添加到 Spring 中进行管理：
+
+```java
+@Configuration
+@ComponentScan("org.tx")
+@EnableAspectJAutoProxy
+//@Import({JdbcTemplate.class})
+public class SpringConfig {
+
+    @Bean
+    public JdbcTemplate jdbcTemplate(DataSource source) {
+        return new JdbcTemplate(source);
+    }
+}
+```
+
+测试结果：
+
+```java
+public void testApp() throws SQLException {
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(SpringConfig.class);
+    JdbcTemplate jdbcTemplate = ac.getBean("jdbcTemplate", JdbcTemplate.class);
+    // query
+    String sql = "SELECT * FROM t_user";
+    List<User> result = jdbcTemplate.query(sql, new BeanPropertyRowMapper<>(User.class));
+    for (User user : result) {
+        System.out.println(user);
+    }
+}
+```
+
+使用 Druid 连接池，就无需自己编写获取数据源，首先需要添加依赖。
+
+```xml
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.2.6</version>
+</dependency>
+```
+
+添加 Bean：
+
+```java
+@Bean
+public DruidDataSource druidDataSource() {
+    DruidDataSource dataSource = new DruidDataSource();
+    dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+    dataSource.setUsername("root");
+    dataSource.setPassword("root");
+    dataSource.setUrl("jdbc:mysql://localhost:3306/test");
+    return dataSource;
+}
+```
+
+### 2. Spring 声明式事务接口
+
+其实现事务由两种方式：
+
+* 编程式事务：即通过代码的方式来实现事务管理。（基本不用）
+* 声明式事务：
+  * 基于注解的方式
+  * 基于 XML 的配置方式。
+
+其中重要的是 `PlatformTransactionManager` 接口，其有两个实现：
+
+* `DataSourceTransactionManager`：支持 jdbcTemplate、Mybatis等的事务管理
+* `JtaTransactionManager`：支持分布式事务管理
+
+首先需要使用注解 `@EnableTransactionManagement` 开启事务管理和创建事务管理器对象：
+
+```java
+@Configuration
+@ComponentScan("org.tx")
+@EnableAspectJAutoProxy
+@EnableTransactionManagement
+public class SpringConfig {
+
+    @Resource
+    private DataSource dataSource;
+
+    @Bean
+    public DruidDataSource druidDataSource() {
+        DruidDataSource dataSource = new DruidDataSource();
+        dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        dataSource.setUsername("root");
+        dataSource.setPassword("root");
+        dataSource.setUrl("jdbc:mysql://172.29.97.205:3306/test");
+        return dataSource;
+    }
+
+    @Bean
+    public DataSourceTransactionManager dataSourceTransactionManager() {
+        return new DataSourceTransactionManager(dataSource);
+    }
+}
+```
+
+在对应的方法或者类上添加 `@Transactional` 注解开启事务，会自动提交和回滚。这个实现基于 AOP 。
+
+```java
+@Override
+@Transactional
+public void transfer(int aUser, int bUser, double money) {
+    Account accountA = accountDao.selectByID(aUser);
+    if (accountA.getBalance() < money) {
+        throw new RuntimeException("Balance not sufficient.");
+    }
+
+    Account accountB = accountDao.selectByID(bUser);
+    accountA.setBalance(accountA.getBalance() - money);
+    accountB.setBalance(accountB.getBalance() + money);
+    int cnt = accountDao.update(accountA);
+    String s = null;	// 报错，会自动回滚
+    s.trim();
+    cnt += accountDao.update(accountB);
+    if (cnt != 2) {
+        throw new RuntimeException("Transfer failed.");
+    }
+
+}
+```
+
+### 3. Spring 事务属性
+
+Spring 事务包含很多属性，重要的属性如下：
+
+```java
+public @interface Transactional {
+    @AliasFor("transactionManager")
+    String value() default "";
+
+    @AliasFor("value")
+    String transactionManager() default "";
+
+    String[] label() default {};
+
+    Propagation propagation() default Propagation.REQUIRED;
+
+    Isolation isolation() default Isolation.DEFAULT;
+
+    int timeout() default -1;
+
+    String timeoutString() default "";
+
+    boolean readOnly() default false;
+
+    Class<? extends Throwable>[] rollbackFor() default {};
+
+    String[] rollbackForClassName() default {};
+
+    Class<? extends Throwable>[] noRollbackFor() default {};
+
+    String[] noRollbackForClassName() default {};
+}
+```
+
+1. `propagation`：传播行为，对于 `A()` 中调用了 `B()`，如果 B 中没有事务那么 B 是否需要纳入事务的管理？因此需要对于 B 的事务进行分情况处理
+   * `REQUIRED`：支持当前事务，如果 B 中不存在事务则新创建一个事务，由则加入 A 的事务
+   * `SUPPORTS`：有则加入 A 的事务，没有则不管
+   * `MANDATORY`：有则加入，没有则抛出异常
+   * `REQUIRES_NEW`：不管有无直接开启新事务，新事务和旧事务之间**不存在嵌套关系**，之前的事务会挂起
+   * `NOT_SUPPORTED`：以非事务的方式运行，如果存在事务存在就挂起当前事务
+   * `NEVER`：以非事务的方式运行，如果存在事务则派出异常
+   * `NESTED`：如果当前正有一个事务正在运行，则 B 运行在一个嵌套事务中。被嵌套的事务可以独立于外层事务提交或回滚。如果外层事务不存在，和 REQUIRED 一样。
+2. `isolation`：隔离级别
+3. `timeout`：超时
