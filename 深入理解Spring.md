@@ -2,9 +2,9 @@
 
 [TOC]
 
-Start: 2023/01/16-
+Start: 2023/01/16-2023/01/19
 
-Video: [BV1Ft4y1g7Fb](https://www.bilibili.com/video/BV1Ft4y1g7Fb?p=81) p81
+Video: [BV1Ft4y1g7Fb](https://www.bilibili.com/video/BV1Ft4y1g7Fb)
 
 ## 0x1. 初步
 
@@ -431,7 +431,7 @@ public void testA() throws Exception {
 </beans>
 ```
 
-🔵选择实例化 Bean
+🔵选择实例化 Bean 方式
 
 * 白名单模式：
 
@@ -523,6 +523,71 @@ public void testB() {
     System.out.println(user);
 }
 ```
+
+---
+
+为了防止多个 Bean 存放在同一个配置文件中，Spring 支持引入配置来防止代码混乱：
+
+```java
+@Configuration
+public class ConfigA {
+
+    @Bean
+    public A a() {
+        return new A();
+    }
+}
+
+@Configuration
+@Import(ConfigA.class)
+public class ConfigB {
+
+    @Bean
+    public B b() {
+        return new B();
+    }
+}
+
+```
+
+🔵其他注解
+
+* `@Bean`：手动将创建的对象添加到 Spring 中 IoC 容器管理
+
+  ```java
+  @Bean
+  public JdbcTemplate jdbcTemplate(DataSource source) {
+      return new JdbcTemplate(source);
+  }
+  
+  @Bean
+  public DruidDataSource druidDataSource() {
+      DruidDataSource dataSource = new DruidDataSource();
+      dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+      dataSource.setUsername("root");
+      dataSource.setPassword("root");
+      dataSource.setUrl("jdbc:mysql://172.29.97.205:3306/test");
+      return dataSource;
+  }
+  
+  @Bean
+  public DataSourceTransactionManager dataSourceTransactionManager(DataSource dataSource) {
+      return new DataSourceTransactionManager(dataSource);
+  }
+  ```
+
+  对于 `@Bean` 修饰的方法对应 bean 名称即为方法名，如果 bean 出现在方法参数的时候会自动 Autowire。
+
+* `@Lazy`：懒加载 Bean 只有在使用的时候才会创建对象。如果当前 bean 如果被其他 bean 所依赖，那么会立即加载。
+
+  ```java
+  @Component
+  @Lazy
+  public class User {
+  }
+  ```
+
+* `@PostConstruct` 和 `@PreDestroy`：用于 Bean 声明周期 `init-method` 和 `destroy-method` 执行的操作。或者直接在 `@Bean` 中设置。
 
 ## 0x3 Beans 对象
 
@@ -1218,5 +1283,117 @@ public @interface Transactional {
    * `NOT_SUPPORTED`：以非事务的方式运行，如果存在事务存在就挂起当前事务
    * `NEVER`：以非事务的方式运行，如果存在事务则派出异常
    * `NESTED`：如果当前正有一个事务正在运行，则 B 运行在一个嵌套事务中。被嵌套的事务可以独立于外层事务提交或回滚。如果外层事务不存在，和 REQUIRED 一样。
+
 2. `isolation`：隔离级别
+
 3. `timeout`：超时
+
+   超时的定义：该事务中所有执行 DML 语句的时间没有在指定时间内完成的话作为超时。
+
+   即最后一条 DML 语句之前的时间，之后业务代码的时间不会记录。
+
+   ```java
+   // 计入时间
+   Thread.sleep(1000);
+   accountDao.selectByID(aUser);
+   // 不计入，因为之后没有 DML 语句
+   Thread.sleep(1000);
+   ```
+
+4. `readOnly`：是否为只读事务，只允许 `SELECT` 语句
+
+   可以启动 Spring 的优化策略，提高 SELECT 语句的执行效率。
+
+5. `rollbackFor` 如果出现某种异常才回滚
+
+   ```java
+   @Transactional(rollbackFor = {RuntimeException.class})
+   ```
+
+   `noRollbackFor` 类似，即发生某种异常时候也不回滚。
+
+## 0x6 Spring 工具
+
+### 1. 资源读取
+
+可以获取文件资源、类路径资源和网络资源
+
+```java
+Resource template = ctx.getResource("some/resource/path/myTemplate.txt");
+Resource template = ctx.getResource("classpath:some/resource/path/myTemplate.txt");
+Resource template = ctx.getResource("file:///some/resource/path/myTemplate.txt");
+Resource template = ctx.getResource("https://myhost.com/resource/path/myTemplate.txt");
+```
+
+具体表格如下：
+
+| Prefix     | Example                          | Explanation                                                  |
+| :--------- | :------------------------------- | :----------------------------------------------------------- |
+| classpath: | `classpath:com/myapp/config.xml` | Loaded from the classpath.                                   |
+| file:      | `file:///data/config.xml`        | Loaded as a `URL` from the filesystem. See also [`FileSystemResource` Caveats](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#resources-filesystemresource-caveats). |
+| https:     | `https://myserver/logo.png`      | Loaded as a `URL`.                                           |
+| (none)     | `/data/config.xml`               | Depends on the underlying `ApplicationContext`.              |
+
+可以作为 Bean 的属性：
+
+```java
+public class MyBean {
+
+    @Value("classpath:some/resource/path/myTemplate.txt")
+    private Resource template;
+	 
+    public setTemplate(Resource template) {
+        this.template = template;
+    }
+
+    // ...
+}
+```
+
+### 2. Spring 表达式 Spel
+
+十分强大
+
+类型转换：
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+// evaluates to "Hello World"
+String helloWorld = (String) parser.parseExpression("'Hello World'").getValue();
+
+// evaluates to "Tony's Pizza"
+String pizzaParlor = (String) parser.parseExpression("'Tony''s Pizza'").getValue();
+
+double avogadrosNumber = (Double) parser.parseExpression("6.0221415E+23").getValue();
+
+// evaluates to 2147483647
+int maxValue = (Integer) parser.parseExpression("0x7FFFFFFF").getValue();
+
+boolean trueValue = (Boolean) parser.parseExpression("true").getValue();
+
+Object nullValue = parser.parseExpression("null").getValue();
+
+// evaluates to a Java list containing the four numbers
+List numbers = (List) parser.parseExpression("{1,2,3,4}").getValue(context);
+
+List listOfLists = (List) parser.parseExpression("{{'a','b'},{'x','y'}}").getValue(context);
+
+// evaluates to a Java map containing the two entries
+Map inventorInfo = (Map) parser.parseExpression("{name:'Nikola',dob:'10-July-1856'}").getValue(context);
+
+Map mapOfMaps = (Map) parser.parseExpression("{name:{first:'Nikola',last:'Tesla'},dob:{day:10,month:'July',year:1856}}").getValue(context);
+```
+
+获取类型：
+
+```java
+Class dateClass = parser.parseExpression("T(java.util.Date)").getValue(Class.class);
+
+Class stringClass = parser.parseExpression("T(String)").getValue(Class.class);
+
+boolean trueValue = parser.parseExpression(
+        "T(java.math.RoundingMode).CEILING < T(java.math.RoundingMode).FLOOR")
+        .getValue(Boolean.class);
+```
+
