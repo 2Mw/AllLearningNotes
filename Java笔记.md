@@ -2374,7 +2374,7 @@ C:.
 
 ### 生命周期和插件
 
-<img src="Java笔记.assets/image-20210810083851187.png" alt="image-20210810083851187" style="zoom:67%;" />
+<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210810083851187.png" alt="image-20210810083851187" style="zoom:67%;" />
 
 ## Spring
 
@@ -4839,7 +4839,7 @@ public class HelloController {
 </build>
 ```
 
-### 自动扫描注解
+### 自动扫描注解并且运行
 
 > 如果程序是在主程序同包或者子包下，就会自动扫描注解
 
@@ -4851,6 +4851,31 @@ public class App {
     public static void main(String[] args) {
         SpringApplication.run(App.class, args);
     }
+}
+```
+
+也可以根据不同选项来运行：
+
+```java
+@SpringBootApplication
+public class App {
+    public static void main(String[] args) {
+        SpringApplication application = new SpringApplication(App.class);
+        application.setBannerMode(Banner.Mode.OFF);
+        application.run(args);
+    }
+}
+```
+
+也可以使用 `SpringApplicationBuilder` 来运行：
+
+```java
+public static void main(String[] args) {
+    new SpringApplicationBuilder()
+        .sources(App.class)
+        .lazyInitialization(true)
+        .bannerMode(Banner.Mode.OFF)
+        .run(args);
 }
 ```
 
@@ -5048,9 +5073,29 @@ public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionR
 
 🔵Spring Initializr
 
-<img src="Java笔记.assets/image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
+<img src="E:\Notes\Java\2021Java\Java笔记.assets\image-20210817033843945.png" alt="image-20210817033843945" style="zoom: 80%;" />
 
 
+
+### 日志
+
+支持日志保存文件的位置：
+
+```yml
+logging:
+  file:
+    name: boot.log
+```
+
+支持对不同业务层的级别：
+
+```yml
+logging:
+  level:
+    root: warn
+    sql: debug
+    web: fatal
+```
 
 ### 单元测试Junit5
 
