@@ -320,6 +320,17 @@ show create view uc_view;							-- 展示视图
 
 > 视图一般用于检索，不用于增删改。
 
+### 预处理语句
+
+```sql
+PREPARE stmt FROM 'SELECT COUNT(*) FROM t_users WHERE ID = ?';
+SET @jack_id=2;
+EXECUTE stmt USING @jack_id;
+# 删除
+DROP PREPARE stmt;
+SELECT * FROM prepared_statements_instances;
+```
+
 ### 存储过程
 
 > 相当于函数，以后再填坑
@@ -815,6 +826,158 @@ MySQL默认的事务隔离级别是RR可重复读。
 * READ-COMMITTED(读取已提交)： 只允许读取并发事务已经提交的数据，可以阻止脏读，但是幻读或不可重复读仍有可能发生。
 * REPEATABLE-READ(可重复读)： 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，可以阻止脏读和不可重复读，但幻读仍有可能发生。
 * SERIALIZABLE(可串行化)： 最高的隔离级别，完全服从ACID的隔离级别。所有的事务依次逐个执行，这样事务之间就完全不可能产生干扰，也就是说，该级别可以防止脏读、不可重复读以及幻读。
+
+## Performance Schema
+
+Performance schema 提供有关 MySQL 内部运行操作的指标，其有两个重要概念：
+
+* 程序插桩(instrument)：可以在 MySQL 代码中插入探测代码从而获取想要了解的信息。
+
+  通过以下语句可以查看支持插桩的列表：
+
+  ```mysql
+  SELECT * FROM performance_schema.setup_instruments;
+  ```
+
+  `statement/sql/select`：其中 `statement` 是类型
+
+* 消费者表(consumer)：即存储关于程序插桩代码信息的表，是插桩的目的对象。
+
+  其表有以下几种类型：
+
+  * `_current` 结尾的表名表示当前服务器上进行的事件
+  * `_history` 结尾的表名表示最近完成的 10 个事件
+  * `_history_long` 结尾的表名表示最近完成的 10000 个事件
+  * `events_waits` 开头的表示底层服务器等待的对象，比如互斥对象
+  * `events_statements` 开头的表示 SQL 语句
+  * `events_stages` 开头的表示配置文件信息，比如临时表或者发送数据
+  * `events_transactions` 开头的表示事务信息
+  * `file_instances` 表示对应数据库文件访问的线程数
+  * `metadata_locks` 表示元数据锁的数据。
+  * `threads` 表用于查看不同线程具体信息。
+
+### 1. 检查 SQL 语句
+
+使用语句查看最近执行的一条 SQL 语句：
+
+```sql
+SELECT * FROM events_statements_current\G
+```
+
+结果：
+
+```
+*************************** 1. row ***************************
+THREAD_ID: 49
+EVENT_ID: 405
+END_EVENT_ID: NULL
+EVENT_NAME: statement/sql/select
+SOURCE: init_net_server_extension.cc:95
+TIMER_START: 6726910640864000
+TIMER_END: 6726910851985000
+TIMER_WAIT: 211121000
+LOCK_TIME: 1000000
+SQL_TEXT: SELECT * FROM events_statements_current
+DIGEST: d2cb1ecf648cf0ec173e79a74aa085d330c1cabcabbbd5785623ab5f69b0a811
+DIGEST_TEXT: SELECT * FROM `events_statements_current`
+CURRENT_SCHEMA: performance_schema
+OBJECT_TYPE: NULL
+OBJECT_SCHEMA: NULL
+OBJECT_NAME: NULL
+OBJECT_INSTANCE_BEGIN: NULL
+MYSQL_ERRNO: 0
+RETURNED_SQLSTATE: NULL
+MESSAGE_TEXT: NULL
+ERRORS: 0
+WARNINGS: 0
+ROWS_AFFECTED: 0
+ROWS_SENT: 0
+ROWS_EXAMINED: 0
+CREATED_TMP_DISK_TABLES: 0
+CREATED_TMP_TABLES: 0
+SELECT_FULL_JOIN: 0
+SELECT_FULL_RANGE_JOIN: 0
+SELECT_RANGE: 0
+SELECT_RANGE_CHECK: 0
+SELECT_SCAN: 1
+SORT_MERGE_PASSES: 0
+SORT_RANGE: 0
+SORT_ROWS: 0
+SORT_SCAN: 0
+NO_INDEX_USED: 1
+NO_GOOD_INDEX_USED: 0
+NESTING_EVENT_ID: NULL
+NESTING_EVENT_TYPE: NULL
+NESTING_EVENT_LEVEL: 0
+STATEMENT_ID: 376
+CPU_TIME: 0
+MAX_CONTROLLED_MEMORY: 0
+MAX_TOTAL_MEMORY: 0
+EXECUTION_ENGINE: PRIMAR
+```
+
+其中重要的属性有：
+
+* `CREATED_TMP_DISK_TABLES`：查询创建的磁盘临时表数量
+* `CREATED_TMP_TABLES`：查询创建的内存临时表数量，如果超过内存临时表的数量会转变为磁盘临时表。
+* `SELCT_FULL_JOIN`：因为没有合适的索引，所以 JOIN 语句执行时全表扫描。
+* `NO_INDEX_USED`：查询有没有使用索引
+
+使用 `sys.*` 来查看需要优化的语句：
+
+比如：`SELECT * FROM sys.statement_analysis` 来查看执行统计信息
+
+* `statements_with_errors_or_warnings`：引起错误或者警告的语句
+* `statements_with_full_table_scans`：引起全表扫描的语句
+* `statements_with_temp_tables`：使用了临时表的语句
+
+### 2. 检查变量
+
+MySQL 中变量类型分为服务器变量、状态变量和用户变量。对于前两者还分为全局变量和会话级变量。
+
+* 服务器变量：
+
+  全局变量的值存放在 `global_variables` 中，只有属性的键值对，查询案例：
+
+  ```sql
+  select * from performance_schema.global_variables where variable_name like 'transaction%';
+  # 或者
+  show variables like 'transaction%';
+  ```
+
+  对于不同会话的变量存放在 `variables_by_thread` 表中，除了键值对还有一个线程 ID 列：
+
+  ```sql
+  select * from variables_by_thread where variable_name like 'transaction%';
+  ```
+
+* 状态变量：
+
+  全局：存放在 `global_status` 表中
+
+  ```sql
+  show status like 'Innodb_page_size';
+  +------------------+-------+
+  | Variable_name    | Value |
+  +------------------+-------+
+  | Innodb_page_size | 16384 |
+  +------------------+-------+
+  # 或者
+  select * from performance_schema.global_status where variable_name like '%page_size%';
+  ```
+
+  会话级存放在 `status_by_thread` 表中
+
+* 用户级别变量：存放在 `user_variables_by_thread` 表中
+
+  ```sql
+  # 创建
+  set @name = 'jack';
+  # 查询
+  SELECT * FROM user_variables_by_thread;
+  ```
+
+  
 
 ## MySQL 进阶
 
