@@ -31,6 +31,77 @@
 
 ## SQL基础
 
+### 数据类型
+
+* 整数类型
+
+  整数类型分为 TINYINT, SMALLINT, MEDIUMINT, INT 以及 BIGINT 分别用来标识 8，16，24，32和64位的数字。如果是无符号数还可以使用 INT UNSIGNED 来进行标识，相比于 INT 有额外一倍的使用范围。
+
+  MySQL 可以限制整数的指定宽度比如 `INT(11)`，但是这不会限制值的合法范围，对于存储和计算来说 INT(1) 和 INT(11) 都是一样的。
+
+* 实数类型
+
+  MySQL 中的实数支持精确类型和不精确类型。
+
+  不精确类型可以使用 DOUBLE 和 FLOAT
+
+  精确类型可以使用 DECIMAL，对于银行或者会计等财务业务需要精确表示的业务下使用。
+
+* 字符串类型
+
+  VARCHAR 是可变长字符串，通常还需要使用 1 或 2 字节的空间来记录字符串的长度。但是由于其是可变长的，对于更新操作可能会导致其所分配的空间增长，因此需要为其分配其他位置的存储空间，可能会造成碎片。
+
+  CHAR 类型是固定长度的，适用于所有的值长度都是几乎相同的情况，对于不满足长度的字符串，结尾会使用**空格**进行填充，这是在使用 CHAR 类型时候需要注意的。
+
+* BLOB 和 TEXT 类型
+
+  BLOB 存储的值是二进制类型的数据，TEXT 存储的值是文本类型的数据。其两者之间的区别就是 TEXT 需要额外存储字符集和排序规则(collation)。
+
+  并且 MySQL 对于 BLOB 和 TEXT 列的排序方式和其他类型不同，只对 `max_sort_length` 字节长度部分进行排序，而不是对整个字符串进行排序。
+
+* 枚举类型
+
+  有时候可以使用枚举类型来代替常见的字符串类型
+
+  ```sql
+  CREATE TABLE et (
+  	e ENUM('fish', 'dog', 'apple') NOT NULL,
+  )
+  ```
+
+  但是最好不要修改枚举类型的值，这会设计到表 schema 的修改，其存储的值最好不变。
+
+* 日期和时间类型
+
+  DATETIME 可以表示到 9999 年。
+
+  TIMESTAMP 只能表示到 2038 年，由于其只使用的 4 字节的存储空间
+
+* 位压缩数据类型
+
+  BIT，可以使用 BIT 来存储一个或者多个布尔值。但是对于使用该数据库的其他人来说是很难理解的，除非十分注重节约空间，否则还是建议使用 TINYINT
+
+  SET，也可以存储多个布尔值，并且添加了命名常量，相比于 BIT 增加了可读性
+
+  ```sql
+  CREATE TABLE s (
+  	perms SET('READ', 'WRITE', 'DELETE') NOT NULL
+  );
+  
+  INSERT INTO s VALUES('READ,WRITE');
+  SELECT perms FROM s WHERE FIND_IN_SET('READ', perms);
+  ```
+
+* JSON 类型
+
+  ```sql
+  CREATE TABLE js (
+  	js_data json
+  );
+  
+  SELECT js_data->'$.id' FROM js;
+  ```
+
 ### 普通查询语句
 
 🔵普通查询：
