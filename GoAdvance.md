@@ -2,7 +2,7 @@
 
 [TOC]
 
-## 0x1. Memory Manage
+## 0x1 Memory Manage
 
 
 The data and variables in program are allocated in virtual memory. The are two important area in memory: stack and heap. The parameters function called, return value and local variable are almost allocated in stack and those are managed by compiler.
@@ -245,3 +245,260 @@ Page heap is core structure of memory allocation
 
 
 ### 3. Garbage Collection
+
+## 0x2. Closure
+
+Closure = Function + Environment. Environment means that some variable define outside this function but used within this function. Even when the function is invoked outside their scope.
+
+🔵Case 1:
+
+```go
+func C() func() int {
+   c := 1
+   return func() int {
+      return c
+   }
+}
+
+func TestA(t *testing.T) {
+   fc1 := C()
+   fc2 := C()
+   // 0x1036bc0, 0x1036ba0
+   fmt.Printf("%p, %p\n", fc1, fc2)
+}
+```
+
+In function `C()` it returns a closure with captured value `c`. When invokes `C()` it will create a variable of type `funcValue` in heap, and there have two closures. So the address of return value `C()` is different.
+
+![image-20230306145432733](GoAdvance.assets/image-20230306145432733.png)
+
+🔵Case 2:
+
+```go
+func A() func() {
+   return func() {
+      log.Printf("OK")
+   }
+}
+
+func TestA(t *testing.T) {
+   a1 := A
+   a2 := A
+   // 0x1036a40, 0x1036a40
+   fmt.Printf("%p, %p\n", a1, a2)
+}
+```
+
+But in this case, `A()` function has no capture value and go complier optimizes for this case and reuse the address after create first instance.
+
+🔵Case 3:
+
+```go
+func D() (fs [2]func()) {
+   for i := 0; i < 2; i++ {
+      fs[i] = func() {
+         fmt.Printf("%v ", i)
+      }
+   }
+   return
+}
+
+func TestD(t *testing.T) {
+   fs := D()
+   fs[0]()
+   fs[1]()
+   // 2 2
+}
+```
+
+if multi closures write one same variable, the variable will be allocated in **heap**. So when these closure are created their captured value point to same address, and they output same value. In this case it is also call variable escape.
+
+## 0x3 defer panic recover
+
+### 1. defer
+
+for a function:
+
+```go
+func A() {
+    defer B()
+}
+```
+
+This is equivalent to:
+
+```go
+func A() {
+    r = deferproc(8, B)
+    // ...
+    runtime.deferreturn()
+}
+```
+
+Compiler will register defer function first then call it before return.
+
+![image-20230306152437309](GoAdvance.assets/image-20230306152437309.png)
+
+defer will be register like a linked list, so defer functions will be called in reverse order.
+
+```go
+func TestA(t *testing.T) {
+    a, b := 1, 2
+    defer func(a int) {
+        fmt.Printf("%v\n", a)
+    }(a)
+
+    a += b
+    fmt.Printf("%v - %v\n", a, b)
+    // 3 - 2
+    // 1
+}
+```
+
+defer + closure:
+
+```go
+func TestB(t *testing.T) {
+    a, b := 1, 2
+    defer func() {
+        fmt.Printf("%v\n", a)
+    }()
+
+    a += b
+    fmt.Printf("%v - %v\n", a, b)
+    // 3 - 2
+    // 3
+}
+```
+
+### 2. panic
+
+## 0x4 type
+
+### 1. type and alias
+
+```go
+type mytype int32		// type
+type myalias = int32	// alias
+```
+
+### 2. interface
+
+### 3. assertion
+
+### 4. reflect
+
+## 0x5 GMP
+
+参考：
+
+* 文章：[Golang GMP 原理-小徐先生](https://mp.weixin.qq.com/s/jIWe3nMP6yiuXeBQgmePDg)
+* 视频：[BV1hv411x7we](https://www.bilibili.com/video/BV1hv411x7we)
+
+### 1. 协程、线程和 goroutine
+
+又称为用户级线程，和内核级线程为 M：1的映射关系，创建销毁调度都是在用户态完成，如果一个协程阻塞就会导致同一个线程下所有协程无法执行，并且无法并行。
+
+![图片](GoAdvance.assets/640.png)
+
+goroutine 是优化后的特殊协程，和内核级线程的映射关系为 M:N，多个 goroutine 可以实现并行，由于调度器的存在可以实现和线程之间的动态绑定和灵活调度，栈的空间可以动态扩展。
+
+### 2. GMP 模型
+
+![图片](GoAdvance.assets/640-16781005184154.png)
+
+gmp = goroutine + machine + processor，其中 p 相当于调度器，用于协调 g 和 m 之间的关系。
+
+对于每个 P 来说都有一个本地队列，可以实现一个轻量级锁的情况，因此在执行每个 goroutine 效率较高，当 p 的本地队列执行完的时候，会从全局队列中拿取 goroutine 来进行执行，由于多个 p 拿取因此需要进行加锁互斥访问，也有可能从别的 p 队列中偷一些 goroutine 来执行，不过情况发生较少。
+
+go 语言中协程对应的数据结构是 `runtime.g`，工作线程对应的数据结构是 `runtime.m`。其中全局变量 `g0` 对应的就是主协程，他的协程栈式再主线程栈上分配的，全局变量 `m0` 就是主线程对应的 `m`，`g0` 和 `m0` 互相持有对方的指针，`allg` 对应所有的 `g`， `allm` 对应所有的 `m`。
+
+goroutine 生命周期：
+
+![图片](GoAdvance.assets/640-16781015954757.png)
+
+### 3. g
+
+g 分为两种：g0 和普通的 g，g0是一类特殊的调度协程，不用于执行用户函数，负责执行 g 之间的切换调度，和 m 的关系是 1:1；另一种就是普通的 g。
+
+<img src="GoAdvance.assets/640-167810190053910.png" alt="图片" style="zoom:80%;" />
+
+🔵g0的四种调度类型：
+
+![图片](GoAdvance.assets/640-167810198112913.png)
+
+* 主动让出：用于用户在执行代码中调用 `runtime.Gosched()` 方法主动让出执行权，或者使用 `runtime.Goexit()` 主动退出线程：
+
+  ```go
+  func a() {
+  	for i := 1; i < 10; i++ {
+  		fmt.Println("A:", i)
+  	}
+  }
+  
+  func b() {
+  	for i := 1; i < 10; i++ {
+  		fmt.Println("B:", i)
+  		//time.Sleep(time.Millisecond)
+  		if i == 5 {
+  			runtime.Gosched()
+  		}
+  	}
+  }
+  
+  func main() {
+  	runtime.GOMAXPROCS(1)
+  	go a()
+  	go b()
+  	time.Sleep(time.Second)
+  }
+  ```
+
+* 被动调度：在通道或者互斥锁操作阻塞的时候会 `gopark()` 调度给其他 goroutine，`goready()` 来唤醒
+
+* 正常调度：该 goroutine 正常执行完毕，进入销毁流程。
+
+* 抢占调度：发起**系统调用**。
+
+调度流程：
+
+<img src="GoAdvance.assets/640-167810725109816.png" alt="图片" style="zoom:67%;" />
+
+```go
+// runtime/proc.go
+func schedule() {
+    // ...
+    gp, inheritTime, tryWakeP := findRunnable() // blocks until work is available
+    // ....
+    execute(gp, inheritTime)
+}
+```
+
+1. 首先从 `findRunnable` 找到可以调度的 goroutine，从全局队列和本地队列中拿取 goroutine
+
+   ![图片](GoAdvance.assets/640-167810802178119.png)
+
+2. `execute()` 函数将对应协程状态从 runnable 转为 running 状态。
+
+3. 执行 `gogo()` 方法
+
+🔵 Gosched 主动调度流程
+
+* 调用 `mcall` 方法将执行权交给 g0
+* 首先将当前协程的状态从 running 转为 runnable
+* 将当前的 g 和 m 进行解绑操作
+* 在将当前的 g 添加的全局队列中
+
+🔵 被动调度流程
+
+* 当遇到锁阻塞的时候，状态由 running 更新为 waiting
+* 解绑 g 和 m
+* 开启新一轮调度
+
+🔵 抢占调度
+
+由全局监控 goroutine 来处理，一下情况会进行抢占调度：
+
+* 执行系统调用超过 10ms
+* p 本地队列中由待执行的 g
+* 当前没有空闲的 p 和 m
