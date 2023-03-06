@@ -3877,6 +3877,86 @@ thriftgo --version
 
 [Go设计模式24-总结](https://lailin.xyz/post/go-design-pattern.html)  [极客时间对于的go实现](https://github.com/mohuishou/go-design-pattern)
 
+## 性能调优pprof
+
+![image-20230306092120642](GoNotes.assets/image-20230306092120642.png)
+
+启动 pprof 监控：
+
+```go
+import (
+	"log"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"runtime"
+)
+
+func main() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	log.SetOutput(os.Stdout)
+
+	runtime.GOMAXPROCS(1)
+	runtime.SetMutexProfileFraction(1)
+	runtime.SetBlockProfileRate(1)
+
+	go func() {
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	}()
+}
+```
+
+完成之后可以在浏览器中输入 `http://localhost:6060/debug/pprof/` 查看界面：
+
+![image-20230306093124970](GoNotes.assets/image-20230306093124970.png)
+
+### 1. CPU 消耗时间查询
+
+如果开启 web 模式，对于 CPU 时间采样应该使用命令：
+
+```sh
+go tool pprof "http://localhost:6060/debug/pprof/profile"
+```
+
+如果只想采样一段时间内的情况，可以添加参数：
+
+```sh
+go tool pprof "http://localhost:6060/debug/pprof/profile?seconds=10"
+```
+
+使用 `top` 输出程序运行整体结果：
+
+![image-20230306093553403](GoNotes.assets/image-20230306093553403.png)
+
+其中 flat 表示自己函数调用时间占比，cum 表示函数和调用函数一共时间占比，flat == cum 就表示没有调用其他函数，flat == 0 表示只有其他函数调用。
+
+使用查看上图可以知道 `Eat` 函数占用很多时间，使用命令 `list Eat` 可以查看。
+
+![image-20230306093833323](GoNotes.assets/image-20230306093833323.png)
+
+也可以使用 `web` 命令查看可视化结果：
+
+![image-20230306094207750](GoNotes.assets/image-20230306094207750.png)
+
+更直观的方式，直接输出网页版本：
+
+```sh
+go tool pprof -http=:8080 "http://localhost:6060/debug/pprof/profile?seconds=10"
+```
+
+### 2. 堆内存分析
+
+```sh
+go tool pprof -http=:8080 "http://localhost:6060/debug/pprof/profile?seconds=10"
+```
+
+也可以使用 goland 自带的：
+
+![image-20230306100116473](GoNotes.assets/image-20230306100116473.png)
+
 ## 其他
 
 ### CentOS安装mariadb：
