@@ -859,6 +859,24 @@ docker network connect <net-name> <con-name>
 
 ## 启动挂载样例
 
+### Java 打包 dockerfile
+
+```dockerfile
+FROM openjdk:17
+
+MAINTAINER me
+
+VOLUME /tmp
+
+ADD blogBackend-0.0.1-SNAPSHOT.jar /opt/jar/blog.jar
+
+RUN bash -c 'touch /opt/jar/blog.jar'
+
+ENTRYPOINT ["java", "-jar", "/opt/jar/blog.jar"]
+
+EXPOSE 8081
+```
+
 ### nginx
 
 配置所在目录：`/etc/nginx/`
@@ -897,5 +915,63 @@ docker run --name redis01 -d -p 6379:6379 -v E:\Notes\docker\vhost\redis01\data:
 
 ```sh
 docker run --name psql_a -e POSTGRES_USER=root -e POSTGRES_PASSWORD=**** -p 5433:5432 -d postgres
+```
+
+### 前后端分离全打包
+
+docker-compose.yml
+
+```
+version: "3"
+
+services:
+  web:
+    # 根据 Dockfile 构建
+    build: .
+    ports:
+      - "8081:8081"
+    networks:
+      - blog_web_frontend
+      - blog_web_backend
+    depends_on:
+      - redis
+      - mysql
+      - nginx
+
+  nginx:
+    image: "nginx"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx01/html:/usr/share/nginx/html
+      - ./nginx/nginx01/conf/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/nginx01/cert:/etc/nginx/ssl_keys
+    networks:
+      - blog_web_frontend
+
+  redis:
+    image: "redis"
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis0/redis.conf:/etc/redis/redis.conf
+      - ./redis/redis0/data/data:/data
+    networks:
+      - blog_web_backend
+
+  mysql:
+    image: "mysql"
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/mysql01/data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: passwd
+    networks:
+      - blog_web_backend
+networks:
+  blog_web_frontend:
+  blog_web_backend:
 ```
 
