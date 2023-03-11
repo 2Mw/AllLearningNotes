@@ -246,6 +246,72 @@ Page heap is core structure of memory allocation
 
 ### 3. Garbage Collection
 
+链接：[Golang 垃圾回收原理分析](https://mp.weixin.qq.com/s/TdekaMjlf_kk_ReyPvoXiQ)
+
+Golang 中的垃圾回收是由三色标记发 + 混合写屏障机制实现的。
+
+三色标记法，对象分为三种颜色标记：黑、灰、白：
+
+- 黑对象代表，对象自身存活，且其指向对象都已标记完成
+- 灰对象代表，对象自身存活，但其指向对象还未标记完成
+- 白对象代表，对象尙未被标记到，可能是垃圾对象
+
+回收的时候是通过并发线程进行回收的，正式因为并发运行，所以在垃圾回收的时候可能会存在漏标问题和多标问题。
+
+* 漏标问题：
+
+  漏标问题即：在 GC 协程并发场景下，存活对象未被标记但是被误删的情况。
+
+  - moment1：GC协程下，对象A被扫描完成，置黑；此时对象B是灰色，还未完成扫描
+  - momen2：用户协程下，对象A建立指向对象C的引用
+  - moment3：用户协程下，对象B删除指向对象C的引用
+  - moment4：GC协程下，开始执行对对象B的扫描
+
+  ![图片](GoAdvance.assets/640.png)
+
+* 多标问题：
+
+  - 条件：初始时刻，对象A持有对象B的引用
+  - moment1：GC协程下，对象A被扫描完成，置黑；对象B被对象A引用，因此被置灰
+  - momen2：用户协程下，对象A删除指向对象B的引用
+
+  ![图片](GoAdvance.assets/640-16785392351353.png)
+
+  其导致本该被删但仍侥幸存活的对象被称为“浮动垃圾”，至多到下一轮GC，这部分对象就会被GC回收，因此错误可以得到弥补.
+
+golang 中使用屏障机制来进行实现。
+
+🔵屏障机制
+
+* 强弱三色不等式：
+
+  强三色不等式：白色对象不能被黑色对象直接引用
+
+  若三色不等式：白色对象可以被黑色对象引用，但是要从某个灰对象触发仍然可达该白对象。
+
+* 插入写屏障
+
+  <img src="GoAdvance.assets/640-16785395479656.png" alt="图片" style="zoom: 50%;" />
+
+  写屏障是实现强三色不等式，保证黑色对象指向白色对象时候会触发屏障将白色对象置为灰色，再建立引用
+
+* 删除写屏障
+
+  删除写屏障是用于实现弱三色不等式，当白色对象被上有删除引用前，会触发屏障置灰
+
+🔵 混合写屏障
+
+插入写屏障和删除写屏障都可以解决漏标问题。
+
+由于对于栈对象涉及频繁的轻量操作，如果对于这种高频操作都要触发屏障机制的话成本无法接收，因此需要设定屏障机制**无法作用栈对象**。
+
+为了消除这个额外的 STW 成本，Golang 1.8 引入了混合写屏障机制，可以视为糅合了插入写屏障+删除写屏障的加强版本，要点如下：
+
+- • GC 开始前，以栈为单位分批扫描，将栈中所有对象置黑
+- • GC 期间，栈上新创建对象直接置黑
+- • 堆对象正常启用插入写屏障
+- • 堆对象正常启用删除写屏障
+
 ## 0x2. Closure
 
 Closure = Function + Environment. Environment means that some variable define outside this function but used within this function. Even when the function is invoked outside their scope.
@@ -388,7 +454,133 @@ type myalias = int32	// alias
 
 ### 4. reflect
 
-## 0x5 GMP
+## 0x5 Context
+
+主要用于实现并发协调以及对 goroutine 的生命周期控制。
+
+context 如何做到关闭父 context 也会关闭子 context 的？
+
+* 首先在为父亲注册子 context 的时候就会将子 context 的 cancel 结构体传给父亲 set 中
+* 当父亲关闭的时候，遍历这个 set 就会一起关闭。
+
+ValueContext:
+
+![image-20230310163054252](GoAdvance.assets/image-20230310163054252.png)
+
+- 一个 valueCtx 实例只能存一个 kv 对，因此 n 个 kv 对会嵌套 n 个 valueCtx，造成空间浪费；
+- 基于 k 寻找 v 的过程是线性的，时间复杂度 O(N)；
+- 不支持基于 k 的去重，相同 k 可能重复存在，并基于起点的不同，返回不同的 v. 由此得知，valueContext 的定位类似于请求头，只适合存放少量作用域较大的全局 meta 数据.
+
+## 0x6 Channel
+
+[Golang Channel 实现原理](https://mp.weixin.qq.com/s/QgNndPgN1kqxWh-ijSofkw)
+
+通过通信来实现共享数据结构而不是通过共享数据来完成通信，后者的话对于可以看到各个线程内的数据，线程之间的隔离性不好。
+
+核心数据结构：是环形数组
+
+![图片](GoAdvance.assets/640.png)
+
+创建 channel：
+
+```go
+func makechan(t *chantype, size int) *hchan {
+   elem := t.elem
+
+   // compiler checks this but be safe.
+   if elem.size >= 1<<16 {
+      throw("makechan: invalid channel element type")
+   }
+   if hchanSize%maxAlign != 0 || elem.align > maxAlign {
+      throw("makechan: bad alignment")
+   }
+
+   mem, overflow := math.MulUintptr(elem.size, uintptr(size))
+   if overflow || mem > maxAlloc-hchanSize || size < 0 {
+      panic(plainError("makechan: size out of range"))
+   }
+
+   // Hchan does not contain pointers interesting for GC when elements stored in buf do not contain pointers.
+   // buf points into the same allocation, elemtype is persistent.
+   // SudoG's are referenced from their owning thread so they can't be collected.
+   // TODO(dvyukov,rlh): Rethink when collector can move allocated objects.
+   var c *hchan
+   switch {
+   case mem == 0:
+      // Queue or element size is zero.
+      c = (*hchan)(mallocgc(hchanSize, nil, true))
+      // Race detector uses this location for synchronization.
+      c.buf = c.raceaddr()
+   case elem.ptrdata == 0:
+      // Elements do not contain pointers.
+      // Allocate hchan and buf in one call.
+      c = (*hchan)(mallocgc(hchanSize+mem, nil, true))
+      c.buf = add(unsafe.Pointer(c), hchanSize)
+   default:
+      // Elements contain pointers.
+      c = new(hchan)
+      c.buf = mallocgc(mem, elem, true)
+   }
+
+   c.elemsize = uint16(elem.size)
+   c.elemtype = elem
+   c.dataqsiz = uint(size)
+   lockInit(&c.lock, lockRankHchan)
+
+   if debugChan {
+      print("makechan: chan=", c, "; elemsize=", elem.size, "; dataqsiz=", size, "\n")
+   }
+   return c
+}
+```
+
+创建 channel 时候会根据三种情况分别进行处理：
+
+* 无缓冲类型：
+* 有缓冲空结构体类型：
+* 有缓冲指针类型：
+
+channel 和 多路 io 复用 select，如何在 select 分支中选择其中一个 channel 不会真正阻塞其他的 channel？
+
+* ```go
+  func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
+      if c == nil {
+          // 判断阻塞模式
+          if !block {
+              return false
+          }
+          gopark(nil, nil, waitReasonChanSendNilChan, traceEvGoStop, 2)
+          throw("unreachable")
+      }
+      // ...
+  }
+  ```
+
+  如果是在多路复用模式下，向 nil 的 channel 中写入数据会直接返回 false
+
+  ```go
+  func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool) {
+      // raceenabled: don't need to check ep, as it is always on the stack
+      // or is new memory allocated by reflect.
+  
+      if c == nil {
+          // 判断阻塞模式
+          if !block {
+              return
+          }
+          gopark(nil, nil, waitReasonChanReceiveNilChan, traceEvGoStop, 2)
+          throw("unreachable")
+      }
+  }
+  ```
+
+  如果是在多路复用模式下，读取数据会直接返回，不会阻塞和报错。
+
+从已关闭有缓冲区的 channel 读取数据：如果还有剩余数据会读取完毕。
+
+在关闭 channel 的时候会唤醒此时所有读写channel的线程，如果写会panic，读不会。
+
+## 0x7 GMP
 
 参考：
 
