@@ -6,6 +6,10 @@ Redis(==Re==mote ==Di==ctionary ==S==erver)远程服务字典
 
 [Redis实战Golang](https://www.bilibili.com/video/BV1WA411T7k9?p=1)
 
+[Redis源码分析](https://space.bilibili.com/1324259795/channel/collectiondetail?sid=111297)
+
+[TOC]
+
 ## 安装Redis
 
 1. 首先有java环境，最好在CentOS系统下
@@ -75,8 +79,8 @@ redis-benchmark -h localhost -p 6379 -c 100 -n 50000
 * `keys *` 查看所有的键值
 * `flushdb` 清空当前数据库
 * `flushall` 清空所有的数据库
-* Redis是单线程的，Redis是基于内存操作的，Redis的瓶颈是根据机器的内存和网络带宽据欸的那个的。
-* 为什么redis这么快？redis是将所有的数据全部放在内存中，所以使用单线程操作效率最高，不需要上下文切换。 
+* Redis是单线程的，Redis是基于内存操作的，Redis的瓶颈是根据机器的内存和网络带宽决定的。
+* 为什么 redis 这么快？redis是将所有的数据全部放在内存中，所以使用单线程操作效率最高，不需要上下文切换。 
 
 ## 五大数据类型
 
@@ -548,3 +552,73 @@ Redis个别key过期，服务器平稳运行，数据库崩溃。redis某个key�
 * 加锁
 
 > 击穿与雪崩的区别就是失效key的数量。
+
+# 源码分析
+
+文档：[redis 源码分析](https://hardcore.feishu.cn/mindnotes/bmncn1pO2ZhEyFkBgbQ2ttXncsc)
+
+视频：[BV1FL4y1j7Up](https://www.bilibili.com/video/BV1FL4y1j7Up)
+
+## 0x1. 基本数据结构
+
+### 1. 简单动态字符串 SDS
+
+redis 为了节省内存，针对不同长度的数据采用不同的数据结构：
+
+```c++
+#define SDS_TYPE_5  0                                                   
+#define SDS_TYPE_8  1
+#define SDS_TYPE_16 2
+#define SDS_TYPE_32 3
+#define SDS_TYPE_64 4
+```
+
+扩容：
+
+- 当前有效长度>=新增长度，直接返回
+- 更新之后，判断新旧类型是否一致：
+  - 一致使用remalloc，否则使用malloc+free
+    - a.当前有效长度>=新增长度，直接返回
+- 增长步长：
+  - 新增后长度小于预分配长度(1024*1024)，扩大一倍；
+  - 新增后长度大于等于预分配的长度，每次加预分配长度(减少不必要的内存)
+
+### 2. 链表
+
+就是普通的双向链表
+
+![image-20230313134711545](redis.assets/image-20230313134711545.png)
+
+### 3. 字典
+
+![image-20230313135437209](redis.assets/image-20230313135437209.png)
+
+字典采用拉链法来解决哈希冲突，如果拉链过长导致负载因子过大，redis 会判断当前是否需要扩容。
+
+如果哈希表填充率不满足 10% 就会进行缩容策略。
+
+在字典中会保存两个哈希表，这是为了方便 rehash 操作，在扩容的时候将其中一个字典上的键值对 rehash 到另一个字典上，完成之后释放空间并且交换两个字典的角色。
+
+rehash 策略：
+
+* rehash 不是一次性完成的，而是采用渐进方式，由于是单线程，这是为了避免一次性执行过多 rehash 操作给服务器带来过大负担。如果遇到空桶的数量较多就会提前结束此次 rehash 操作，防止阻塞时间过长。
+
+字典迭代：
+
+### 4. 整数集合
+
+保证集合不会出现重复元素
+
+### 5. 压缩列表 ziplist
+
+
+
+
+
+### 6. 跳表
+
+![image-20230313150419419](redis.assets/image-20230313150419419.png)
+
+在链表的基础上增加了跳跃功能，实现了简单插入、查找、删除的复杂度为 O(logN)，大大提高了链表查找速度。
+
+每相邻两个节点增加一个指针，新增加的指针连成一个新的链表。
