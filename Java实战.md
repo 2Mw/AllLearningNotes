@@ -1314,7 +1314,7 @@ server{
 
 ## 谷粒商城
 
-[BV1np4y1C7Yf](https://www.bilibili.com/video/BV1np4y1C7Yf?p=19) P19
+[BV1np4y1C7Yf](https://www.bilibili.com/video/BV1np4y1C7Yf?p=22) P28
 
 ### 1. 配置环境
 
@@ -1366,12 +1366,18 @@ docker update redis01 --restart=always
 为数据库创建表结构，源码地址[Link](https://share.weiyun.com/bO0OZMCv)，这些表的特点就是**没有外键**。
 
 ```sql
-CREATE DATABASE  `gulimall_pms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE  `gulimall_ums` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE  `gulimall_wms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE  `gulimall_oms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE  `gulimall_sms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE  `gulimall_admin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# 商品系统
+create database `gulimall_pms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# order
+create database `gulimall_oms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# user
+create database `gulimall_ums` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# 营销系统
+create database `gulimall_sms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# 库存系统
+create database `gulimall_wms` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# 管理员系统
+create database `gulimall_admin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 # 然后将对应的 sql 文件在对应的库中执行
 ```
@@ -1387,22 +1393,714 @@ git clone https://gitee.com/renrenio/renren-fast-vue.git
 https://gitee.com/renrenio/renren-generator.git
 ```
 
-将 renren-fast 整个包移动到项目下，并且执行的 db 文件夹下的所有对应数据库在 gulimall_admin 库中执行。
+* 后端配置
 
-然后在 renren-fast-vue 目录下执行：
+  将 renren-fast 整个包移动到项目下，并且执行的 db 文件夹下的所有对应数据库在 gulimall_admin 库中执行。
 
-```sh
-# 安装依赖，可以解决墙内安装问题
-cnpm install
-# 开启项目
-npm run dev
+  修改 renren-fast 中 Spring 配置信息，将其中的 mysql 连接地址进行修改。
+
+  配置完毕之后就可以在 `http://localhost:8080/renren-fast/` 中进行访问。
+
+* 前端配置：
+
+  在 renren-fast-vue 目录下执行：
+  ```sh
+  npm config set registry http://registry.npm.taobao.org
+  # 安装依赖，可以解决墙内安装问题
+  cnpm install
+  # 开启项目
+  npm run dev
+  ```
+
+  会存在 Nodejs 版本的问题，最好使用 `node v10.16.3` 版本。害怕与本地冲突则使用 `nvm` 进行 nodejs 版本管理。
+
+  其他问题见[FAQ renren-fast-vue](https://github.com/renrenio/renren-fast-vue/wiki/FAQ)
+
+  在进行多机部署的时候需要对 webpack.config.js 的傻哔设计中添加 `allowedHosts`
+
+MyBatis-Plus 配置：配置表的主键 ID 自增
+
+```yaml
+mybatis-plus:
+ global-config:
+   db-config:
+     id-type: auto
 ```
+
+
+
+
 
 将 renren-generator 同样移到项目下。
 
+### 2. SpringCloud
 
+微服务包含注册中心、配置中心、网关。
 
+注册中心：相当于服务的登记处，方便用于服务发现。
 
+配置中心：各个服务配置众多，单个修改服务十分麻烦，需要配置中心来集中进行配置。
 
+网关：用于鉴权，过滤，路由等。
 
+![image-20221206200320781](Java实战.assets/image-20221206200320781.png)
 
+Spring Cloud Alibaba的组件：
+
+* Nacos：注册中心、配置中心
+* Ribbon：负载均衡
+* OpenFeign：声明式 HTTP 客户端，整合了 Ribbon 负载均衡和 Hystrix 服务熔断。
+* Sentinel：服务容错（限流、降级、熔断）
+* Gateway：API 网关(webflux 编程模式)
+* Sleuth: 调用链监控
+* Seata：分布式事务解决方案
+
+#### a. Nacos 注册中心
+
+> 单机部署 nacos 需要在执行模式改为 `standalone`，或者添加 `-m standalone`
+
+如何使用 Nacos：[Nacos Demo](https://github.com/alibaba/spring-cloud-alibaba/blob/2021.x/spring-cloud-alibaba-examples/nacos-example/nacos-discovery-example/readme-zh.md)
+
+1. 首先[下载](https://github.com/alibaba/nacos/releases) 并且开启 Nacos Server
+
+   ```sh
+   tar -zxvf nacos-server-2.1.2.tar.gz
+   bash nacos/bin/startup.sh -m standalone
+   ```
+
+   得到对应的地址：http://ip:8848/nacos/index.html
+
+2. 配置 application.yaml，配置 nacos 服务器地址和服务名称
+
+   ```yml
+   spring:
+     cloud:
+       nacos:
+         discovery:
+           server-addr: guli:8848
+           service: memberService
+
+3. 在应用上添加注解 `@EnableDiscoveryClient` ：
+
+   ```java
+   @EnableDiscoveryClient
+   @SpringBootApplication
+   public class MemberApplication {
+   	public static void main(String[] args) {
+   		SpringApplication.run(MemberApplication.class, args);
+   	}
+   }
+   ```
+
+🔵使用 OpenFeign 进行远程调用
+
+1. 引入依赖：
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-openfeign</artifactId>
+   </dependency>
+   
+   
+   <!--    负载均衡    -->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+   </dependency>
+   ```
+
+2. 调用者配置，创建 feign 接口
+
+   假设被调用者的 API 为：
+
+   ```java
+   @RestController
+   @RequestMapping("coupon/coupon")
+   public class CouponController {
+       @Autowired
+       private CouponService couponService;
+   
+       @RequestMapping("/member/demo")
+       public R demo() {
+           CouponEntity entity = new CouponEntity();
+           entity.setCouponName("满100减100");
+           return R.ok().put("coupon", entity);
+       }
+   }
+   ```
+
+   调用者对应的 feign 接口为：
+
+   需要设置对应在 nacos 中被调用者的服务名
+
+   ```java
+   @FeignClient(name = "CouponService")
+   public interface CouponFeignService {
+       @RequestMapping("/coupon/coupon/member/demo")
+       public R demo();
+   }
+   ```
+
+3. 在调用者应用上开启 feign 远程调用功能
+
+   添加注解 `@EnableFeignClients` 并且设置 feign 接口包名
+
+   ```java
+   @EnableFeignClients(basePackages = "com.guli.member.feign")
+   @EnableDiscoveryClient
+   @SpringBootApplication
+   public class MemberApplication {
+   	public static void main(String[] args) {
+   		SpringApplication.run(MemberApplication.class, args);
+   	}
+   }
+   ```
+
+4. 然后就可以通过 HTTP 进行访问了。
+
+#### b. Nacos 配置中心
+
+在以前的应用中，如果修改配置之后需要重新进行打包、编译、发布，十分麻烦，因此就产生了配置中心来进行集中管理。
+
+[官方样例](https://github.com/alibaba/spring-cloud-alibaba/blob/2021.x/spring-cloud-alibaba-examples/nacos-example/nacos-config-example/readme-zh.md)
+
+1. 引入配置
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-bootstrap</artifactId>
+       <version>3.1.5</version>
+   </dependency>
+   
+   <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+    </dependency>
+   ```
+
+2. 在 resources 目录下创建 `bootstrap.properties` 配置 nacos config 元数据
+
+   `bootstrap.yml` 要比 `application.yml` 优先级要高。
+
+   ```sh
+   spring.application.name=CouponService
+   spring.cloud.nacos.config.server-addr=guli:8848
+   ```
+
+3. 在对应的 Controller 上添加注解 `@RefreshScope` 可以实现动态刷新配置
+
+4. 运行的时候首先在 nacos 配置中心找对应的配置，没有的话再去本地查找：
+
+   使用 `@Value` 获取配置项
+
+   ```java
+   @Value("${demo.user.name}")
+   String name;
+   @Value("${demo.user.age}")
+   int age;
+   
+   @RequestMapping("/test/config")
+   public R testConfig() {
+       return R.ok().put("name", name).put("age", age);
+   }
+   ```
+
+   红色部分即程序想要找的 nacos 配置文件
+
+   ![image-20221207135342614](Java实战.assets/image-20221207135342614.png)
+
+5. 在 nacos 配置中心添加配置 `CouponService.properties`：
+
+   ![image-20221207135634290](Java实战.assets/image-20221207135634290.png)
+
+   默认情况下使用的文件扩展为 `properties` 类型，可以在 `bootstrap.yml` 中设置 `file-extension: yaml` 将默认配置文件为 yml 文件。 
+
+6. 即可实现动态配置
+
+> 如果配置中心和本地都存在配置文件，优先使用远程配置文件
+
+**命名空间：**
+
+> 可以创建不同的命名空间，命名空间下分为多个组，每个组有多个配置
+
+配置中心详解：
+
+* 命名空间：用于配置隔离
+
+  默认命名空间为 public，默认所有新增的配置都在 public 空间中
+
+  1. 比如 dev, test, production
+
+     ![image-20221207150611354](Java实战.assets/image-20221207150611354.png)
+
+  2. 在 `bootstrap.properties` 文件中配置命名空间 id
+
+     ```properties
+     spring.cloud.nacos.config.namespace=61d94d79-80d7-4ff1-9ccb-c8323ed10778
+     ```
+
+  3. 重启应用生效
+
+* 配置集：所有配置的合集
+
+* 配置分组：
+
+  默认所有的配置集都属于 `DEFAULT_GROUP`
+
+  ```properties
+  spring.cloud.nacos.config.group=planA
+  ```
+
+同时加载多个配置文件，根据不同的配置来进行分类和拆分，然后在 `bootstrap.yml` 中进行配置：
+
+使用项 ` extension-configs` 配置，注意文件后缀名必须标准。
+
+```yml
+spring:
+  application:
+    name: CouponService
+  cloud:
+    nacos:
+      config:
+        server-addr: guli:8848
+        namespace: 4bcf76ac-f634-437b-a666-87c75c718845
+        group: dev
+        extension-configs:
+          - data-id: datasource.yml
+            refresh: true
+            group: dev
+          - data-id: mybatis.yml
+            refresh: true
+            group: dev
+          - data-id: cloud.yml
+            refresh: true
+            group: dev
+          - data-id: other.yml
+            refresh: true
+            group: dev
+```
+
+#### c. API 网关
+
+![image-20230417192745419](Java实战.assets/image-20230417192745419.png)
+
+实现路由、过滤、限流、监控、鉴权。使用 Gateway 来进行处理。
+
+Glossary
+
+使用网关的话，也需要注册发现和配置中心。
+
+配置网关规则：
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: baidu_route
+          uri: https://www.baidu.com
+          predicates:
+            - Query=url, baidu
+        - id: qq_route
+          uri: https://www.qq.com
+          predicates:
+            - Query=url, qq
+```
+
+对于以上规则：比如说在网关处访问：`http://gateway/hello?url=baidu` 就会跳转到 `https://www.baidu.com/hello` 网页处。
+
+注意点：
+
+* 由于在引入 mybatis plus 的时候会自动寻找数据源的配置，但是 gateway 中不需要进行数据源的处理，可以在进行自动装配的时候排除对应的类别：
+
+  ```java
+  @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
+  public class GatewayApplication {
+      // ...
+  ```
+
+API 网关代理其他微服务：
+
+```yaml
+- id: admin_route
+    uri: lb://renren-fast
+    predicates:
+    - Path=/api/**
+    filters:
+    - RewritePath=/api/(?<segment>.*), /renren-fast/$\{segment}
+```
+
+其中 `lb` 用来指示 SpringCloud 中微服务的名称。
+
+**跨域请求解决：**
+
+在网关中的配置类添加 Bean：需要注意的是新版 HTTP 要求当 allowedCredentials 为 true 的时候只能配置 addlowedOriginPattern 而不能使用 allowedOrigins
+
+```java
+@Configuration
+public class CORSConfig {
+
+    @Bean
+    public CorsWebFilter corsWebFilter() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration cfg = new CorsConfiguration();
+
+        cfg.addAllowedHeader("*");
+        cfg.addAllowedMethod("*");
+        cfg.addAllowedOriginPattern("*");
+        cfg.setAllowCredentials(true);
+
+        source.registerCorsConfiguration("/**", cfg);
+        return new CorsWebFilter(source);
+    }
+}
+```
+
+### 3. API 设计
+
+#### a. 各种对象划分：
+
+根据不同业务场景，传输的对象类型也不一致，比如 PO，DO，VO，POJO，DAO 等等
+
+在进行商品列表多级查询结果优化的时候，需要为一级列表添加二级列表，需要在实体类中另外添加属性，但是由于修改后和 Mapper 类冲突，因此需要在添加 Mybatis-plus 注解表示该字段在表中不存在：
+
+```java
+@TableField(exist = false)
+private List<CategoryEntity> children;
+```
+
+对于返回值的结果处理，返回结果的数组为空时，想直接取消这个字段，那么可以通过 jackson 中的 `@JsonInclude` 进行标识：
+
+```java
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
+private List<CategoryEntity> children;
+```
+
+VO 对象时用于业务层之间的数据传输，用于接收来自页面的数据和封装成页面的数据。
+
+对于 VO 和原始实体类之间，如果 VO 只比原始类多几个属性但是，需要从实体类中将相同的属性进行赋值，这会十分麻烦，因此使用 Spring 提供的 BeanUtils 来进行快速复制。
+
+```java
+public void updateAttr(AttrVo attr) {
+    AttrEntity attrEntity = new AttrEntity();
+    BeanUtils.copyProperties(attr, attrEntity);
+    // ...
+}
+```
+
+#### b. 逻辑删除
+
+mybatis 中支持逻辑删除字段，默认用 1 表示删除，用 0 表示未删除。
+
+在对应字段上添加逻辑删除注解，如果和默认值不一样，可以指定对应的值：
+
+```java
+@TableLogic(value = "1", delval = "0")
+private Integer showStatus;
+```
+
+规则如下：
+
+```java
+public @interface TableLogic {
+
+    /**
+     * 默认逻辑未删除值（该值可无、会自动获取全局配置）
+     */
+    String value() default "";
+
+    /**
+     * 默认逻辑删除值（该值可无、会自动获取全局配置）
+     */
+    String delval() default "";
+}
+```
+
+#### c. 文件存储上传
+
+使用阿里云对象存储服务来实现功能，使用之前需要在 alibaba 开通 oss 对象存储并且创建对应的 bucket
+
+编程使用的包为 Alibaba Cloud OSS. 官网中的导入有问题，正确的导入如下：
+
+```xml
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>aliyun-oss-spring-boot-starter</artifactId>
+</dependency>
+
+<dependencyManagement>
+    <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>aliyun-spring-boot-dependencies</artifactId>
+        <version>1.0.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+    </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+在配置中填写：
+
+```properties
+alibaba:
+  cloud:
+    access-key: AccessKey
+    secret-key: SecretKey
+    oss:
+      endpoint: oss-cn-beijing.aliyuncs.com
+```
+
+使用 [demo](https://github.com/alibaba/spring-cloud-alibaba/wiki/OSS)
+
+注意点：如果将密钥直接存储在前端中会直接导致密钥的泄漏，但是先上传至服务器再上传到 oss 中又会导致服务器带宽压力大，所以使用服务端签名后直传 oss。
+
+![时序图](Java实战.assets/p139016.png)
+
+使用阿里云OSS上传步骤：
+
+1. 设置 OSS 对应的 bucket 允许跨域请求
+
+   ![image-20230418210310554](Java实战.assets/image-20230418210310554.png)
+
+2. 构造签名：构造签名 [Demo](https://help.aliyun.com/document_detail/91868.html?)
+
+   ```java
+   @GetMapping("/policy")
+   public R getPolicy(HttpServletRequest request, HttpServletResponse response) {
+       String host = bucket + "." + endpoint;
+       // 创建ossClient实例。
+       OSS ossClient = new OSSClientBuilder().build(endpoint, accessId, secretKey);
+       Map<String, String> respMap = null;
+       try {
+           long expireEndTime = System.currentTimeMillis() + expireTime * 1000;
+           Date expiration = new Date(expireEndTime);
+           // bucket 上传的文件夹名称
+           String dir = new SimpleDateFormat("yyyy-MM-dd").format(expiration);
+   
+           PolicyConditions policyConds = new PolicyConditions();
+           policyConds.addConditionItem(PolicyConditions.COND_CONTENT_LENGTH_RANGE, 0, 1048576000);
+           policyConds.addConditionItem(MatchMode.StartWith, PolicyConditions.COND_KEY, dir);
+   
+           String postPolicy = ossClient.generatePostPolicy(expiration, policyConds);
+           byte[] binaryData = postPolicy.getBytes(StandardCharsets.UTF_8);
+           String encodedPolicy = BinaryUtil.toBase64String(binaryData);
+           String postSignature = ossClient.calculatePostSignature(postPolicy);
+   
+           respMap = new LinkedHashMap<>();
+           respMap.put("accessId", accessId);
+           respMap.put("policy", encodedPolicy);
+           respMap.put("signature", postSignature);
+           respMap.put("dir", dir);
+           respMap.put("host", host);
+           respMap.put("expire", String.valueOf(expireEndTime / 1000));
+   
+       } catch (Exception e) {
+           // Assert.fail(e.getMessage());
+           System.out.println(e.getMessage());
+       }
+       return R.ok().put("data", respMap);
+   }
+   ```
+
+3. HTTP 客户端获取到 policy 之后就可以上传给 oss 了：
+
+   ```json
+   {
+       policy: '',
+       signature: '',
+       ossaccessKeyId: '',
+       key: '',	// 目标文件名称
+       dir: '',	// 上传的文件夹
+       host: '',	// bucket + endpoint
+       // callback:'',
+   }
+   ```
+
+#### d. 后端数据校验
+
+首先引入包，在 SpringBoot 项目中需要引入一下依赖：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+```
+
+使用 JSR303 进行数据校验，对应的包为 `javax.validation.constraints`
+
+在对应字段上添加注解：
+
+```java
+@NotBlank(message = "name字段不能为空")
+private String name;
+```
+
+然后添加校验标记 `@Valid`
+
+```java
+@RequestMapping("/save")
+public R save(@Valid @RequestBody CategoryEntity category) {
+    categoryService.save(category);
+    return R.ok();
+}
+```
+
+如果想要接收校验的结果，需要添加 `BindingResult` 来进行检测：
+
+```java
+public R save(@Valid @RequestBody CategoryEntity category, BindingResult result) {
+    if (result.hasErrors()) {
+        Map<String, String> error = new HashMap<>();
+
+        result.getFieldErrors().forEach(i -> {
+            error.put(i.getField(), i.getDefaultMessage());
+        });
+
+        return R.error(400, "提交数据不合法").put("error", error);
+    } else {
+        categoryService.save(category);
+        return R.ok();
+    }
+}
+```
+
+自定义校验：`@Pattern` ，可以使用对应的正则表达式来看对应字段是否匹配。
+
+**分组校验**：
+
+对于不同的业务情况，使用校验规则是不同的。比如 ID 字段，在进行新增数据的时候由于 MyBatis-Plus 会指定主键 ID，因此不需要进行手动赋值，而在进行增删改查的时候就需要指定对应的 ID。因此需要分组校验类实现不同业务需求。
+
+分组校验的时候需要指定对应的类别：
+
+```java
+@TableId
+@NotNull(groups = {UpdateProduct.class})
+@Null(groups = {AddProduct.class})
+private Long brandId;
+```
+
+其中分组的类只需要接口类型用于指定即可：
+
+![image-20230419122636696](Java实战.assets/image-20230419122636696.png)
+
+在进行限制的时候使用 `@Validated` 注解进行标记指定的组：
+
+```java
+@RequestMapping("/save")
+public R save(@Validated({AddProduct.class}) @RequestBody BrandEntity brand){
+    brandService.save(brand);
+    return R.ok();
+}
+```
+
+需要注意的是，如果指定组业务的时候对应的实体类未指定对应的组，这些注解将不会生效，只有在未指定分组校验的时候才会生效。
+
+**自定义校验逻辑：**
+
+首先需要创建对应的注解，比如创建一个值必须是指定数组内的值，使用 `value` 来接收数值信息：
+
+```java
+@Documented
+@Constraint(validatedBy = {ListValValidator.class})
+@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE})
+@Retention(RUNTIME)
+public @interface ListVal {
+    // 信息也可以通过 ValidationMessages.properties 中指定信息进行配置
+    // String message() default "{全类名.ListVal.message}";
+    String message() default "值必须是指定数组内的值";
+
+    // 分组校验
+    Class<?>[] groups() default {};
+
+    // 自定义负载信息
+    Class<? extends Payload>[] payload() default {};
+
+    int[] value() default {};
+}
+
+```
+
+创建自定校验器，实现 `ConstraintValidator` 类：
+
+```java
+public class ListValValidator implements ConstraintValidator<ListVal, Integer> {
+
+    Set<Integer> set = new HashSet<>();
+
+    @Override
+    public void initialize(ListVal constraintAnnotation) {
+        for (Integer val : constraintAnnotation.value()) {
+            set.add(val);
+        }
+    }
+
+    @Override
+    public boolean isValid(Integer value, ConstraintValidatorContext context) {
+        return set.contains(value);
+    }
+}
+```
+
+在 ListVal 注解上的 `@Constraint(validatedBy = {ListValValidator.class})` 指定校验器进行关联即可。
+
+并且可以指定多个校验器。
+
+#### e. 统一处理异常
+
+使用单一的类来处理所有异常，不需要在每个业务中添加处理异常的逻辑。
+
+在 SpringBoot 中使用 `@ControllerAdvice` 来捕获异常错误，当进行业务开发的时候就可以大胆抛出异常，交给对应的专门的组件进行处理。如果想要将错误返回给客户端，可以使用 `@RestControllerAdvice` 进行返回：
+
+```java
+@Slf4j
+@RestControllerAdvice(basePackages = "com.guli.product.controller")
+public class ControllerAdvice {
+
+    // 参数验证不通过
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+    public R handleParameterException(Exception e) {
+        if (e instanceof MethodArgumentNotValidException) {
+            MethodArgumentNotValidException e1 = (MethodArgumentNotValidException) e;
+            List<FieldError> errors = e1.getFieldErrors();
+            Map<String, String> map = new HashMap<>();
+            errors.forEach(i-> map.put(i.getField(), i.getDefaultMessage()));
+            return R.error(400,"数据校验错误").put("error", map);
+        } else if (e instanceof HttpMessageNotReadableException) {
+            HttpMessageNotReadableException e1 = (HttpMessageNotReadableException) e;
+            return R.error(400, "参数类型错误");
+        } else {
+            return R.error(400, "未知错误");
+        }
+    }
+}
+```
+
+#### f. Mybatis 使用
+
+**引入分页插件：**
+
+```java
+@Configuration
+@EnableTransactionManagement
+@MapperScan("com.guli.product.dao")
+public class MybatisConfig {
+
+    @Bean
+    public PaginationInnerInterceptor paginationInnerInterceptor() {
+        PaginationInnerInterceptor interceptor = new PaginationInnerInterceptor();
+        // 设置请求页面最大页后的操作，true 调回首页，false 进行请求，默认 false
+        interceptor.setOverflow(true);
+        // 设置最大但也的限制数量，默认 500 条, -1 不受限制
+        interceptor.setMaxLimit(1000L);
+        return interceptor;
+    }
+}
+```
+
+**事务：**
+
+只有在 MybatisConfig 配置类中使用了 `@EnableTransacionManagement` 在业务中使用 `@Transactional` 注解才会生效。
