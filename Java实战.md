@@ -1790,6 +1790,14 @@ public void updateAttr(AttrVo attr) {
 }
 ```
 
+Jackson 日期格式化：
+
+```yaml
+spring:
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+```
+
 #### b. 逻辑删除
 
 mybatis 中支持逻辑删除字段，默认用 1 表示删除，用 0 表示未删除。
@@ -2104,3 +2112,42 @@ public class MybatisConfig {
 **事务：**
 
 只有在 MybatisConfig 配置类中使用了 `@EnableTransacionManagement` 在业务中使用 `@Transactional` 注解才会生效。
+
+#### g. 不同微服务之间相互调用
+
+具体的调用步骤在 2.a 章节中已经陈述。
+
+由于设计到不同微服务之间的数据传输，需要设计一个传输数据结构 TO。
+
+如果添加 `@RequestParam` 等注解微服务之间调用的流程：
+
+* 调用者将对应数据结构转为 json 发送给被调用者
+* 被调用者将接收到 json 之后再将其转为对象
+
+只要两者最终转化的 json 数据格式相同，就可以正常通信。
+
+```java
+@FeignClient(name = "CouponService")
+public interface CouponFeignService {
+    @PostMapping("/coupon/spubounds/save")
+    R saveSpuBounds(@RequestBody SpuBoundTo spuBoundTo);
+
+    @PostMapping("/coupon/skufullreduction/saveinfo")
+    R saveSkuReduction(@RequestParam SkuReductionTo skuReductionTo);
+}
+```
+
+> 注意：`@RequestBody` 需要对应相同的注解，`@RequestParam` 也是。
+
+**让所有请求经过网关：**
+
+但是为了业务更加合理，微服务和微服务之间的调用也应该经过网关来进行处理，并且可以节省开发考虑不同微服务的名称。
+
+```java
+@FeignClient("GatewayService")
+public interface ProductFeignService {
+    @RequestMapping("/api/product/skuinfo/info/{skuId}")
+    R info(@PathVariable("skuId") Long skuId);
+}
+```
+
