@@ -2151,3 +2151,542 @@ public interface ProductFeignService {
 }
 ```
 
+### 4. ElasticSearch
+
+#### a. 安装 es 和 kibana
+
+kibana 是 es 的可视化界面。
+
+> 项目使用的版本是 7.4.2
+
+首先需要安装：
+
+```sh
+docker pull elasticsearch
+docker pull kibana
+```
+
+运行 docker：9200 为 es RESTAPI 的接口端口
+
+```shell
+# 配置文件夹和数据文件夹
+mkdir -p /mydata/es/config
+mkdir -p /mydata/es/data
+chmod -R 777 /mydata/es
+echo "http.host: 0.0.0.0" >> /mydata/es/config/elasticsearch.yml
+
+docker run --name gulies -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -e ES_JAVA_OPTS="-Xms64m -Xmx128m" -v /mydata/es/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v /mydata/es/data:/usr/share/elasticsearch/data -v /mydata/es/plugins:/usr/share/elasticsearch/plugins -d elasticsearch
+```
+
+如果运行报错可以先不挂载数据，或者尝试在 `elasticsearch.yml` 中添加：
+
+```yaml
+xpack.license.self_generated.type: trial
+xpack.security.enabled: false
+http.host: 0.0.0.0
+```
+
+其中第二条为是否开启https.
+
+运行 kibana
+
+```sh
+docker run --name kibana ELASTICSEARCH_HOSTS=https://HOST:9200 -p 5601:5601 -d kibana
+```
+
+或者直接使用 docker-compose ，kibana 启动之后的界面会让用户指定 es 的 API 地址，在 docker 中不配置也可以。
+
+```yaml
+version: "3"
+
+services:
+  guli_es:
+    image: elasticsearch:7.4.2
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms128m -Xmx128m"
+    volumes:
+      - /mydata/es/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml      
+      - /mydata/es/data:/usr/share/elasticsearch/data
+      - /mydata/es/plugins:/usr/share/elasticsearch/plugins
+    networks:
+      - es_net
+
+  guli_kibana:
+    image: kibana:7.4.2
+    ports:
+      - 5601:5601
+    depends_on:
+      - guli_es
+    networks:
+      - es_net
+
+networks:
+  es_net:
+```
+
+#### b. 初步使用
+
+```
+GET /_cat/master
+GET /_cat/nodes
+GET /_cat/indices
+```
+
+添加一个数据库：
+
+```http
+PUT http://es/{db}/{table}/{uuid}
+
+{
+	"name": "john"
+}
+
+# 或者使用 POST、
+POST http://es/{db}/{table}/{uuid}
+
+{
+	"name": "john"
+}
+```
+
+更新数据：这种情况如果数据未发生改变不会更新版本号
+
+```http
+POST http://es/{db}/{table}/{uuid}/_update
+
+{
+	"name": "john"
+}
+```
+
+支持批量 API
+
+#### c. Query DSL
+
+返回满足条件的值：
+
+对于字符串是模糊查询应该使用 `match`，对于数字是精确查询应该使用 `term`
+
+```http
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match": {
+      "FIELD": "VALUE"
+    }
+  }
+}
+```
+
+查询类型：
+
+* 普通查询：对于字符串的查询比如查 "Good Morning" 使用 match 就会将含有 good 和 morning 的单词的所有数据都会查询出来。
+
+  如果使用想使用文本的精确查询使用 `FIELD.keyword`
+
+* 范围查询：使用 `range`
+
+  ```json
+  {
+    "query": {
+      "range": {
+        "products.base_price": {
+          "gte": 10,
+          "lte": 20
+        }
+      }
+    }
+  }
+  ```
+
+* 短语查询：如果只想查询  "Good Morning"，需要使用 `match_phrase`：
+
+  ```json
+  {
+    "query": {
+      "match_phrase": {
+        "category": "Men's"
+      }
+    }
+  }
+  ```
+
+* 多字段查询：想在多个字段查询是否有  "Good Morning"
+
+  ```json
+  {
+    "query": {
+      "multi_match": {
+        "query": "Women's Men's",
+        "fields": ["category", "products.product_name"]
+      }
+    }
+    , "_source": ["category", "products.product_name"]
+  }
+  ```
+
+* 复合查询，使用更复杂的查询，`must` 表示必须满足的，`must_not` 表示必须不满足的，`should` 表示可以满足的。其中 `must` 和 `should` 会贡献搜索权重值，其他不会。
+
+  ```json
+  {
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "match": {
+              "currency": "EUR"
+            }
+          },
+          {
+            "match": {
+              "category": "Men's"
+            }
+          }
+        ],
+        "must_not": [
+          {
+            "match": {
+              "customer_gender": "FEMALE"
+            }
+          }
+        ],
+        "should": [
+          {
+            "match": {
+              "products.manufacturer": "Tide"
+            }
+          }
+        ]
+      }
+    }
+  }
+  ```
+
+* `filter` 过滤器，`must_not` 也相当于一个过滤器，不会影响相关性得分，相当于是结果过滤。
+
+对数据进行排序：
+
+```http
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "taxful_total_price": {
+        "order": "desc"
+      }
+    }
+  ],
+  "_source": ["category", "taxful_total_price"]
+}
+```
+
+只选取部分字段：
+
+```http
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "_source": ["category", "taxful_total_price"]
+}
+```
+
+聚合数据：类似MySQL中的 group by，以及支持聚合的嵌套
+
+映射：可以对字段存储数据类型进行定义
+
+#### d. 分词器
+
+分词器的种类有很多种，其中使用标准分词器的demo：
+
+```json
+GET _analyze
+{
+  "analyzer": "standard",
+  "text": "I am a good boy."
+}
+```
+
+但是对于中文分词识别不是很好，因此使用中文的 [ik 分词器](https://github.com/medcl/elasticsearch-analysis-ik/releases) ，找到和 es 相应的版本解压存放到 plugins 目录下然后重启 es。
+
+* smart 模式
+
+  ```json
+  GET _analyze
+  {
+    "analyzer": "ik_smart",
+    "text": "迎面走来的你蠢蠢欲动"
+  }
+  ```
+
+  会切分为：迎面  走来  的  你  蠢蠢欲动
+
+* max_word 模式
+
+  ```json
+  GET _analyze
+  {
+    "analyzer": "ik_max_word",
+    "text": "迎面走来的你蠢蠢欲动"
+  }
+  ```
+
+  会切分为：迎面  走来  的  你  蠢蠢欲动  蠢蠢  欲  动
+
+* 自定义扩展分词
+
+  由于一些网络用语无法实时更新，因此应该使用实时语料库来进行提取。
+
+  在 ik 分词数据库中支持使用网络语料库来进行配置，在 ik 文件夹下的 `ik/config/IKAnalyzer.cfg.xml` 中进行指定：
+
+  ```xml
+  <properties>
+          <comment>IK Analyzer 扩展配置</comment>
+          <!--用户可以在这里配置自己的扩展字典 -->
+          <entry key="ext_dict"></entry>
+           <!--用户可以在这里配置自己的扩展停止词字典-->
+          <entry key="ext_stopwords"></entry>
+          <!--用户可以在这里配置远程扩展字典 -->
+          <!-- <entry key="remote_ext_dict">words_location</entry> -->
+          <!--用户可以在这里配置远程扩展停止词字典-->
+          <!-- <entry key="remote_ext_stopwords">words_location</entry> -->
+  </properties>
+  ```
+
+  扩展：
+
+  * 可以用过 NLP 相关词库 [Github](https://github.com/fighting41love/funNLP)
+
+  * 搜狗词库：
+
+    ```
+    搜狗词库: http://pinyin.sogou.com/dict/list.php
+    可以直接访问地址: http://pinyin.sogou.com/dict/download_txt.php?id=词库id 
+    ```
+
+  * 敏感词词库（全字词库，拆解词库）
+
+#### e. 创建索引映射结构
+
+对于一些字段根据业务要求，为了加快检索效率不需要简历索引和
+
+在进行索引字段映射的时候设置：
+
+```json
+{
+  "mapping": {
+    "imgUrl": {
+      "type": "keyword",
+      "index": false,
+      "doc_values": false
+    }
+  }
+}
+```
+
+其中设置 `index` 为 false 表示不对该字段建立倒排索引，设置 `doc_values` 为 false 表示该字段不用于排序和聚合操作，节约存储空间。
+
+**嵌套数据类型Nested DataType：**
+
+对于嵌套类型的数据结构，es 中会进行扁平化处理
+
+对于原数据：
+
+```json
+{
+  "group" : "fans",
+  "user" : [ 
+    {
+      "first" : "John",
+      "last" :  "Smith"
+    },
+    {
+      "first" : "Alice",
+      "last" :  "White"
+    }
+  ]
+}
+```
+
+在 es 中会被看作：
+
+```json
+{
+  "group" :        "fans",
+  "user.first" : [ "alice", "john" ],
+  "user.last" :  [ "smith", "white" ]
+}
+```
+
+如果想要查询 alice smith 这个人的时候会将上面两个用户进行匹配，但是这种匹配是错误的，因此需要使用 nested 的数据类型，禁用扁平化处理。
+
+#### f. Java 调用 ElasticSearch
+
+[官方Java文档](https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/8.7/installation.html)
+
+首先需要引入相关依赖：
+
+```xml
+<dependency>
+    <groupId>co.elastic.clients</groupId>
+    <artifactId>elasticsearch-java</artifactId>
+    <version>8.7.0</version>
+</dependency>
+
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.14.2</version>
+</dependency>
+
+<dependency>
+    <groupId>jakarta.json</groupId>
+    <artifactId>jakarta.json-api</artifactId>
+    <version>2.1.1</version>
+</dependency>
+```
+
+将客户端实例存入到 Spring 容器中：
+
+```java
+// 同步客户端
+@Bean
+public ElasticsearchClient restClient() {
+    RestClient restClient = RestClient.builder(new HttpHost("guli", 9200, "http")).build();
+    ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
+    return new ElasticsearchClient(transport);
+}
+// 异步客户端
+
+// ...
+	return new ElasticsearchAsyncClient(transport);
+// ...
+```
+
+尝试添加数据：
+
+```java
+@Test
+void testIndex() throws IOException {
+    User jack = new User(1, "Jack");
+    IndexResponse resp = elasticsearchClient.index(i ->
+            i.index("users")
+                    .id(String.valueOf(jack.getId()))
+                    .document(jack)
+    );
+    log.info("{}", resp);
+}
+```
+
+异步请求：
+
+```java
+asyncClient
+    .exists(b -> b.index("products").id("foo"))
+    .whenComplete((response, exception) -> {
+        if (exception != null) {
+            logger.error("Failed to index", exception);
+        } else {
+            logger.info("Product exists");
+        }
+    });
+```
+
+创建索引的方式：
+
+```java
+// 1...
+IndexRequest<Product> request = IndexRequest.of(i -> i
+    .index("products")
+    .id(product.getSku())
+    .document(product)
+);
+// 2.
+IndexRequest.Builder<Product> indexReqBuilder = new IndexRequest.Builder<>();
+indexReqBuilder.index("product");
+indexReqBuilder.id(product.getSku());
+indexReqBuilder.document(product);
+```
+
+查询数据：
+
+```java
+void testQuery() throws IOException {
+    Query query = MatchQuery.of(m -> m.field("category").query("Men's"))._toQuery();
+    Query rangeQuery = RangeQuery.of(r -> r.field("product.base_price")
+            .gte(JsonData.of("30"))
+            .lte(JsonData.of("35")))._toQuery();
+
+    // 选取的列
+    SourceConfig sourceConfig = SourceConfig.of(s -> s.filter(f -> f.includes("currency", "user")));
+
+    SearchResponse<D> resp = esClient.search(s -> s.index("kibana_sample_data_ecommerce")
+            .query(q ->q.bool(b->b.must(query).should(rangeQuery)))
+            .source(sourceConfig)
+            .from(0)
+            .size(3), D.class);
+
+    log.info("Resp: {}", resp);
+    for (Hit<D> hit : resp.hits().hits()) {
+        System.out.println(hit.source());
+    }
+}
+```
+
+### 5. nginx 配置
+
+#### a. 添加头部信息
+
+在使用 nginx 进行反向代理的时候，将请求传给网关的时候会丢失 HOST 信息，因此需要进行设置。
+
+```nginx
+location / {
+    proxy_set_header Host $host;
+    proxy_pass http://gulimall;
+}
+```
+
+### 6. 压力测试和性能监控
+
+使用压力测试可以考察当前软硬件环境下的承受能力，可以找到更难发现的错误类型：**内存泄漏**、**并发和同步**。常见的性能指标有：TPS，QPS，吞吐量，响应时间、错误率等等。通常使用的是 JMeter 进行测试。
+
+性能监控通常使用 jconsole 和 jvisualvm
+
+#### a. 性能监控
+
+其中 jvisualvm 是 jconsole 的升级版，监控的指标更加全面，甚至还支持监控 SQL 语句查询，并且支持插件功能。
+
+<img src="https://s2.loli.net/2023/04/23/K34SxDHCfZuoVjM.png" alt="image-20230423213009620" style="zoom:67%;" />
+
+其中有个插件叫做 visual GC，支持已动画的形式展现垃圾回收的过程：
+
+<img src="Java实战.assets/image-20230423220116416.png" alt="image-20230423220116416" style="zoom:80%;" />
+
+#### b. 压力测试
+
+在开始压力测试之前需要创建线程组：
+
+<img src="Java实战.assets/image-20230423193957672.png" alt="image-20230423193957672" style="zoom: 80%;" />
+
+在线程组的设置中，可以设置 Ramp-up 时间和循环次数。ramp-up 表示在多少秒内启动完毕所有线程，优点类似慢启动，循环次数表示单个线程执行的次数。
+
+在线程组中可以添加
+
+* **取样器**：其中可以添加 HTTP 请求 TCP 请求等。
+
+* **监听器**：可以用于查看执行结果和图形化统计数据
+
+  比如汇总图可以查看统计数据等，比如 90% 请求的响应时间汇总：
+
+  ![image-20230423195516823](Java实战.assets/image-20230423195516823.png)
+
+* 配置原件中可以设置 HTTP 请求头 Cookie 信息等
+
