@@ -30,6 +30,8 @@
 </dependency>
 ```
 
+Spring 中也提供了 `BCryptPasswordEncoder` 进行密码防止哈希碰撞
+
 ### MyBatis-Plus使用以及代码生成
 
 > 可以快速生成Model，mapper，controller，service等java代码
@@ -1316,6 +1318,12 @@ server{
 
 [BV1np4y1C7Yf](https://www.bilibili.com/video/BV1np4y1C7Yf?p=22) P28
 
+TODO：
+
+* Spring Gateway
+* Spring Cache
+* 业务表结构的设计
+
 ### 1. 配置环境
 
 配置 MySQL：
@@ -2528,6 +2536,20 @@ GET _analyze
 
 如果想要查询 alice smith 这个人的时候会将上面两个用户进行匹配，但是这种匹配是错误的，因此需要使用 nested 的数据类型，禁用扁平化处理。
 
+想要用查询/聚合 nested 数据类型不能使用常规查询，需要使用 nested 查询/聚合方式。
+
+**ES 迁移数据：**
+
+如果更改了数据映射类型，就需要将索引数据重新进行迁移
+
+```json
+POST _reindex
+{
+  "source": {"index": "product"},
+  "dest": {"index": "guli-product"}
+}
+```
+
 #### f. Java 调用 ElasticSearch
 
 [官方Java文档](https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/8.7/installation.html)
@@ -2690,3 +2712,339 @@ location / {
 
 * 配置原件中可以设置 HTTP 请求头 Cookie 信息等
 
+#### c. JVM 参数调整
+
+-Xmx -Xms -Xmn
+
+* 使用 redis 在高并发情况下存在堆外内存溢出现象 `OutOfDirectMemoryError` ：
+
+  Springboot 2.0 默认使用 lettuce 作为操作 redis 的客户端，使用 netty 作为网络通信组件。这是由于 lettuce 的 bug 导致。因为 netty 如果没有设置堆外内存，默认使用 `-Xmx` ，可以通过 `-Dio.netty.maxDirectMemory` 。
+
+* 
+
+### 7. 缓存
+
+#### a. 缓存难题
+
+* 缓存穿透
+* 缓存击穿
+* 缓存雪崩
+
+#### b. redis 分布式锁
+
+分布式锁的逻辑：
+
+1. 上锁
+2. 成功拿到锁，执行业务
+3. 释放锁
+
+分布式锁中会面临的问题：
+
+* 当在第二步的情况下，如果发生异常、断电等事故故障恢复之后，执行逻辑已经停止但是锁仍然在数据库中，因此会出现死锁的情况，因此需要给锁添加过期时间。
+
+  因此在释放锁的时候需要考虑业务逻辑是否超过过期时间，或者查看锁的版本号是否一致，考虑是否会删除别人的锁。
+
+  在删除锁的时候还会存在一个问题：由于需要对比版本号 / 过期时间，redis 取值的时候还未过期，但是服务端拿到值的时过期被删除，而服务端以为还未过期就会执行删除值的操作。如果此时已经有其他线程占有锁，那么就会删除别人的锁，导致并发问题。因为对比值和删除 key 不是原子性的，需要使用 `lua` 脚本，因为 redis 执行 lua 脚本是原子的。
+
+  lua 删除值脚本如下
+
+  ```lua
+  if redis.call("get",KEYS[1]) == ARGV[1]
+  then
+      return redis.call("del",KEYS[1])
+  else
+      return 0
+  end
+  ```
+
+**Redission**
+
+redis 有更专业的分布式锁处理工具 redission。
+
+引入 redission 依赖：
+
+```xml
+<!-- https://mvnrepository.com/artifact/org.redisson/redisson-spring-boot-starter -->
+<dependency>
+    <groupId>org.redisson</groupId>
+    <artifactId>redisson-spring-boot-starter</artifactId>
+    <version>3.20.1</version>
+</dependency>
+```
+
+redisson 普通锁实现了 JUC 包中的 Lock 接口，并且是一个**可重入锁**，可以根调用本地接口一样进行分布式上锁。并且为了解决加锁异常的情况，redisson 会自动进行锁的续期，如果业务中断就不会续期知道锁到期，这种自动续期的工作模式是看门狗的定时任务。
+
+如果手动指定锁的过期时间，就不会有看门狗的定时任务，直接过期就释放锁。
+
+还支持其他锁的类型：公平锁，读写锁，信号量（限流），CountDownKatch
+
+#### c. 缓存一致性
+
+缓存和 db 数据不一致的解决方法：
+
+* 数据加过期时间，对于时效性要求不高的。
+* canal 订阅 binlog 
+* 分布式读写锁+事务
+
+#### d. SpringCache
+
+引入 Spring Cache：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+```
+
+Spring Cache 支持多种缓存形式，有 ConcurrentMap，redis 等：
+
+配置时候设置缓存的类型：
+
+```yaml
+spring:
+  cache:
+    type: redis
+    redis:
+      cache-null-values: true # 是否允许缓存控制
+      use-key-prefix: true  # key 的默认前缀
+      key-prefix: CACHE_
+```
+
+Cache 的注解：
+
+* `@Cacheable`：将数据保存到缓存，如果缓存中有就不调用方法，没有则会调用方法并且将结果放入缓存。
+
+  <img src="Java实战.assets/image-20230424213846218.png" alt="image-20230424213846218" style="zoom:67%;" />
+
+  默认设置：
+
+  * key 的名称是：自己设置的名称+随机字段
+  * value 结果默认使用的是 Java 序列化方式
+  * 默认 ttl 是 -1
+
+  用户可以自定义：
+
+  * key 的名称使用属性 `key` 进行明确指定，使用的是 Spring 表达式
+
+    ```java
+    @Cacheable(value = {"product", "category"}, key = "'third-level'")
+    ```
+
+    分别在 `product::third-level` 和 `category::third-level` 中存储数据。
+
+    使用 `sync` 属性进行互斥访问读取，适用于解决缓存穿透
+
+    spring 表达式支持拿取方法名，变量值等数据。
+
+    ![image-20230424215532682](Java实战.assets/image-20230424215532682.png)
+
+  * TTL 在配置文件中默认设置：
+
+    ```properties
+    spring.cache.redis.time-to-live=600000
+    ```
+
+  * 自定义 JSON 序列化方式：
+
+    redis cache 在自动装配的时候需要加载 `RedusCacheConfiguration` 类：
+
+    ```java
+    public class RedisCacheConfiguration {
+    
+       private final Duration ttl;
+       private final boolean cacheNullValues;
+       private final CacheKeyPrefix keyPrefix;
+       private final boolean usePrefix;
+    
+       private final SerializationPair<String> keySerializationPair;
+       private final SerializationPair<Object> valueSerializationPair;
+    
+       private final ConversionService conversionService;
+       // ...
+    }
+    ```
+
+    因此自己在容器中创建一个配置类：
+
+    ```java
+    @EnableConfigurationProperties(CacheProperties.class)
+    @Configuration
+    @EnableCaching
+    public class SelfDefineRedisCacheConfiguration {
+    
+        @Bean
+        public RedisCacheConfiguration redisCacheConfiguration(CacheProperties properties) {
+            RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig();
+            RedisSerializationContext.SerializationPair<Object> jacksonSerializer = RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer());
+            config = config.serializeValuesWith(jacksonSerializer);
+    
+            CacheProperties.Redis redisProperties = properties.getRedis();
+            //将配置文件中所有的配置都生效
+            if (redisProperties.getTimeToLive() != null) {
+                config = config.entryTtl(redisProperties.getTimeToLive());
+            }
+            if (redisProperties.getKeyPrefix() != null) {
+                config = config.prefixCacheNameWith(redisProperties.getKeyPrefix());
+            }
+            if (!redisProperties.isCacheNullValues()) {
+                config = config.disableCachingNullValues();
+            }
+            if (!redisProperties.isUseKeyPrefix()) {
+                config = config.disableKeyPrefix();
+            }
+            return config;
+        }
+    }
+    ```
+
+    由于在 SpringCache 在引入自动配置类的时候会导致配置文件中的配置失效，所以应该手动导入引入配置，使用 `@EnableConfigurationProperties` 注解来手动引入 `CacheProperties` 的属性。
+
+  * 
+
+* `@CacheEvict`：缓存换出（缓存删除模式）
+
+  支持删除一个分区所有的数据：
+
+  ```java
+  @CacheEvict(value="group", allEntries=true)
+  ```
+
+* `@CachePut`：执行方法更新缓存，用于缓存双写模式，更新缓存信息。（双写模式）
+
+* `@Caching`：多种缓存操作，比如删除多个 key：
+
+  ```java
+  @Caching(
+  	evict={
+          @CacheEvict(value="group1", key="'key1'")
+          @CacheEvict(value="group2", key="'key2'")
+      }
+  )
+  ```
+
+* `@CacheConfig`：在类的级别进行缓存操作
+
+在使用 SpringCache 之前首先需要开启注解，在启动类上标记 `@EnableCaching`
+
+SpringCache 不足之处：
+
+* `sync` 属性只有 `@Cacheable` 注解有，常规数据使用 SpringCache 就可以进行解决
+* 对于写模式较频繁的数据可以使用 canal 来监听 binlog 日志。
+
+### 8. 异步和线程池
+
+为什么要用线程池？
+
+* 可以重用已经开启的线程，节约系统资源
+
+JUC 包中有 Executors 就是用于创建线程池的。
+
+`ThreadPoolExecutor` 线程池的七大参数：
+
+* corePoolSize：线程池创建好准备就绪的线程数量
+* maximumPoolSize：最大线程数量
+* keepAliveTime：存活时间，如果当前线程数量大于 corePoolSize，如果多余线程在指定时间内还未收到任务就结束生命周期
+* workQueue：阻塞队列用于存放未执行的任务
+* threadFactory：线程创建工厂
+* rejectHandler：当阻塞队列满的时候，用于拒绝执行的处理器
+
+当不同线程之间需要某种先后顺序的时候，就需要使用到 `ComleteableFuture` 进行异步编排，其支持四个静态方法创建异步操作，`runAsync`，`supplyAsync`
+
+```java
+public SkuItemVo item(Long skuId) throws ExecutionException, InterruptedException {
+    SkuItemVo skuItemVo = new SkuItemVo();
+    // 1. 获取基本信息
+
+
+    CompletableFuture<SkuInfoEntity> infoFuture = CompletableFuture.supplyAsync(() -> {
+        SkuInfoEntity info = getById(skuId);
+        skuItemVo.setInfo(info);
+        return info;
+    }, executor);
+
+    CompletableFuture<Void> imageFuture = CompletableFuture.runAsync(() -> {
+        // 2. 获取图片信息
+        List<SkuImagesEntity> images = skuImagesService.getImagesBySkuId(skuId);
+        skuItemVo.setImages(images);
+    }, executor);
+
+    CompletableFuture<Void> spuFuture = infoFuture.thenAcceptAsync((res) -> {
+        // 3. 获取 SPU 销售属性
+        List<SkuItemSaleAttrVo> saleAttrVos = skuSaleAttrValueService.getSaleAttrsBySpuId(res.getSpuId());
+        skuItemVo.setSaleAttr(saleAttrVos);
+    }, executor);
+
+    CompletableFuture<Void> descFuture = infoFuture.thenAcceptAsync((res) -> {
+        // 4. 获取 SPU 介绍
+        SpuInfoDescEntity spuInfoDesc = spuInfoDescService.getById(res.getSpuId());
+        skuItemVo.setDesc(spuInfoDesc);
+    }, executor);
+
+    CompletableFuture<Void> attrFuture = infoFuture.thenAcceptAsync((res) -> {
+        // 5. 获取规格参数信息
+        List<SpuItemAttrGroupVo> attrGroupVos = attrGroupService.getAttrGroupWithAttrsBySpuId(res.getSpuId(), res.getCatalogId());
+        skuItemVo.setGroupAttrs(attrGroupVos);
+    }, executor);
+    // 等待所有任务执行完成
+    CompletableFuture.allOf(imageFuture, spuFuture, descFuture, attrFuture).get();
+    return skuItemVo;
+}
+```
+
+### 9. 认证服务
+
+#### a. OAuth2.0
+
+使用第三方应用来登录自己的服务器。
+
+#### b. Session 共享问题
+
+* 一致性哈希：当一个用户与服务器建立连接后，之后只与该服务器进行连接。比如nginx的四层代理和七层代理。
+* redis 存储 session 数据。
+
+`@EnableRedisHttpSession` 和 `@EnableRedisWebSession` 的区别。也会自动延期。
+
+配置 Session 的序列化方式和子域问题：
+
+```java
+@Bean
+public CookieSerializer cookieSerializer() {
+
+    DefaultCookieSerializer cookieSerializer = new DefaultCookieSerializer();
+
+    //放大作用域
+    cookieSerializer.setDomainName("gulimall.com");
+    cookieSerializer.setCookieName("GULISESSION");
+
+    return cookieSerializer;
+}
+
+// Jackson 序列化方式
+@Bean
+public RedisSerializer<Object> springSessionDefaultRedisSerializer() {
+    return new GenericJackson2JsonRedisSerializer();
+}
+```
+
+SpringSession的原理：
+
+1. 启动的时候在容器中放置了一个 `SessionRepositoryFilter` 的过滤器，即 HTTP Servlet Filter
+2. 核心代码在 `doFilterInternal` 中，将 request 和 response 进行 Session 包装然后进行方向。
+
+#### c. 多系统-单点登录SSO
+
+单点登录 [xxl-sso](https://gitee.com/xuxueli0323/xxl-sso)
+
+对于多个系统，只提供一个登陆点，避免业务重复并且简化业务流程。
+
+单点登录（SSO）的实现原理主要是基于认证中心和令牌两个关键概念完成的。
+
+具体来说，其实现过程如下：
+
+1. 用户在任意一个子系统尝试访问资源时，发现用户未进行身份验证或者Session失效，则该子系统会将请求重定向到统一认证平台。
+2. 统一认证平台负责认证用户并生成Token标识后返回给子系统。Token可以是JWT、SAML等格式，并且包含有关用户身份、有效期和其他安全信息的数据。
+3. 验证成功后，此时子系统会拿到该Token标识并检查其是否合法。如果合法，则代表用户已经通过认证授权，可以轻松地从Token中获取用户信息以及权限。
+4. 在Token过期之前，即使用户切换到另一个应用程序或子系统，他们也不需要再次提供凭据或身份验证，因为它们拥有单点登录。
+
+总的来说，单点登录利用了统一认证机制，把所有子系统都集中到同一个认证中心上，每个系统只对这个中心负责认证，同时也能够共享认证信息。这样，用户只需输入一次用户名和密码，就能在多个应用系统中无缝浏览和操作。
