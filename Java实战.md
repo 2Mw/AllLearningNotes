@@ -1323,6 +1323,7 @@ TODO：
 * Spring Gateway
 * Spring Cache
 * 业务表结构的设计
+* 事务传播行为和分布式事务 Seata
 
 ### 1. 配置环境
 
@@ -2159,13 +2160,61 @@ public interface ProductFeignService {
 }
 ```
 
+**远程调用解决请求头丢失的问题**：
+
+微服务调用链之间不能将浏览器的请求头携带给下一个微服务，就会将登录信息丢失，Feign 远程调用的时候会调用各个拦截器，因此需要我们手工创建拦截器来进行修复。
+
+```java
+@Configuration
+public class FeignConfig {
+
+    @Bean("requestInterceptor")
+    public RequestInterceptor requestInterceptor() {
+
+        return template -> {
+            //1、使用RequestContextHolder拿到刚进来的请求数据
+            ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+
+            if (requestAttributes != null) {
+                //老请求
+                HttpServletRequest request = requestAttributes.getRequest();
+
+                if (request != null) {
+                    //2、同步请求头的数据（主要是cookie）
+                    //把老请求的cookie值放到新请求上来，进行一个同步
+                    String cookie = request.getHeader("Cookie");
+                    template.header("Cookie", cookie);
+                }
+            }
+        };
+    }
+
+}
+```
+
+**远程调用解决丢失上下文的问题**：
+
+使用 `RequestContextHolder` 来进行共享信息，其内部的结构是使用 `ThreadLocal` 来进行实现的。
+
+```java
+RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+
+//开启第一个异步任务
+CompletableFuture<Void> addressFuture = CompletableFuture.runAsync(() -> {
+
+    //每一个线程都来共享之前的请求数据
+    RequestContextHolder.setRequestAttributes(requestAttributes);
+    // ...
+}, executor);
+```
+
 ### 4. ElasticSearch
 
 #### a. 安装 es 和 kibana
 
 kibana 是 es 的可视化界面。
 
-> 项目使用的版本是 7.4.2
+> 项目使用的版本是 8.7.0
 
 首先需要安装：
 
@@ -3048,3 +3097,147 @@ SpringSession的原理：
 4. 在Token过期之前，即使用户切换到另一个应用程序或子系统，他们也不需要再次提供凭据或身份验证，因为它们拥有单点登录。
 
 总的来说，单点登录利用了统一认证机制，把所有子系统都集中到同一个认证中心上，每个系统只对这个中心负责认证，同时也能够共享认证信息。这样，用户只需输入一次用户名和密码，就能在多个应用系统中无缝浏览和操作。
+
+#### d. ThreadLocal进行用户身份鉴别
+
+因为在 Spring 中拦截器、controller、service和dao都是在同一个线程内执行，因此可以使用 ThreadLocal 来存储数据。
+
+### 10. 消息队列 rabbitmq
+
+消息队列具有异步处理，应用解耦和流量控制的作用。
+
+```sh
+docker run -d --name gulirmq -p 5671:5671 -p 5672:5672 -p 4369:4369 -p 25672:25672 -p 15671:15671 -p 15672:15672 rabbitmq:management
+```
+
+引入pom文件：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-amqp</artifactId>
+</dependency>
+```
+
+开启 rmq：
+
+```java
+@EnableRabbit
+```
+
+#### a. 延时队列
+
+使用场景：比如未付款订单，但是 30 分钟内未支付就删除订单。
+
+采用 rabbitmq 消息 TTL 和 死信交换机结合使用。
+
+#### b. 保证消息可靠性
+
+**消息丢失**：
+
+* 使用 try-catch 进行容错
+* 使用重试机制
+* 为消息做好日志记录，将消息存储到数据库（rabbitmq 这种不好）
+* 等服务器消息收到和消费都添加消息确认机制
+
+消息重复：
+
+消息积压：
+
+* 消费者宕机导致积压（消费能力不足）：添加更多消费者
+
+### 11. 接口幂等性
+
+幂等性解决方案：
+
+* 令牌机制，使用验证码来提交。
+* 数据库乐观锁和悲观锁
+* 数据库唯一索引
+* redis set防重表
+* 全局请求唯一 ID
+
+### 12. 分布式事务
+
+使用 `@Transactional` 注解只能回滚自己的事务，如果使用远程调用的话，远程服务无法进行回滚，因此需要使用分布式事务。
+
+#### a. Springboot 本地事务的坑
+
+SpringBoot 本地事务的坑，在同一个对象内事务方法互调会使得被调用方法的设置失效！
+
+解决方法：
+
+1. 首先引入 `spring-boot-starter-aop` 引入 aspectj
+
+2. 在启动类上创建 `@EnableAspectAutoProxy(exposeProxy=true)` 开启动态代理，并且设置暴露代理
+
+3. 使用代理对象调用本类方法：
+
+   ```java
+   @Transactional
+   void a() {
+       ServiceImpl service = (ServiceImpl)AopContext.currentProxy();
+       // 调用方法，就不会让b方法上的 Transactional 标签失效。
+       service.b();
+   }
+   ```
+
+#### b. 柔性事务
+
+一般刚性事务需要满足 CAP 定理，而柔性事务一般需要满足 BASE 事务达到最终一致性。
+
+* TCC 事务补偿型方案，自定义 prepare，commit，rollback 方案。
+* 最大努力通知型方案，当事务进行失败的时候，尽可能通知操作接口，用于结合 MQ 进行实现。
+* 可靠消息+最终一致性方案：也是通过 MQ 进行配合使用的。
+
+#### c. seata AT 模式
+
+[Seata 是什么](https://seata.io/zh-cn/docs/overview/what-is-seata.html)
+
+seata 支持 2PC。
+
+1. 导入依赖：
+
+   ```xml
+   <dependency>
+      <groupId>com.alibaba.cloud</groupId>
+      <artifactId>spring-cloud-starter-alibaba-seata</artifactId>
+   </dependency>
+   ```
+
+2. 下载 seata 之后将 seata 注册和配置到 nacos 上：
+
+   * 在 `conf/registry.conf` 将注册中心和配置中心改为 nacos，默认配置文件是在 `file.conf`
+   * 如果想将分布式事务日志存储到 mysql 中可以配置存储的数据库和表结构，在 `db_store.sql` 文件中
+
+3. 使用 `@GlobalTransactional` 替换 `@Transactional`
+
+4. Seata 由于需要在部分事务失败时候进行回滚，对于单个已提交事务的回滚不方便，因此需要为每个数据库添加额外的 `UNDO_LOG` 表来记录原有的状态并且进行还原。具体表信息见[官网](https://seata.io/zh-cn/docs/overview/what-is-seata.html)
+
+5. 使用 Seata 代理数据源：
+
+   ```java
+   @Configuration
+   public class MySeataConfig {
+   
+       @Autowired
+       DataSourceProperties dataSourceProperties;
+   
+   
+       @Bean
+       public DataSource dataSource(DataSourceProperties dataSourceProperties) {
+   
+           HikariDataSource dataSource = dataSourceProperties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
+           if (StringUtils.hasText(dataSourceProperties.getName())) {
+               dataSource.setPoolName(dataSourceProperties.getName());
+           }
+   
+           return new DataSourceProxy(dataSource);
+       }
+   }
+   ```
+
+6. 每个微服务必须将 `file.conf` 和 `registry.conf` 导入到 resource 目录下
+
+7. 将 `file.conf` 中的 `service.vgroup_mapping` 必须要和 `spring.application.name` 保持一致。
+
+但是 AT 模式不适合高并发的情况，因为牵扯到大量的锁。
