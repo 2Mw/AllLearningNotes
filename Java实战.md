@@ -1324,6 +1324,7 @@ TODO：
 * Spring Cache
 * 业务表结构的设计
 * 事务传播行为和分布式事务 Seata
+* Sentinel
 
 ### 1. 配置环境
 
@@ -1691,7 +1692,62 @@ spring:
             group: dev
 ```
 
-#### c. API 网关
+#### c. Nacos 鉴权
+
+Nacos 作为十分重要的配置中心，必须要设置防止篡改身份验证。
+
+首先需要为 Nacos 配置 MySQL 角色：
+
+```sql
+CREATE USER 'nacos'@'%' IDENTIFIED BY 'nacos';
+
+create database nacos_config;
+
+GRANT ALL PRIVILEGES on nacos_config.* to 'nacos'@'%'
+```
+
+在 MySQL 中创建 `nacos_config` 数据库，用于保存 nacos 的配置信息，并且在 `nacos/config/mysql_scheme.sql` 中的表信息添加到数据库中。
+
+如果不是 docker 类型需要在 `nacos/conf/application.properties` 中设置 MySQL 连接：
+
+```properties
+spring.sql.init.platform=mysql
+
+### Count of DB:
+db.num=1
+
+### Connect URL of DB:
+db.url.0=jdbc:mysql://localhost:3306/nacos_config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=UTC
+db.user.0=nacos
+db.password.0=nacos
+```
+
+Docker 版配置见：[nacos/nacos-server](https://hub.docker.com/r/nacos/nacos-server)
+
+在 properties 文件中设置开启鉴权：
+
+```properties
+nacos.core.auth.enabled=true
+```
+
+设置身份信息：docker 版中可以不设置
+
+```properties
+nacos.core.auth.server.identity.key=serverIdentity
+nacos.core.auth.server.identity.value=security
+```
+
+设置 Base64 编码后的密钥：
+
+```properties
+nacos.core.auth.plugin.nacos.token.secret.key=N2xkQXA2TkZVaGdyVU9QRllONDVJOHhVYUdtQWtjOEY=
+```
+
+开启 nacos 后默认账号密码为 `nacos`，进入界面右上角可以修改默认密码：
+
+![image-20230503195148428](Java实战.assets/image-20230503195148428.png)
+
+#### d. API 网关
 
 ![image-20230417192745419](Java实战.assets/image-20230417192745419.png)
 
@@ -1765,6 +1821,87 @@ public class CORSConfig {
         return new CorsWebFilter(source);
     }
 }
+```
+
+#### e. 多环境切换
+
+可以在父 pom 文件中指定三种环境，其中 `activeByDefault` 表示默认选择的环境：
+
+```xml
+<profiles>
+    <profile>
+        <!--不同环境的唯一id-->
+        <id>dev</id>
+        <activation>
+            <!--默认激活开发环境-->
+            <jdk>17</jdk>
+            <activeByDefault>true</activeByDefault>
+        </activation>
+        <properties>
+            <!--profile.active对应application.yml中的@profile.active@-->
+            <profile.active>dev</profile.active>
+        </properties>
+    </profile>
+
+    <!--测试环境-->
+    <profile>
+        <id>test</id>
+        <properties>
+            <profile.active>test</profile.active>
+        </properties>
+
+    </profile>
+
+    <!--生产环境-->
+    <profile>
+        <id>prod</id>
+        <properties>
+            <profile.active>prod</profile.active>
+        </properties>
+    </profile>
+</profiles>
+```
+
+在 yaml 文件中使用 `@profile.active@` 获取对应的值：
+
+```yaml
+spring:
+  application:
+    name: EssayService
+  cloud:
+    nacos:
+      config:
+        group: @profile.active@
+```
+
+此外还需要添加 yaml `@` 符号解析器：
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <configuration>
+                <delimiters>@</delimiters>
+                <useDefaultDelimiters>false</useDefaultDelimiters>
+            </configuration>
+        </plugin>
+    </plugins>
+    <resources>
+        <resource>
+            <directory>src/main/resources</directory>
+            <filtering>true</filtering>
+        </resource>
+    </resources>
+</build>
+```
+
+在使用 maven 进行编译的时候 `-P dev` 指定使用环境，就会将对应的值编译到文件中：
+
+```sh
+mvn install -P dev
+mvn install -P prod
 ```
 
 ### 3. API 设计
@@ -3156,6 +3293,8 @@ docker run -d --name gulirmq -p 5671:5671 -p 5672:5672 -p 4369:4369 -p 25672:256
 * redis set防重表
 * 全局请求唯一 ID
 
+
+
 ### 12. 分布式事务
 
 使用 `@Transactional` 注解只能回滚自己的事务，如果使用远程调用的话，远程服务无法进行回滚，因此需要使用分布式事务。
@@ -3241,3 +3380,127 @@ seata 支持 2PC。
 7. 将 `file.conf` 中的 `service.vgroup_mapping` 必须要和 `spring.application.name` 保持一致。
 
 但是 AT 模式不适合高并发的情况，因为牵扯到大量的锁。
+
+### 13. 定时任务
+
+> SpringTask 默认采用单线程执行，如果前一个任务未执行完毕会阻塞下一个任务，可以让业务以异步的方式进行执行。
+
+使用 `Quartz` 来进行定时任务。
+
+### 14. 高并发系统关注的问题
+
+1. 服务单一职责，独立部署，即使扛不住压力也不要影响其他人
+2. 秒杀链接加密，防止恶意攻击
+3. 库存预热+快速扣减
+4. 动静分离
+5. 恶意请求拦截
+6. 流量错峰，验证码，加入购物车
+7. 限流、熔断、降级
+8. 队列削峰
+
+### 15. 限流 熔断 降级
+
+使用 sentinel 来进行实现，具体参见[文档](https://github.com/alibaba/spring-cloud-alibaba/wiki/Sentinel)。
+
+首先引入依赖：
+
+```xml
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+</dependency>
+```
+
+下载 Sentinel 控制台 [Sentinel](https://github.com/alibaba/Sentinel/releases) 并且开启控制台。
+
+配置 Sentinel 控制台信息：
+
+```yml
+spring:
+  cloud:
+    sentinel:
+      transport:
+        dashboard: guli:8080
+```
+
+引入 springboot 监控组件：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+并且配置 actuator 暴露端口：
+
+```yml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+```
+
+#### a. 自定义流控响应
+
+```java
+@Configuration
+public class SentinelConfig {
+
+    public SentinelConfig() {
+
+        WebCallbackManager.setUrlBlockHandler(new UrlBlockHandler() {
+            @Override
+            public void blocked(HttpServletRequest request, HttpServletResponse response, BlockException ex) throws IOException {
+                R error = R.error(BizCodeEnum.TO_MANY_REQUEST.getCode(), BizCodeEnum.TO_MANY_REQUEST.getMessage());
+                response.setCharacterEncoding("UTF-8");
+                response.setContentType("application/json");
+                response.getWriter().write(JSON.toJSONString(error));
+
+            }
+        });
+    }
+}
+```
+
+#### b. 熔断保护
+
+1. 调用方的熔断保护：
+
+   首先需要开启 feign 的 sentinel 监控功能：
+
+   ```properties
+   feign.sentinel.enabled=true
+   ```
+
+   定义熔断后回滚的类：
+
+   ```java
+   @FeignClient(value = "SeckillService",fallback = SeckillFeignServiceFallBack.class)
+   public interface SeckillFeignService {
+   
+       /**
+        * 根据skuId查询商品是否参加秒杀活动
+        * @param skuId
+        * @return
+        */
+       @GetMapping(value = "/sku/seckill/{skuId}")
+       R getSkuSeckilInfo(@PathVariable("skuId") Long skuId);
+   
+   }
+   ```
+
+   如果发送熔断就会调用 fallback 类，fallback 类需要实现对应的 feign 接口：
+
+   ```java
+   @Component
+   public class SeckillFeignServiceFallBack implements SeckillFeignService {
+       @Override
+       public R getSkuSeckilInfo(Long skuId) {
+           return R.error(BizCodeEnum.TO_MANY_REQUEST.getCode(),BizCodeEnum.TO_MANY_REQUEST.getMessage());
+       }
+   }
+   ```
+
+#### 4. 网关层限流
