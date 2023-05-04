@@ -2084,7 +2084,7 @@ alibaba:
 </dependency>
 ```
 
-使用 JSR303 进行数据校验，对应的包为 `javax.validation.constraints`
+使用 JSR303 进行数据校验，对应的包为 `javax.validation.constraints`，默认的提示信息在 `ValidationMessages.properties` 文件中。
 
 在对应字段上添加注解：
 
@@ -3504,3 +3504,39 @@ public class SentinelConfig {
    ```
 
 #### 4. 网关层限流
+
+### 16. 其他
+
+#### a. SpringBoot 自动装配
+
+在众多微服务中通常会有一个共同依赖包，如果我们想要为大部分微服务编写一个配置但又不想一个一个重复编写，因此可以在 `common` 微服务中填写自动装配来为所有引入 `common` 包的微服务装配。
+
+首先需要填写一个配置类：
+
+```java
+@Configuration
+public class DemoAutoConfig {
+    @Data
+    @AllArgsConstructor
+    public static class User {
+        String name;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public User user() {
+        return new User("Jacey");
+    }
+
+}
+```
+
+然后在 `resource/META-INF` 文件夹下创建 `spring.factories` 文件，将自动装配的类名自动添加：
+
+```properties
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  xyz.qaqaqqa.common.conf.MybatisPlusConf,\
+  xyz.qaqaqqa.common.conf.DemoAutoConfig
+```
+
+然后在项目中使用即可。
