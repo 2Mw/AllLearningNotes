@@ -1904,6 +1904,30 @@ mvn install -P dev
 mvn install -P prod
 ```
 
+#### f. 加载 bean 后修改属性
+
+当 bean 加载完毕之后修改 bean 的属性，
+
+```java
+class RedisTemplatePostProcessor implements BeanPostProcessor {
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        if (beanName.equals("redisTemplate")) {
+            System.out.println("设置 Redis 序列化方式");
+            RedisTemplate<String, Object> redisTemplate = (RedisTemplate<String, Object>) bean;
+            redisTemplate.setKeySerializer(new StringRedisSerializer());
+            redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer()); // 序列化到redis中为json而非二进制
+            // 对Hash类型序列化
+            redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+            redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+            return redisTemplate;
+        } else return bean;
+    }
+}
+```
+
+编写完毕之后将这个类作为一个 bean 放入容器中即可。
+
 ### 3. API 设计
 
 #### a. 各种对象划分：
@@ -1915,6 +1939,35 @@ mvn install -P prod
 ```java
 @TableField(exist = false)
 private List<CategoryEntity> children;
+```
+
+mybatis plus 创建时间和更新时间的自动赋值：
+
+```java
+@TableField(fill = FieldFill.INSERT) //创建时自动填充
+private Date createTime;
+
+@TableField(fill = FieldFill.INSERT_UPDATE)//创建与修改时自动填充
+private Date updateTime;
+```
+
+自动赋值还需要编写配置类，为对应的属性添加默认值：
+
+```java
+public static class DateAutoFill implements MetaObjectHandler {
+    @Override
+    public void insertFill(MetaObject metaObject) {
+        this.setFieldValByName("createTime", new Date(), metaObject);
+        this.setFieldValByName("lastModifiedTime", new Date(), metaObject);
+        this.setFieldValByName("updateTime", new Date(), metaObject);
+    }
+
+    @Override
+    public void updateFill(MetaObject metaObject) {
+        this.setFieldValByName("lastModifiedTime", new Date(), metaObject);
+        this.setFieldValByName("updateTime", new Date(), metaObject);
+    }
+}
 ```
 
 对于返回值的结果处理，返回结果的数组为空时，想直接取消这个字段，那么可以通过 jackson 中的 `@JsonInclude` 进行标识：
@@ -2091,6 +2144,19 @@ alibaba:
 ```java
 @NotBlank(message = "name字段不能为空")
 private String name;
+```
+
+使用 `{}` 获取自定消息值：
+
+```java
+@Data
+public class UserLoginVo {
+    @Email
+    @Length(min = 6)
+    private String email;
+    @Length(min = 6, message = "password is too short, at least {min} digits.")
+    private String password;
+}
 ```
 
 然后添加校验标记 `@Valid`
@@ -2995,6 +3061,8 @@ spring:
       cache-null-values: true # 是否允许缓存控制
       use-key-prefix: true  # key 的默认前缀
       key-prefix: CACHE_
+      # 单位毫秒
+      time-to-live: 3600000
 ```
 
 Cache 的注解：
@@ -3186,10 +3254,12 @@ public SkuItemVo item(Long skuId) throws ExecutionException, InterruptedExceptio
 
 #### b. Session 共享问题
 
+SpringSession 包装了 `HttpSession`，开发人员可以直接使用该 API 向 Redis 或者数据库中保存数据。
+
 * 一致性哈希：当一个用户与服务器建立连接后，之后只与该服务器进行连接。比如nginx的四层代理和七层代理。
 * redis 存储 session 数据。
 
-`@EnableRedisHttpSession` 和 `@EnableRedisWebSession` 的区别。也会自动延期。
+`@EnableRedisHttpSession` 和 `@EnableRedisWebSession` 的区别，HTTPSession 是用于非 WebFlux 应用的，后者是用于 WebFlux 开发。也会自动延期。
 
 配置 Session 的序列化方式和子域问题：
 
@@ -3218,6 +3288,18 @@ SpringSession的原理：
 1. 启动的时候在容器中放置了一个 `SessionRepositoryFilter` 的过滤器，即 HTTP Servlet Filter
 2. 核心代码在 `doFilterInternal` 中，将 request 和 response 进行 Session 包装然后进行方向。
 
+SpringSession 执行流程：
+
+* 当客户端和后端进行通信的时候，服务器端就会默认设置一个 session 名为 `JSESSIONID` 的 cookie 给客户端，当用户登录的时候使用 `HttpSession` 的 `setAttribute` 来设置属性。
+
+  ```java
+  session.setAttribute(SESSION_USER_KEY, user);
+  ```
+
+  设置属性会在存储在 redis 的一个 Hash 结构中。
+
+  ![image-20230505134823025](Java实战.assets/image-20230505134823025.png)
+
 #### c. 多系统-单点登录SSO
 
 单点登录 [xxl-sso](https://gitee.com/xuxueli0323/xxl-sso)
@@ -3238,6 +3320,42 @@ SpringSession的原理：
 #### d. ThreadLocal进行用户身份鉴别
 
 因为在 Spring 中拦截器、controller、service和dao都是在同一个线程内执行，因此可以使用 ThreadLocal 来存储数据。
+
+```java
+public class LoginUserInterceptor implements HandlerInterceptor {
+    public static ThreadLocal<UserEntityVo> loginUser = new ThreadLocal<>();
+
+    @Override
+    public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) throws Exception {
+        HttpSession session = req.getSession();
+        UserEntityVo userinfo = (UserEntityVo) session.getAttribute(SESSION_USER_KEY);
+        if (userinfo != null) loginUser.set(userinfo);
+        return true;
+    }
+
+}
+```
+
+#### e. 用户登录将其他登录会话关闭
+
+用户登录只允许一个端在线。
+
+当用户登录完成时候设置唯一属性：
+
+```java
+session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, user.getUserId().toString());
+```
+
+在判断是否有其他端的时候使用 `HttpServletRequest` 获取到 `SessionRepository`，然后找到根据唯一属性找到所有和用户相关的会话 ID，并且进行删除：
+
+```java
+FindByIndexNameSessionRepository<? extends Session> repository = (FindByIndexNameSessionRepository<? extends Session>) req.getAttribute(SessionRepositoryFilter.SESSION_REPOSITORY_ATTR);
+Map<String, ? extends Session> otherEnds = repository.findByPrincipalName(user.getUserId().toString());
+for (Map.Entry<String, ? extends Session> entry : otherEnds.entrySet()) {
+    // 删除其他已登录的session
+    repository.deleteById(entry.getKey());
+}
+```
 
 ### 10. 消息队列 rabbitmq
 
