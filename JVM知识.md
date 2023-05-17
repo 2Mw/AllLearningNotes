@@ -2,25 +2,40 @@
 
 [BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP?p=143) p143
 
-## JVM内存结构
+[TOC]
 
-![image-20220219184229305](JVM知识.assets/image-20220219184229305.png)
+![image-20220219184229305](E:\Notes\Java\JVM\JVM知识.assets\image-20220219184229305.png)
 
-### 程序计数器
+## 一. JVM内存结构
 
-Program Counter Register程序计数器，用于存储下一条指令的地址。特点就是线程私有的，并且**不会出现内存溢出的**情况。
+### 0x1. 程序计数器
 
-### 栈
+Program Counter Register程序计数器，用于存储下一条指令的地址。
 
-> 分为JVM stack和本地方法栈
+特点：
 
-线程运行的时候所需的内存空间。可以指定`-Xss1m`来指定栈的大小，这里只分配1m大小的栈。
+* **线程私有**
+* **不会出现内存溢出的**
 
-垃圾回收时只涉及到堆内存中的数据，不会涉及到栈内存中的数据，因为栈中的数据执行完毕之后会自动弹栈。
+### 0x2. 虚拟机栈
+
+虚拟机栈即线程运行时需要的内存空间，栈帧即每个方法运行时需要的内存（参数，局部变量，返回值地址）。
+
+**面试问题**：
+
+* 栈内存受垃圾回收机制影响吗？不受影响，当变量使用完毕后会弹栈自动回收。并且垃圾回收时只涉及到堆内存中的数据。
+
+* 栈内存是越大越好吗？使用 `-Xss1m` 来进行调整大小（默认就好）
+
+  不一定，在内存大小一致的情况下，将栈内存调大是可以允许嵌套调用函数变多，但是线程数目会变少，因为每个线程初始化时候都会分配该大小的栈空间，如果分配栈空间过大反而会降低允许同时允许线程的数目。
+
+* 方法内的局部变量是否是线程安全的？
+
+  如果方法内的局部变量没有逃逸，那么就是线程安全的。否则会出现线程安全问题。
 
 🔵栈内存溢出
 
-可能发生溢出的情况：栈帧过多(递归)、栈帧过大等情况。
+可能发生溢出的情况：栈帧过多(递归)、栈帧过大等情况，报 `java.lang.StackOverflowError` 错误
 
 ```java
 @Slf4j(topic = "StackOverflowError")
@@ -60,17 +75,17 @@ jstack tid
 
 同样使用jstack工具来进行诊断。
 
-🔵本地方法栈
+### 0x3. 本地方法栈
 
 即使用`native`进行修饰的方法，比如使用C/C++实现的方法。
 
-### 堆
+### 0x4. 堆
 
-> Heap，是线程共享的，需要考虑线程安全问题。
+> Heap，是**线程共享**的，需要考虑线程安全问题。
 
 通过`new`关键字创建的对象都会使用堆内存，存在堆内存溢出的问题。
 
-🔵堆内存溢出
+🔵堆内存溢出，会抛出 `java.lang.OutOfMemoryError`
 
 ```java
 @Slf4j(topic = "HeapOF")
@@ -93,7 +108,9 @@ public class HeapOF {
 }
 ```
 
-可以通过设置`-Xmx`参数设置堆的大小。如果想要暴露程序是否存在堆内存溢出的可能性，因此在调试的时候可以将堆设置小一些。
+可以通过设置`-Xmx`参数设置堆的大小。
+
+如果想要暴露程序是否存在堆内存溢出的可能性，因此在调试的时候可以将堆设置小一些。
 
 🔵堆内存溢出诊断
 
@@ -184,7 +201,7 @@ public static void main(String[] args) {
 
 在jdk8中Stringtable是存放在堆内存中。jdk1.6之前是放在永久代中。
 
-![image-20220222165119414](JVM知识.assets/image-20220222165119414.png)
+![image-20220222165119414](E:\Notes\Java\JVM\JVM知识.assets\image-20220222165119414.png)
 
 🔵StringTable性能调优
 
@@ -202,7 +219,7 @@ public static void main(String[] args) {
 
 传统的读写一般用`Input/OutputStream`，使用系统直接内存为`ByteBuffer`类中的`allocateDirect()`，对于Java传统的读写需要首先将数据读取到系统的缓冲区，然后再读取到Java的缓冲区中，直接切换的开销过大。
 
-<img src="JVM知识.assets/image-20220222185204810.png" alt="image-20220222185204810" style="zoom: 50%;" /><img src="JVM知识.assets/image-20220222185242489.png" alt="image-20220222185242489" style="zoom: 50%;" />
+<img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220222185204810.png" alt="image-20220222185204810" style="zoom: 50%;" /><img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220222185242489.png" alt="image-20220222185242489" style="zoom: 50%;" />
 
 🔵但是其不受JVM控制，内存怎么回收？
 
@@ -243,13 +260,13 @@ jmap -dump:format=b,live,file=2.bin 21384	# 输出将指针设置为空后的快
 # 然后使用mat软件打开两个快照文件，查看gc root
 ```
 
-![image-20220223111525676](JVM知识.assets/image-20220223111525676.png)
+![image-20220223111525676](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111525676.png)
 
 🔵Java中的四种引用
 
 引用的接口类为`Reference`，其他分别为`StrongReference, SoftReference, WeakReference, PhantomReference`.
 
-![image-20220223111636024](JVM知识.assets/image-20220223111636024.png)
+![image-20220223111636024](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111636024.png)
 
 图中的实现为强引用，虚线为其他引用。
 
@@ -309,7 +326,7 @@ public class SoftReferenceDemo {
 
 🔵标记清除法
 
-![image-20220223135714269](JVM知识.assets/image-20220223135714269.png)
+![image-20220223135714269](E:\Notes\Java\JVM\JVM知识.assets\image-20220223135714269.png)
 
 首先将GCroot未进行引用的地址进行标记，然后进行清除。
 
@@ -323,7 +340,7 @@ public class SoftReferenceDemo {
 
 🔵复制算法
 
-![image-20220223140204820](JVM知识.assets/image-20220223140204820.png)
+![image-20220223140204820](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140204820.png)
 
 复制回收算法使用于存活的内存区域较少的情况，即将内存区域分为两块FROM区域和TO区域。将原先FROM区域中存活的内存复制到TO区域中，清除FROM区域。最终交换两个区域，FROM区域变为TO区域，TO区域变为FROM区域。
 
@@ -331,7 +348,7 @@ public class SoftReferenceDemo {
 
 ### 分代回收算法
 
-![image-20220223140915693](JVM知识.assets/image-20220223140915693.png)
+![image-20220223140915693](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140915693.png)
 
 在具体的java垃圾回收算法中，不会只是用某一种算法，而是将几种算法有机的结合在一起。
 
@@ -343,7 +360,7 @@ Java的回收算法将内存区分为两个区域：新生代和老年代。
 
 首次进行垃圾回收，会将对象存入到新生代的伊甸园中，一直存放到伊甸园满为止。当伊甸园已经存放不了下一个对象的时候就会触发一次垃圾回收，将GC ROOT引用的对象复制到幸存区TO区域，将伊甸园中的其余未引用的对象进行清除，然后将幸存区的对象进行设置生命周期加1，最后将FROM区域和TO区域的进行交换。
 
-![image-20220223142103931](JVM知识.assets/image-20220223142103931.png)
+![image-20220223142103931](E:\Notes\Java\JVM\JVM知识.assets\image-20220223142103931.png)
 
 当存放在幸存区中的寿命超过阈值15的时候，会将对应的内存晋升到老年代中。之前的GC操作可以称为`Minor GC`。如果新生代和老年代两个区域都放不下新的内存区域的时候，就会触发新的`Full GC`操作，会对新生代和老年代两个区域都进行垃圾回收。
 
@@ -409,7 +426,7 @@ JDK9之后默认使用垃圾回收器。
 
 🔵G1回收阶段
 
-<img src="JVM知识.assets/image-20220224192554562.png" alt="image-20220224192554562" style="zoom: 67%;" />
+<img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220224192554562.png" alt="image-20220224192554562" style="zoom: 67%;" />
 
 G1当老年代中内存不足的时候，如果G1垃圾回收器处理垃圾的速度大于用户产生垃圾的速度的时候不是 Full GC，如果小于用户产生垃圾的速度，就会退化为 Serial GC ，就进入了 Full GC 阶段。
 
@@ -460,7 +477,7 @@ Oracle 建议新生代设置的大小为堆大小的25%-50%之间，新生代的
 
 简单的 Hello World 样例编译后的字节码文件：
 
-![image-20220225115051013](JVM知识.assets/image-20220225115051013.png)
+![image-20220225115051013](E:\Notes\Java\JVM\JVM知识.assets\image-20220225115051013.png)
 
 ```
 CA FE BA BE 00 00 00 37 00 22 0A 00 06 00 14 09
@@ -759,7 +776,7 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 
 ## 类加载
 
-![image-20220228101037159](JVM知识.assets/image-20220228101037159.png)
+![image-20220228101037159](E:\Notes\Java\JVM\JVM知识.assets\image-20220228101037159.png)
 
 类加载即将类的字节码载入方法区，内存采用的是C++的 instanceKlass 来描述java类，他的主要field有：
 
