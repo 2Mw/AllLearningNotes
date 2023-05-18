@@ -4,7 +4,7 @@
 
 [TOC]
 
-![image-20220219184229305](E:\Notes\Java\JVM\JVM知识.assets\image-20220219184229305.png)
+![image-20220219184229305](JVM知识.assets\image-20220219184229305.png)
 
 ## 一. JVM内存结构
 
@@ -114,15 +114,29 @@ public class HeapOF {
 
 🔵堆内存溢出诊断
 
+通过 `jps` 查看系统中有哪些 Java 进程。
+
 可以使用`jmap -heap`或者jconsole来监测。
 
-对于垃圾回收过后，内存占用还是很高的情况怎么处理？可以使用`jvisualvm`工具中的堆dump来分析其中的类的对象信息。
+面试问题：
 
-### 方法区
+* 对于垃圾回收过后，内存占用还是很高的情况怎么处理？
 
-方法区是所有jvm线程共享的，用来存储每个类的常量池、属性以及方法数据，方法区也会到处内存溢出。
+  可以使用 `jvisualvm` 工具中的堆dump来分析其中的类的对象信息。
 
-方法区的常量池就是一张常量表。
+### 0x5. 方法区
+
+![image-20230517142847445](JVM知识.assets/image-20230517142847445.png)
+
+方法区是所有**线程共享**的，用来存储每个类的结构比如运行时常量池、属性以及方法数据，方法区也会到处内存溢出。方法区是在虚拟机启动时候创建，逻辑上属于堆的一部分。
+
+> jdk 1.8 之后方法区不占用 jvm 堆内存，占用的是操作系统内存，内存区域叫做 `元空间内存`，使用参数 `-XX:MaxMetaspaceSize=8m` 进行设置，默认没有设置元空间大小限制。
+
+Java Class 文件中保存的信息：
+
+* 类的基本信息
+* 常量池
+* 类方法定义，包含虚拟机指令
 
 可以通过`javap -v *.class`来对字节码进行反编译。
 
@@ -140,7 +154,26 @@ Constant pool:
    #10 = Utf8              LineNumberTable
 ```
 
-### StringTable
+🔵运行时常量池
+
+运行时将常量池放到内存中就是运行时常量池，指令为：
+
+```
+ldc #5	// 从常量池中加载到内存，并且转为字符串对象
+astore	// 将内存的中字符串存储到局部变量表中
+```
+
+方法区的常量池就是一张常量表。
+
+#### a. StringTable
+
+优秀参考文章：
+
+* [一文彻底搞懂字符串、字符串常量池原理](https://blog.csdn.net/qq_45076180/article/details/115082348)
+
+运行时常量池和字符串常量池(String Pool)的关系。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210322163250797.png)
 
 常量池中的信息都会加载到运行时常量池中，执行代码`ldc #2`的时候才可以将对于的常量转化为字符串对象。
 
@@ -158,9 +191,11 @@ public static void main(String[] args) {
 }
 ```
 
-对于jdk8中，s4中的字节码代码相当于是`StringBuilder().append("a").append("b").toString`，对于s5的情况是javac编译器上做了优化，在StringTable中已经存在"ab"这个常量了，又由于String是不可变类，因此创建s5的时候会直接从常量池中查找。
+对于jdk8中s4中的字节码代码相当于是`StringBuilder().append("a").append("b").toString()`，而 StringBuilder 的 `toString()` 会创建新的 String 对象。
 
-常量池中的数据只是符号，只有在使用的时候才会转为对象。可以利用串池的特性，使用`intern()`方法可以将未放进串池中字符串放进去，返回串池中的符号。
+对于s5的情况是javac编译器上做了优化，在StringTable 中已经存在 "ab" 这个常量了，又由于String是不可变类，因此创建s5的时候会直接从常量池中查找。
+
+常量池中的数据只是符号，只有在使用的时候才会转为对象。`intern()` 方法会查看当前字符串对象是否已经存在与串池中，如果不存在将该对象放入，如果存在则返回串池中的对象。（在1.6的不存在会**复制**一份放入串池中）
 
     0: ldc           #2                  // String a
     2: astore_1
@@ -199,31 +234,56 @@ public static void main(String[] args) {
 
 🔵StringTable在jvm中存放的位置
 
-在jdk8中Stringtable是存放在堆内存中。jdk1.6之前是放在永久代中。
+在jdk8中Stringtable是存放在堆内存中，jdk1.6之前是放在永久代中。
 
-![image-20220222165119414](E:\Notes\Java\JVM\JVM知识.assets\image-20220222165119414.png)
+将字符串放在堆中，只需要 minor GC 就可以回收不用的字符串.
+
+![image-20220222165119414](JVM知识.assets\image-20220222165119414.png)
 
 🔵StringTable性能调优
 
-1. 调整桶的个数
+1. 调整桶的个数, 減小哈希
 
    StringTable的底层存储结构其实是一个`HashTable`，如果使用`-XX:StringTableSize=20000`来指定常量池桶(bucket)的大小，如果字符串数量较多的话，常量池越小花费的时间会越多，常量池越大花费的时间会越少，减少hash冲突。
 
-2. 考虑将字符串对象是否入池
+2. 考虑将字符串对象是否入池，如果字符串存在重复利用的问题，那么就需要使用 `intern()` 方法将其存储常量池中，减小大量重复创建对象导致的内存占用。
 
-### 直接内存
+### 0x6. 直接内存
 
-直接内存（Direct memory）指系统内存
+直接内存（Direct memory）指系统内存。
 
 常见于NIO操作，用于数据缓冲区。分配回收的成本较高，但是读写性能高；不受JVM内存回收管理。
 
 传统的读写一般用`Input/OutputStream`，使用系统直接内存为`ByteBuffer`类中的`allocateDirect()`，对于Java传统的读写需要首先将数据读取到系统的缓冲区，然后再读取到Java的缓冲区中，直接切换的开销过大。
 
-<img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220222185204810.png" alt="image-20220222185204810" style="zoom: 50%;" /><img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220222185242489.png" alt="image-20220222185242489" style="zoom: 50%;" />
+<img src="JVM知识.assets\image-20220222185204810.png" alt="image-20220222185204810" style="zoom: 50%;" /><img src="JVM知识.assets\image-20220222185242489.png" alt="image-20220222185242489" style="zoom: 50%;" />
 
 🔵但是其不受JVM控制，内存怎么回收？
 
-其底层调用的`Unsafe`类来分配内存和释放内存，对于已经分配好的内存，如果检测到当前对象被gc回收掉之后，其`Cleaner`对象调用`Unsafe`类的方法来释放对应的直接内存。
+因为在创建 `ByteBuffer` 类时候是使用 `Unsafe.allocateMemory` 来分配直接内存，并且在创建的时候会绑定一个 `Cleaner` 虚拟引用类型，并且绑定当 `ByteBuffer` 回收时候回收直接内存的动作 `new Deallocator()`。
+
+```java
+DirectByteBuffer(int cap) {                   // package-private
+	// ...
+
+    long base = 0;
+    try {
+        base = UNSAFE.allocateMemory(size);
+    } catch (OutOfMemoryError x) {
+        Bits.unreserveMemory(size, cap);
+        throw x;
+    }
+    UNSAFE.setMemory(base, size, (byte) 0);
+    // ...
+    cleaner = Cleaner.create(this, new Deallocator(base, size, cap));
+    att = null;
+
+}
+```
+
+`ByteBuffer` 回收后操作 `Unsafe` 回收直接内存：
+
+![image-20230517171550384](JVM知识.assets/image-20230517171550384.png)
 
 显式调用垃圾回收：
 
@@ -231,11 +291,11 @@ public static void main(String[] args) {
 System.gc();
 ```
 
-可以设置运行参数：`-XX:+DisableExplictGC`来禁用显式垃圾回收。
+由于显式垃圾回收都是 FullGC，可以设置运行参数：`-XX:+DisableExplictGC`来禁用显式垃圾回收。如果要想回收直接内存直接使用 `unsafe.freeMemory` 来释放。
 
-## 垃圾回收
+## 二. 垃圾回收
 
-### 判断垃圾
+### 0x1. 如何判断垃圾
 
 🔵引用计数法
 
@@ -251,6 +311,11 @@ Java采用的算法，Java首先需要判断根对象，jvm判断每个对象是
 
 什么是根对象（GC root）？
 
+* 系统类对象，JVM 运行时所需的核心对象
+* 操作系统栈中引用的 Java 对象
+* 加锁的对象
+* 活动线程中使用的对象
+
 对于分析内存泄漏可以使用Eclipse开发的[Memory Analyzer(MAT)](https://www.eclipse.org/mat/)工具，来发现哪些对象可以作为GCRoot。
 
 ```sh
@@ -260,13 +325,15 @@ jmap -dump:format=b,live,file=2.bin 21384	# 输出将指针设置为空后的快
 # 然后使用mat软件打开两个快照文件，查看gc root
 ```
 
-![image-20220223111525676](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111525676.png)
+![image-20220223111525676](JVM知识.assets\image-20220223111525676.png)
+
+
 
 🔵Java中的四种引用
 
 引用的接口类为`Reference`，其他分别为`StrongReference, SoftReference, WeakReference, PhantomReference`.
 
-![image-20220223111636024](E:\Notes\Java\JVM\JVM知识.assets\image-20220223111636024.png)
+![image-20220223111636024](JVM知识.assets\image-20220223111636024.png)
 
 图中的实现为强引用，虚线为其他引用。
 
@@ -280,7 +347,7 @@ jmap -dump:format=b,live,file=2.bin 21384	# 输出将指针设置为空后的快
 
 3. 弱引用
 
-   当A3都没有被强引用直接或者间接引用的时候，不管内存够不够，都有可能被回收。可以配合引用队列进行使用。
+   当A3都没有被强引用直接或者间接引用的时候，**不管内存够不够**，都有可能被回收。可以配合引用队列进行使用。
 
 4. 虚引用
 
@@ -290,7 +357,9 @@ jmap -dump:format=b,live,file=2.bin 21384	# 输出将指针设置为空后的快
 
    使用对象都会继续`Object`父类，调用`finalize()`时，但是不推荐调用这个方法。
 
-使用软引用代码：`-Xmx20m -XX:+PrintGCDetails -verbose:gc`
+使用软引用的场景，对于某些场景如果遇到资源紧张，但是要求不那麼高，可以等到内存充足的时候再加载。代码：`-Xmx20m -XX:+PrintGCDetails -verbose:gc`
+
+引用链：List -> SoftReference -> byte[]
 
 ```java
 @Slf4j(topic = "SoftReference")
@@ -322,11 +391,56 @@ public class SoftReferenceDemo {
 
 对于软引用可能会被垃圾回收的情况，可以将`SoftReference`关联到`ReferenceQueue`对象上，当被回收的时候可以通过检测来删除对象。
 
-### 垃圾回收算法
+```java
+@Slf4j(topic = "GCTest")
+public class NormalTest extends TestCase {
+    public void testRefQueue() {
+        int _5MB = 5 * 1024 * 1024;
+        ReferenceQueue<byte[]> queue = new ReferenceQueue<>();
+        List<SoftReference<byte[]>> list = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            SoftReference<byte[]> ref = new SoftReference<>(new byte[_5MB], queue);
+            list.add(ref);
+            log.debug("ref: {}", ref);
+        }
+
+        while (true) {
+            Reference<? extends byte[]> item = queue.poll();
+            if (item == null) break;
+            list.remove(item);
+        }
+
+        log.debug("==============================");
+
+        for (SoftReference<byte[]> ref : list) {
+            log.debug("Left: {}", ref);
+        }
+
+        log.debug("Over");
+    }
+}
+```
+
+结果：
+
+```
+20:38:07.819 [main] DEBUG GCTest - ref: java.lang.ref.SoftReference@735b478
+20:38:07.825 [main] DEBUG GCTest - ref: java.lang.ref.SoftReference@337d0578
+20:38:07.837 [main] DEBUG GCTest - ref: java.lang.ref.SoftReference@59e84876
+20:38:07.840 [main] DEBUG GCTest - ref: java.lang.ref.SoftReference@61a485d2
+20:38:07.846 [main] DEBUG GCTest - ref: java.lang.ref.SoftReference@39fb3ab6
+20:38:07.846 [main] DEBUG GCTest - ==============================
+20:38:07.846 [main] DEBUG GCTest - Left: java.lang.ref.SoftReference@39fb3ab6
+20:38:07.846 [main] DEBUG GCTest - Over
+```
+
+
+
+### 0x2. 垃圾回收算法
 
 🔵标记清除法
 
-![image-20220223135714269](E:\Notes\Java\JVM\JVM知识.assets\image-20220223135714269.png)
+![image-20220223135714269](JVM知识.assets\image-20220223135714269.png)
 
 首先将GCroot未进行引用的地址进行标记，然后进行清除。
 
@@ -340,15 +454,15 @@ public class SoftReferenceDemo {
 
 🔵复制算法
 
-![image-20220223140204820](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140204820.png)
+![image-20220223140204820](JVM知识.assets\image-20220223140204820.png)
 
 复制回收算法使用于存活的内存区域较少的情况，即将内存区域分为两块FROM区域和TO区域。将原先FROM区域中存活的内存复制到TO区域中，清除FROM区域。最终交换两个区域，FROM区域变为TO区域，TO区域变为FROM区域。
 
 缺点就是需要划分两倍的内存。
 
-### 分代回收算法
+### 0x3. 分代回收算法
 
-![image-20220223140915693](E:\Notes\Java\JVM\JVM知识.assets\image-20220223140915693.png)
+![image-20220223140915693](JVM知识.assets\image-20220223140915693.png)
 
 在具体的java垃圾回收算法中，不会只是用某一种算法，而是将几种算法有机的结合在一起。
 
@@ -356,21 +470,24 @@ Java的回收算法将内存区分为两个区域：新生代和老年代。
 
 有的对象需要长时间进行使用，就放入到老年代中；对于用完就可以丢弃的，就放入到新生代中。
 
-🔵回收流程
+#### a. 回收流程
 
-首次进行垃圾回收，会将对象存入到新生代的伊甸园中，一直存放到伊甸园满为止。当伊甸园已经存放不了下一个对象的时候就会触发一次垃圾回收，将GC ROOT引用的对象复制到幸存区TO区域，将伊甸园中的其余未引用的对象进行清除，然后将幸存区的对象进行设置生命周期加1，最后将FROM区域和TO区域的进行交换。
+![image-20220223142103931](JVM知识.assets\image-20220223142103931.png)
 
-![image-20220223142103931](E:\Notes\Java\JVM\JVM知识.assets\image-20220223142103931.png)
+1. 当新生代的伊甸园放满后，触发 Minor GC
+2. 将还存活的对象复制到幸存区 TO 中，并且将对象生命周期加一
+3. 清空伊甸园区域
+4. 最后将FROM区域和TO区域的进行交换。
 
-当存放在幸存区中的寿命超过阈值15的时候，会将对应的内存晋升到老年代中。之前的GC操作可以称为`Minor GC`。如果新生代和老年代两个区域都放不下新的内存区域的时候，就会触发新的`Full GC`操作，会对新生代和老年代两个区域都进行垃圾回收。
+当存放在幸存区中对象寿命超过阈值15的时候，会将对应的内存晋升到老年代中。如果新生代和老年代两个区域都放不下新的内存区域的时候，就会触发新的`Full GC`操作，会对新生代和老年代两个区域都进行垃圾回收。
 
 `Minor GC`会触发Stop The World操作，即发生垃圾回收的时候，会暂停其他的用户线程，等待垃圾回收操作完成之后，才会进行恢复用户线程。因为在进行垃圾回收的时候，会发生内存地址发生变化的情况，如果不暂停线程的话会导致地址混乱的情况。
 
 `Full GC`也会触发Stop The World操作，并且时间较长。
 
-对于占用大内存的对象会直接存储老年代中。子线程中内存溢出报错不会停止主线程的运行。
+> 如果对象大小超过新生代大小，会直接存储老年代中，如果老年代中也存储不了就会 OOM。
 
-### 相关的vm参数
+#### b. GC 相关的vm参数
 
 |       含义        |                            参数                             |
 | :---------------: | :---------------------------------------------------------: |
@@ -384,15 +501,21 @@ Java的回收算法将内存区分为两个区域：新生代和老年代。
 |      GC详情       |               -XX:+PrintGCDetails -verbose:gc               |
 | Full GC前Minor GC |                  -XX:ScavengeBeforeFullGC                   |
 
-### 垃圾回收器
+### 0x4. 垃圾回收器（CMS, G1）
 
-* 串行垃圾回收器`Serial GC`
+* 串行垃圾回收器`Serial GC`，使用单线程进行回收
+
+  ![image-20230517215436273](JVM知识.assets/image-20230517215436273.png)
+
+  当垃圾回收的时候，其他线程阻塞
 
   适合单线程；也适合堆内存比较小，适合单人电脑。
 
   开启串行垃圾回收：`-XX:+UseSerialGC=Serial+SerialOld`
 
-* 吞吐量优先`Parallel GC`
+* 吞吐量优先`Parallel GC` （1.8默认回收器）
+
+  ![image-20230517215522715](JVM知识.assets/image-20230517215522715.png)
 
   适合多线程，堆内存较大，让单位时间内STW时间最短。但是会在短时间内使得CPU占用变高。
 
@@ -400,37 +523,89 @@ Java的回收算法将内存区分为两个区域：新生代和老年代。
 
   `-XX:GCTimeRatio=ratio` 设置垃圾回收占用时间的比值
 
-  `-XX:MaxGCPauseMillis=ms` 设置垃圾回收占用时间最大毫秒数
+  `-XX:MaxGCPauseMillis=ms` 设置垃圾回收占用时间最大毫秒数，默认 200 ms
 
-* 响应时间有限`ConcMarkSweep GC`
+  `-XX:ParallelGCThreads=n` 设置垃圾回收的线程数
 
+* 响应时间优先 `ConcMarkSweep GC`
+
+  ![image-20230517215908688](JVM知识.assets/image-20230517215908688.png)
+
+  当其他用户进程运行的时候也能进行标记。
+  
+  * 初始标记的时候会将其他线程阻塞，用于标记 GC root 对象。
+  * 将剩余的对象进行并发标记
+  * 重新标记用于查看已标记的对象是否被用户线程改变
+  
   适合多线程，堆内存较大，尽可能的让STW单次时间最短（可能STW次数很多）。
-
+  
   开启响应时间GC：`-XX:+UseConcMarkSweepGC` 开启并发的标记清除GC算法。
 
-### G1垃圾回收
+* **G1垃圾回收器**（重要）见下一节
+
+### 0x5. G1 垃圾回收器
 
 JDK9之后默认使用垃圾回收器。
 
 适用场景：
 
 * 同时注重吞吐量和低延迟，默认的暂停时间是200ms。
+
 * 适合超大的堆内存，会将堆大小分为多个大小相等的Region。
+
 * 整体上是标记整理法，区域之间是复制算法。
 
 相关参数：
 
 * `-XX:UseG1GC`，JDK8需要显式开启
+
 * `-XX:G1HeapRegionSize=size`，设置G1垃圾回收的 Region 大小
+
 * `-XX:MaxGCPauseMillis=time`，设置暂停时间。
 
-🔵G1回收阶段
+G1垃圾回收会将内存区域分成大小相同的区域，每个区域都可以被独立分为 Eden，Young 和 old。
 
-<img src="E:\Notes\Java\JVM\JVM知识.assets\image-20220224192554562.png" alt="image-20220224192554562" style="zoom: 67%;" />
+#### a. G1回收阶段
 
-G1当老年代中内存不足的时候，如果G1垃圾回收器处理垃圾的速度大于用户产生垃圾的速度的时候不是 Full GC，如果小于用户产生垃圾的速度，就会退化为 Serial GC ，就进入了 Full GC 阶段。
+<img src="JVM知识.assets\image-20220224192554562.png" alt="image-20220224192554562" style="zoom: 67%;" />
 
-重标记法remark
+1. 新生代收集。初始阶段会分配几个 Eden 区，当 Eden 被分配满之后就会触发新生代收集。
+
+   <img src="JVM知识.assets/image-20230517221731321.png" alt="image-20230517221731321" style="zoom: 67%;" />
+
+   触发新生代垃圾回收之后会将 eden 中存活对象复制到幸存区中。
+
+   <img src="JVM知识.assets/image-20230517222034355.png" alt="image-20230517222034355" style="zoom:67%;" />
+
+   当幸存区对象也变多的时候，会晋升到老年代.
+
+2. 新生代收集+CM
+
+   当发生Young GC 的时候会进行 GC root 标记
+
+   当老年代占用堆空间比例达到阈值的时候会进行并发标记（不会STW）
+
+3. 混合收集阶段
+
+   会对 E、S、O进行全面垃圾回收
+
+   最终标记和拷贝存活都会 STW
+
+   <img src="JVM知识.assets/image-20230517222412105.png" alt="image-20230517222412105" style="zoom:67%;" />
+
+> 对于CMS 和 G1 来说，当老年代内存不足的时候不一定会触发 FullGC，只有产生垃圾的速度大于回收垃圾速度的时候才会退化为 SerialOld，就会执行 FullGC
+
+#### b. 卡表
+
+当需要对新生代对象进行标记的时候，需要找到 GC Root，有的 GC Root 就存储在老年代中，然后一个个遍历老年代会比较耗时，因此会使用卡表的技术对于引用新生代中的老年代对象标记为“脏卡”。
+
+<img src="JVM知识.assets/image-20230517225634983.png" alt="image-20230517225634983" style="zoom: 67%;" />
+
+将来进行垃圾回收的时候只需要遍历脏卡即可。
+
+#### c. 重标记法remark
+
+重新标记
 
 JDK8u20字符串去重
 
@@ -477,7 +652,7 @@ Oracle 建议新生代设置的大小为堆大小的25%-50%之间，新生代的
 
 简单的 Hello World 样例编译后的字节码文件：
 
-![image-20220225115051013](E:\Notes\Java\JVM\JVM知识.assets\image-20220225115051013.png)
+![image-20220225115051013](JVM知识.assets\image-20220225115051013.png)
 
 ```
 CA FE BA BE 00 00 00 37 00 22 0A 00 06 00 14 09
@@ -776,7 +951,7 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 
 ## 类加载
 
-![image-20220228101037159](E:\Notes\Java\JVM\JVM知识.assets\image-20220228101037159.png)
+![image-20220228101037159](JVM知识.assets\image-20220228101037159.png)
 
 类加载即将类的字节码载入方法区，内存采用的是C++的 instanceKlass 来描述java类，他的主要field有：
 
