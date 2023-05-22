@@ -1,6 +1,6 @@
 # JVM
 
-[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP?p=143) p143
+[BV1yE411Z7AP](https://www.bilibili.com/video/BV1yE411Z7AP) Over
 
 [TOC]
 
@@ -605,15 +605,33 @@ G1垃圾回收会将内存区域分成大小相同的区域，每个区域都可
 
 #### c. 重标记法remark
 
-重新标记
+三色标记法，使用读写屏障来防止某些对象在并发使用的情况被错误回收和未被回收的情况。
 
-JDK8u20字符串去重
+#### d. JDK8新特性
 
-JDK8u40并发标记类卸载
+* 字符串去重
 
-JDK8u60回收巨型对象
+  关注的是 `char[]` 数组，会将所有新分配的字符串放入队列，当新生代回收的时候，G1 并发检查是否有重复字符串，如果值一样，就指向同一个 `char[]` 数组。
 
-### 垃圾回收调优
+  优点：节省大量内存
+
+  缺点：多占用 CPU 时间，新生代回收时间略微增加。
+
+* 并发标记类卸载
+
+  当类不再使用的时候，当类加载器的所有类不再使用的时候就会卸载所有的类
+
+* 回收巨型对象
+
+  当一个对象大于 region 的一半的时候就会被当作巨型对象。
+
+  G1 不会对巨型对象进行拷贝，回收时候会被优先考虑，G1会跟踪老年代所有 incoming 引用，当老年代 incoming 引用为 0 的时候就可以在新生代垃圾回收掉。
+
+* 并发标记其实时间调整
+
+* 更高效的回收效率
+
+### 0x6. 垃圾回收调优
 
 确定目标来选择合适的回收器，**低延迟**还是**高吞吐量**。
 
@@ -629,16 +647,18 @@ JDK8u60回收巨型对象
 
 新生代特点：
 
-* 所有new操作的内存分配非常廉价，TLASB(Thread-Local allocation buffer)
+* 所有 new 操作的内存分配非常廉价，TLAB(Thread-Local allocation buffer)
 * 死亡对象的回收代价为0， From区域和To区域只要交换后，To区域就会直接清零。
 * 大部分对象用过即死
 * Minor GC的回收时间远远小于 Full GC。
 
 新生代设置的不能太小也不能太大。如果设置太大，就会导致老年代空间变小，从而使得 Full GC 次数变多。
 
-Oracle 建议新生代设置的大小为堆大小的25%-50%之间，新生代的设置能够容纳`并发量*(请求-响应)`的数据。
+Oracle 建议新生代设置的大小为堆大小的 25%-50% 之间，新生代的设置能够容纳`并发量*(请求-响应)`的数据。
 
 新生代也存在幸存区，其大小要满足能够保留`当前活跃对象+需要晋升对象`的数据，让短时间存活的对象不晋升，让长时间存活的对象尽量晋升。
+
+设置晋升阈值：`-XX:MaxTenuringThreshold=n`
 
 🔵老年代的调优
 
@@ -646,9 +666,14 @@ Oracle 建议新生代设置的大小为堆大小的25%-50%之间，新生代的
 * 先不进行调优，如果没有出现 Full GC 就挺好了，否则先尝试调优新生代。
 * 调试完新生代之后还会发生 Full GC 的时候，将老年代的大小调大 1/3 或者 1/4。
 
-## 字节码
+🔵调优案例：
 
-### 类文件结构
+* Full GC 和 Minor GC 频繁
+* 请求高峰发生 FullGC，单词暂停时间长（CMS）
+
+## 三. 字节码
+
+### 0x1. 类文件结构
 
 简单的 Hello World 样例编译后的字节码文件：
 
@@ -669,6 +694,8 @@ CA FE BA BE 00 00 00 37 00 22 0A 00 06 00 14 09
 
 第 #1 常量：`0A 00 06 00 14`，0A表示Method信息，00 06 和 00 14 表示其引用了常量池中 #6 和 #20 项来获取这个方法的**所属类**和**方法名**。
 
+`<init>` 表示构造方法，`()V` 表示无参构造方法。
+
 第 #2 常量：`09 00 15 00 16`，09 表示Field属性类型，后面`00 15` 以及 `00 16` 表示引用了常量 #23 和 #24 的常量信息。
 
 对于字符串常量：`01 00 0B 48 65 6C 6C 6F 20 57 6F 72 6C 64 `，其中 01 表示 utf8串，`00 0B`表示字符串的长度，`48 65 6C 6C 6F 20 57 6F 72 6C 64` 就表示的是`Hello World`。
@@ -687,7 +714,7 @@ CA FE BA BE 00 00 00 37 00 22 0A 00 06 00 14 09
 
 更详情的内容可以参考书籍《The Java® Virtual Machine Specification》中的第四章The class File Format。
 
-### 字节码指令
+### 0x2. 字节码指令
 
 java提供javap指令来进行反编译：`javap -v xxx.class`
 
@@ -817,11 +844,21 @@ public class Constructor {
 
 对于非静态代码块和属性中的赋值，jvm会将其重新整合成一个新的构造器，然后将人工构造器的代码放在新的构造器之后。
 
-### 多态的原理
+### 0x3. 多态的原理
 
-对于私有方法和静态方法，JVM的底层字节码都是调用`InvokeSpecial`和`InvokeStatic`，而对于公开的非静态方法调用的是`InvokeVirtual`。前者的执行效率要比后者的高。
+对于私有方法和静态方法，JVM的底层字节码都是调用 `InvokeSpecial` 和 `InvokeStatic` ，而对于公开的非静态方法调用的是 `InvokeVirtual`，涉及到多态的原理。前者的执行效率要比后者的高。
 
-### Try/Catch原理
+使用 HSDB 工具进行查看。
+
+`InvokeVirtual` 指令的加载流程：
+
+1. 想通过栈帧中的引用找到对象
+2. 分析对象头，找到实际的 class
+3. class 结构中有 vtable，他在类加载的链接阶段就已经将方法的重写规则生成完毕
+4. 查表得到方法的具体地址
+5. 执行方法的字节码
+
+### 0x4. Try/Catch 异常处理原理
 
 ```java
 public static void main(String[] args) {
@@ -854,9 +891,9 @@ public static void main(String[] args) {
 
 对于多个Catch会有多行的Exception Table。
 
-如果存在`finally`块，JVM会将其块中的代码分别复制到多个子代码块中，并且可能由于会出现`Exception`的父类错误，或者`Error, Throwable`等错误，JVM会捕捉剩余的异常类型`any`，确保finally中的代码一定会执行。
+如果存在 `finally` 块，JVM会将其块中的代码分别复制到多个子代码块中，比如未发生异常的分支和发生异常的每一个分支中，并且可能由于会出现 `Exception` 的父类错误，或者`Error, Throwable`等错误，JVM会捕捉剩余的异常类型`any`，确保finally中的代码一定会执行。
 
-🔵finally的问题：
+🔵finally 面试问题：
 
 1. 请问这个返回什么?
 
@@ -902,7 +939,7 @@ static int test3() {
 }
 ```
 
-返回10.
+返回10，在返回之前 JVM 会做一个固定返回值的操作，防止 finally 块中修改返回值.
 
 对应的字节码：
 
@@ -927,7 +964,7 @@ Code:
          0     5    10   any
 ```
 
-### Synchronized原理
+### 0x5. Synchronized原理
 
 ```java
 synchronized(lock){
@@ -935,9 +972,9 @@ synchronized(lock){
 }
 ```
 
-jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏的catch块，如果被包围的代码中如果有异常，就会进入ExceptionTable中指定的区域执行`monitorexit`来保证一定会被解锁。
+jvm会使用 `monitorenter` 和 `monitorexit` 来进行解锁，并且会有隐藏的catch块，如果被包围的代码中如果有异常，就会进入ExceptionTable中指定的区域执行 `monitorexit ` 来保证一定会被解锁。
 
-### 语法糖
+### 0x6. 语法糖
 
 * 对于没有写默认构造方法的类，JVM会自动调用父类的`super()`方法
 * 自动拆装箱：`Interger x = 1` 相当于 `Integer x = Integer.valueOf(1)`
@@ -946,12 +983,16 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 * foreach循环
 * switch-String优化：底层相当于使用了两个switch语句，首先比对String的hashcode，case中再使用`equals()`来对比字符串设置对应的flag，防止hashcode冲突；然后再根据flag来switch对应的操作。
 * switch-enum：使用了一个合成类，根据枚举的`ordinal()`来判断
-* try-with-resource，可以自动关闭资源，简化资源关闭，`try(is = FileInputStream) {}`
+* try-with-resource，可以自动关闭资源，简化资源关闭，`try(is = FileInputStream) {}`，资源必须要实现 `AutoCloaseable` 接口。
 * 匿名内部类
 
-## 类加载
+### 0x7. 类加载
+
+#### a. 加载过程
 
 ![image-20220228101037159](JVM知识.assets\image-20220228101037159.png)
+
+🔵加载
 
 类加载即将类的字节码载入方法区，内存采用的是C++的 instanceKlass 来描述java类，他的主要field有：
 
@@ -959,17 +1000,23 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 
 🔵链接：
 
-准备：为static变量分配内存空间，其存储在`_java_mirror`的末尾。对于静态变量，准备是在编译的时候进行，赋值实在类的构造方法中进行。
+链接分为多个阶段：
 
-对于不创建对象的`static final`变量，赋值是直接在编译的时候进行，对于创建对象的是要在运行时赋值。
+1. 验证：类文件的魔数 magic number
 
-🔵解析：
+2. 准备：为static变量分配内存空间，其存储在`_java_mirror`的末尾。对于静态变量，准备是在编译的时候进行，赋值实在类的构造方法中进行。
 
-将常量池中的引用解析为直接引用。比如在类加载的时候采用的是懒加载的模式，如果不使用到对应的类，则其就不会加载。
+   对于 static 变量，如果 static 变量是 final 的**基本**类型，那么值在编译阶段就已经确定了，赋值在准备阶段完成；如果不是基本类型或者非 final 变量，分配空间和赋值是两个步骤，分配空间在准备阶段完成，赋值阶段在初始化阶段完成。
 
-🔵初始化的情况
+3. 解析：将常量池中的引用解析为直接引用。比如在类加载的时候采用的是懒加载的模式，如果不使用到对应的类，则其就不会加载。
 
-### 类加载器
+🔵初始化
+
+类的初始化即调用 `<cinit>` 方法，并且虚拟机会保证类初始化的线程安全。
+
+静态内部类只有在使用的时候才会被初始化，适用于单例模式中的懒汉式加载。
+
+#### b. 类加载器
 
 类加载器的分类：
 
@@ -979,6 +1026,8 @@ jvm会使用`monitorenter`和`monitorexit`来进行解锁，并且会有隐藏�
 |  Extension ClassLoader  | JAVA_HOME/jre/lib/ext | 上级为Bootstrap，显示为null |
 | Application ClassLoader |       classpath       |       上级为Extension       |
 |      自定义加载器       |        自定义         |      上级为Application      |
+
+在加载类的时候会首先向上级查找是否有全限定类名的类，如果存在则返回相同的类，如果不存在从下级中加载。
 
 🔵启动类加载器Bootstrap
 
@@ -1000,27 +1049,66 @@ class F {
 }
 ```
 
-输出为null
-
-🔵应用类加载器：
-
-对于上述不添加参数，默认输出：`jdk.internal.loader.ClassLoaders$AppClassLoader@1f89ab83`
+输出为null，则为启动类加载器。
 
 🔵扩展类加载器
 
 在jdk8中，如果将应用类jar包放入`jre/lib/ext`目录下，就会输出`ExtClassLoader`
 
-### 双亲委派模式
+🔵应用类加载器：
 
-指的是调用类加载器的classloader方法时候查找类的规则。这里的双亲其实是上级的意思，因为其并没有继承的关系。
+对于上述不添加参数，默认输出：`jdk.internal.loader.ClassLoaders$AppClassLoader@1f89ab83`
+
+#### c. 双亲委派模式
+
+双亲委派机制指的是调用类加载器的classloader方法时候查找类的规则。这里的双亲其实是上级的意思，因为其并没有继承的关系。
 
 如果应用类加载器未找到对应的类，向上到扩展类加载器找，扩展类中未找到就向上到启动类加载器中查询。如果都为找到就到自身的加载器中查询，都未找到就到自定义的类加载器中查询。
 
-## 运行期优化
+#### d. 自定义类加载器
+
+什么情况下需要自定义类加载器？
+
+* 想加载任意路径中的类文件
+* 用于框架设计
+* 对于不同版本的类进行隔离，不同应用相同类名都可以加载不冲突，常见的比如 tomcat 容器
+
+实现步骤：
+
+1. 继承 classLocader 父类
+2. 遵循双亲委派机制，重写 findClass 方法（非 `loadClass` 方法）
+3. 读取类文件的字节码
+4. 调用父类的 `defineClass` 方法来加载类
+5. 使用者调用 `loadClass` 方法
+
+```java
+public class MyClassLoader extends ClassLoader{
+    private String dir;
+
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        // name 即类名
+        String path = dir + name + ".class";
+        try {
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            Files.copy(Paths.get(path), os);
+            byte[] bytes = os.toByteArray();
+            return defineClass(name, bytes, 0, bytes.length);
+        } catch (IOException e) {
+            // not found
+            throw new RuntimeException(e);
+        }
+    }
+}
+```
+
+如果不同类加载器加载相同的类，其实例化的对象地址是不同的，因为实例化的对象保存在类加载器的缓存中。
+
+## 四. 运行期优化
 
 > 新版可以使用graalvm直接运行编译为二进制文件运行即可。
 
-### JIT即时编译器
+### 0x1. JIT即时编译器
 
 JIT优化Demo
 
@@ -1085,11 +1173,13 @@ JVM将执行阶段分为了5段：
 
 JIT编译器会将热点代码直接编译为机器码，放到 code cache 中，下次遇到直接执行无需编译。
 
-### 方法内联inline
+如果热点代码使用的变量没有逃逸分析，那么就会进行 JIT，否则就不会进行到 C2 编译。
+
+### 0x2. 方法内联inline
 
 有点类似C中的`inline`关键字，即将短而且热点代码直接将方法体代码嵌入调用方法中。
 
-### 字段优化
+### 0x3. 字段优化
 
 如果想要优化使用变量的话尽量使用局部变量，而不是全局变量。
 
@@ -1111,9 +1201,9 @@ public class {
 }
 ```
 
-后者的执行效率要比前者要高，前者每次都需要寻找成员中的变量，后者不需要。
+后者的执行效率要比前者要高，前者每次都需要寻找成员中的变量，后者不需要。或者直接使用 foreach 进行循环。
 
-### 反射优化
+### 0x4. 反射优化
 
 ```java
 public class ReflectDemo {
@@ -1134,18 +1224,93 @@ public class ReflectDemo {
 
 前十几次（`inflationThreshold`）调用耗时较高效率低，之后效率就会变高。
 
-## JMM内存模型
+## 五. JMM内存模型
 
 即定义了一套在多线程读写共享数据的时候，对于数据的可见性、有序性和原子性的一套规则和保障。
 
-### 原子性
+### 0x1. 原子性
 
-jvm中使用的是叫做`Monitor`的数据结构来进行锁的使用，当线程使用的资源未加锁的时候会将此线程加入到Owner中，当资源以及加锁的时候会将此线程加入EntryList中，睡眠或者wait的时候会加入到WaitSet中。
+jvm中使用的是叫做 `Monitor` 的数据结构来进行锁的使用，当线程使用的资源未加锁的时候会将此线程加入到Owner中，当资源以及加锁的时候会将此线程加入EntryList中，睡眠或者wait的时候会加入到WaitSet中。
 
-### 可见性
+JVM 使用过 `synchronized` 关键字来保证原子性的，将锁的信息保存在对象的 `monitor` 数据结构中，`monitor` 中关于锁的字段有三个：
 
-见Java多线程，volatile
+* Owner：加锁的时候如果当前没有线程持有锁，使用 `monitorenter` 指令拥有锁。
+* EntryList：是保存争抢锁的线程列表，当线程 `monitorexit` 指令之后，EntryList 中的所有线程会争抢锁。
+* WaitSet：
 
-### 有序性
+### 0x2. 可见性
+
+由于 JIT 的存在，会将尝试用的变量存放到本地缓存中，当变量的原始值发生变化的时候，使用本地缓存的线程感知不到变量原始值已经改变，就会出现缓存不一致的情况。
+
+```java
+@Slf4j(topic = "JMMTest")
+public class JMMTest {
+
+    static boolean run = true;
+
+    @Test
+    public void testA() throws InterruptedException {
+        Thread thread = new Thread(() -> {
+            while (run) {
+
+            }
+        });
+
+        thread.start();
+        TimeUnit.SECONDS.sleep(1);
+        run = false;
+        thread.join();
+    }
+}
+```
+
+使用 `volatile` 关键字可以解决这种可见性的问题，每次都读取最新数值。或者使用包含 `synchronized` 关键字同步缓存和原始值。
+
+### 0x3. 有序性
+
+由于存在指令重排的问题，因此需要保证指令的有序性。在进行单例模式设计的时候，由于创建对象赋值有两个操作：`invokespecial` 和 `putstatic` 分别对象构造方法初始化和将实例引用赋值给变量。如果这两个发生指令重排操作，就可能会将未进行初始化操作的单例对象赋值给变量，就会出现调用问题。
 
 写屏障和读屏障。
+
+## 六. 反射
+
+反射允许对于封装类的字段，方法和构造函数进行编程访问，可以在**运行状态**构造任意一个类的对象。
+
+获取对象的三种方式：
+
+* `Class.forName("全类名")`
+* `类名.class`
+* `对象.getClass()`
+
+获取构造方法：
+
+* `getConstructors()` 获取所有公共的构造方法
+* `getDeclaredConstructors()` 获取所有的构造方法
+* `getDeclaredConstructor(Class<?>... parameterTypes)` 获取特定参数类型的构造方法
+
+```java
+@Slf4j(topic = "ReflectDemo")
+public class ReflectDemo {
+    public static void main(String[] args) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        Class<?> clazz = Class.forName("com.jvm.reflect.Dog");
+        // 获取所有公共的构造方法
+        log.info("=====所有公共构造方法====");
+        for (Constructor<?> constructor : clazz.getConstructors()) {
+            log.info("{}", constructor);
+        }
+
+        // 获取所有构造方法
+        log.info("=====所有构造方法====");
+        for (Constructor<?> constructor : clazz.getDeclaredConstructors()) {
+            log.info("{}", constructor);
+        }
+        // 暴力反射
+        Constructor<?> constructor = clazz.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object o = constructor.newInstance();
+        log.info("Obj: {}", o);
+    }
+}
+```
+
+同理获取 `Field` 为成员变量，`Method` 为成员方法，对于两者还可以获取修饰符，数据类型以及异常等，也可以获取设置成员变量的值，调用成员方法。
