@@ -2,15 +2,15 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=248) Over
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=75) P75
 
 [ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ) Over
 
 > 备注：还有disrupt、guava、异步编程、并行编程未涉及。
 
-## 多线程
+## 一. 多线程
 
-### 多线程创建
+### 0x1. 多线程创建
 
 线程创建的三种方式：Thread类、Runnable接口、Callable接口
 
@@ -105,7 +105,9 @@ public void t3() throws ExecutionException, InterruptedException {
 }
 ```
 
-### 线程方法
+使用 Runnable 更容易和线程池配合。
+
+### 0x2. 线程方法
 
 线程切换原因：时间片用完、垃圾回收、有更高优先级的线程运行、线程自己调用`sleep` `yield` `wait`等方法。
 
@@ -178,7 +180,7 @@ public void interr() throws InterruptedException {
 */
 ```
 
-### 不推荐使用的方法
+### 0x3. 不推荐使用的方法
 
 `stop()`，停止线程
 
@@ -188,7 +190,7 @@ public void interr() throws InterruptedException {
 
 三种方法已经过时，容易破坏线程的同步代码块，造成线程死锁。
 
-### 主线程和守护线程
+### 0x4. 主线程和守护线程
 
 守护线程：只要其他非守护线程都执行完毕，如果守护线程还有代码未执行完毕，也必须结束。
 
@@ -198,7 +200,7 @@ public void interr() throws InterruptedException {
 thread.setDaemon(true);
 ```
 
-### Java中线程的六种状态：
+### 0x5. Java中线程的六种状态：
 
 * NEW
 * RUNNABLE，这个状态涵盖了操作系统方面的运行中，阻塞和就绪状态。
@@ -209,9 +211,9 @@ thread.setDaemon(true);
 
 其中`BLOCKED,WAITING,TIMED_WAITING`是Java层面的阻塞，不是操作系统层面上的阻塞。
 
-## 共享模型—管程（悲观锁）
+## 二. 共享模型—管程（悲观锁）
 
-### synchronized关键字
+### 0x1. synchronized关键字
 
 互斥关键字
 
@@ -303,7 +305,7 @@ class Test{
 }
 ```
 
-### 线程安全分析
+### 0x2. 线程安全分析
 
 成员变量和静态变量是否线程安全？如果两者没有共享则线程安全；如果有共享，只有读操作则线程安全，有读写操作则不安全。
 
@@ -360,6 +362,8 @@ class Test{
 String, Integer, StringBuffer, Random, Vector, Hashtable, JUC的包
 ```
 
+String 和 Integer 都是不可变类
+
 ### Monitor概念
 
 monitor可以称为**监视器**或者**管程**
@@ -392,11 +396,11 @@ public static void m2(){
 
 如果在尝试加入轻量级锁的过程中，CAS操作无法完成，即已经有其他线程对此对象加上了轻量级锁，这个时候就需要进行**锁膨胀**，将轻量级锁转为重量级锁。
 
-![image-20220126092022382](Java高并发.assets/image-20220126092022382.png)
+![image-20220126092022382](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126092022382.png)
 
-重量级锁的话就需要请求Monitor对象。
+重量级锁的话就需要请求 Monitor 对象。
 
-![image-20220126092139494](Java高并发.assets/image-20220126092139494.png)
+![image-20220126092139494](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126092139494.png)
 
 🔵自旋优化
 
@@ -406,11 +410,11 @@ public static void m2(){
 
 自旋成功：
 
-<img src="Java高并发.assets/image-20220126093351358.png" alt="image-20220126093351358" style="zoom:67%;" />
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126093351358.png" alt="image-20220126093351358" style="zoom:67%;" />
 
 自旋失败：
 
-<img src="Java高并发.assets/image-20220126093410822.png" alt="image-20220126093410822" style="zoom:67%;" />
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126093410822.png" alt="image-20220126093410822" style="zoom:67%;" />
 
 由于阻塞会造成系统的上下文切换开销较大，因此通过自旋来进行等待（只对多核系统有效）。
 
@@ -553,7 +557,7 @@ public class Park {
 
 ### Java线程状态转换
 
-<img src="Java高并发.assets/image-20220128142720827.png" alt="image-20220128142720827" style="zoom:67%;" />
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220128142720827.png" alt="image-20220128142720827" style="zoom:67%;" />
 
 * 2情况在`synchronized`获取对象锁之后调用`wait()`变成`WAITING`状态，`notify()`竞争成功变为`RUNNABLE`，锁竞争失败变`BLOCKED`。
 * 3情况是在`join()`方法调用线程会变为`WAITING`
@@ -889,7 +893,7 @@ j = 2;
 
 对于有些操作，可能前面的语句处理比较耗时，耗时少的代码就有可能放在前面。
 
-![img](Java高并发.assets/885859-20210228105455789-1395883369.png)
+![img](E:\Notes\Java\Java并发编程\Java高并发.assets\885859-20210228105455789-1395883369.png)
 
 为了提高CPU的执行效率。
 
@@ -935,7 +939,7 @@ public void actor2(I_Result r) {
 
 结果也表明有千万级的结果是1或者4，只有千数量级的可能结果是0。
 
-<img src="Java高并发.assets/image-20220202221005983.png" alt="image-20220202221005983" style="zoom:150%;" />
+<img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220202221005983.png" alt="image-20220202221005983" style="zoom:150%;" />
 
 🟣诡异的结果解决方法：
 
@@ -1422,7 +1426,7 @@ CPU分为不同级别的缓存（L1，L2，L3缓存），对于每次想要读�
 
 而Adder中的`@sun.misc.Contended`注解就是为了解决这个问题，将数组中每个元素都作为一个缓存行，其它为空白的padding，这样当Cell[0]发生改变的时候不会改变Cell[1]中的缓存行就不会失效，提高了读取的效率。
 
-![image-20220204103230837](Java高并发.assets/image-20220204103230837.png)
+![image-20220204103230837](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220204103230837.png)
 
 🔵源码解读：
 
@@ -1535,7 +1539,7 @@ public class ImmutableDemo {
 
 线程池就时为了省去创建线程的开销，提前创建线程，使用的时候拿出来，不用的时候再放回去，避免过多的上下文切换的开销耗费。
 
-![image-20220206222255958](Java高并发.assets/image-20220206222255958.png)
+![image-20220206222255958](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220206222255958.png)
 
 ### JDK线程池ThreadPoolExecutor
 
@@ -1571,7 +1575,7 @@ JDK中的线程分为核心线程`corePoolSize`和救急线程，其中救急线
 
 JDK中拒绝策略的实现：
 
-![image-20220210122130667](Java高并发.assets/image-20220210122130667.png)
+![image-20220210122130667](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220210122130667.png)
 
 * `AbortPolicy`让调用者抛出异常（默认）
 * `CallerRunsPolicy`是让调用者运行任务
@@ -1849,7 +1853,7 @@ class MyLock implements Lock {
 
 ### ReentrantLock实现原理
 
-![image-20220212110733206](Java高并发.assets/image-20220212110733206-16446352623611.png)
+![image-20220212110733206](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220212110733206-16446352623611.png)
 
 🔵加锁解锁流程
 
@@ -2242,7 +2246,7 @@ class Util {
 
 ## 并发设计模式
 
-### 两阶段终止设计模式
+### 0x1. 两阶段终止模式
 
 🔵方式一：设置打断标记法
 
@@ -2335,13 +2339,13 @@ class Monitor{
 
 这里的`interrupt()`是用于直接打断睡眠时间，防止等待时间过长。
 
-### 同步保护性暂停
+### 0x2. 同步保护性暂停
 
 即guarded suspension，用在一个线程等待另一个线程的执行结果。
 
-### 生产者消费者模式
+### 0x3. 生产者消费者模式
 
-### 哲学家进餐问题
+### 0x4. 哲学家进餐问题
 
 ```java
 public class Philosopher extends Thread {
@@ -2395,7 +2399,7 @@ public class Philosopher extends Thread {
 }
 ```
 
-### 同步模式顺序控制
+### 0x6. 同步模式顺序控制
 
 > 让不同线程之间的按照指定的顺序进行执行
 
