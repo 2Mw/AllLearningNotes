@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=75) P75
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=153) P153
 
 [ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ) Over
 
@@ -364,15 +364,45 @@ String, Integer, StringBuffer, Random, Vector, Hashtable, JUC的包
 
 String 和 Integer 都是不可变类
 
-### Monitor概念
+### 0x3. Monitor概念
 
 monitor可以称为**监视器**或者**管程**
 
-### synchronized优化原理
+普通对象的结构：
+
+![image-20230524120704779](Java高并发.assets/image-20230524120704779.png)
+
+Klass Word 用于指向类的信息，Mark Word 用于保存对象 JVM 中的信息（锁，生存年龄，hashcode等信息）
+
+![image-20230524121025571](Java高并发.assets/image-20230524121025571.png)
+
+因此一个 Integer 对象除了要保存 int 值数据之外还要保存对象头的信息，总共大小为 8+4=12 字节。
+
+在使用 synchronized 语句的时候就将锁对象和 monitor 对象关联起来，当成功获取到锁的时候，就会将 mark word 中的状态信息改为 `10` 标记状态为重量级锁，前面 62 位字节指向 monitor 对象，那么当前线程就会成为该 monitor 的 `owner`。
+
+![image-20230524121810245](Java高并发.assets/image-20230524121810245.png)
+
+如果其他线程此时也想获取锁，但是锁已经被占用，因此当前线程就会存入 monitor 对象的 `EntryList` 中等待锁的释放，并且进入 `BLOCK` 状态。
+
+### 0x4. synchronized优化原理
+
+由于 monitor 对象是由操作系统提供的，使用其成本较高，如果每次加锁都直接使用 monitor 耗费成本较高，因此 JVM 会使用轻量级锁和偏向锁来进行优化。
 
 🔵轻量级锁
 
 使用场景：如果一个对象虽然有多线程访问，但是多线程访问的时间段是错开的（没有竞争），那么可以使用轻量级锁来进行优化。
+
+当一个线程使用 `synchronized` 的时候，此时临界资源的竞争较少，因此直接将锁对象的 mark word 标志位改为 `00`，并且在使用该锁的线程中创建一条锁记录，将对象头原先的 mark word 保存在锁记录中并且两者互相引用。这种锁不使用 monitor 这种重量级锁来进行处理，因此这种锁也成为轻量级锁。
+
+当其他线程也是用该锁的时候，如果发现当前锁已经占用，为了能够加入 monitor 中的 EntryList，需要进入<a href="#锁膨胀">**锁膨胀**</a>的过程。
+
+![image-20230524140429734](Java高并发.assets/image-20230524140429734.png)
+
+如果是当前线程使用嵌套 `synchronized` 那么就会执行锁重入，只增加一条锁记录作为重入计数。
+
+![image-20230524141146629](Java高并发.assets/image-20230524141146629.png)
+
+当解锁的时候就执行恢复现场的操作，如果解锁失败则进入重量级锁解锁的流程。
 
 ```java
 public static final Object obj = new Object();
@@ -392,9 +422,15 @@ public static void m2(){
 
 对于方法`m2()`，在调用之前有`m1()`调用已经加锁，在`m2`中同样加了锁，但是这是可以在同一个线程中进行的操作，因此`m2`加的锁是**重入锁**即是轻量级锁，在锁记录中会有两条记录，当两条记录全部解除之后才会对obj对象解除占用。
 
-🔵锁膨胀
+🔵<span id='#锁膨胀'>锁膨胀</span>
 
 如果在尝试加入轻量级锁的过程中，CAS操作无法完成，即已经有其他线程对此对象加上了轻量级锁，这个时候就需要进行**锁膨胀**，将轻量级锁转为重量级锁。
+
+流程如下：
+
+* 为锁对象申请 monitor 锁，让锁对象的 mark word state 改为 `10` 并且指向 monitor 对象。
+* 然后自己进入 monitor 中的 EntryList 并且进入阻塞状态。
+* 当用于轻量级锁的线程退出时候，将 mark word 恢复给锁对象头失败。进入重量级锁解锁流程，按照 monitor 地址找到 monitor 对象，设置 owner 为 null 并且唤醒其他线程。
 
 ![image-20220126092022382](E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220126092022382.png)
 
@@ -420,13 +456,11 @@ public static void m2(){
 
 🔵偏向锁
 
-对可重入锁的优化。
+偏向锁是对可重入锁的优化。
 
 轻量级锁在没有竞争的时候，每次重入仍然需要执行CAS操作。
 
-偏向锁就是将线程的ID设置到锁对象的头中，之后如果发现这个线程的ID是自己的就表示没有竞争。
-
-Java中默认会开启偏向锁，对象头后三位是`101`。
+偏向锁优化就是在第一次 cas 操作的时候将线程的ID设置到锁对象的头中，之后如果发现这个线程的ID是自己的就表示没有竞争。Java中默认会开启偏向锁，对象头后三位是`101`。
 
 > 如果对于一个对象调用了其`hashcode()`方法，会禁用这个对象的偏向锁，由于对于偏向锁中并不存储`hashcode`字段，因此会转为普通锁，影响锁的状态。
 
@@ -438,7 +472,7 @@ Java中默认会开启偏向锁，对象头后三位是`101`。
 
 🔵批量重新偏向/撤销
 
-如果撤销偏向锁的阈值超过20次之后，jvm有可能会重新添加偏向锁。
+如果撤销偏向锁的阈值超过20次之后，jvm有可能会重新添加偏向锁，偏向另一个线程。
 
 如果撤销偏向锁的阈值超过40次之后，jvm会将**整个类和新创建的对象**全部设置为不可偏向。
 
@@ -446,7 +480,7 @@ Java中默认会开启偏向锁，对象头后三位是`101`。
 
 对于已经加了锁，但是程序不可能多线程用到锁的程序段，Java中会有一个JIT即时编译器来进行优化，将对应的锁进行消除，并且加锁会导致执行速度变慢，锁消除可以优化执行速度。
 
-### wait/notify
+### 0x4. wait/notify
 
 当一个线程调用`wait`方法的时候，线程会变为`WAITING`状态，进入monitor中的`Waitset`队列中（阻塞的线程放在`EntryList`中），但是**前提**是必须先获得锁。
 
@@ -518,11 +552,7 @@ public class WaitDemo {
 
 * 分别使用不同的锁
 
-### 设计模式——保护性暂停
-
-见设计模式一章
-
-### park和unpark
+### 0x5. park和unpark
 
 是`LockSupport`中提供的，用于暂停和恢复线程的执行。
 
@@ -555,7 +585,7 @@ public class Park {
 
 `unpark`相当于补充干粮，`park`的时候如果没有干粮就等待，干粮充足就无需等待。
 
-### Java线程状态转换
+### 0x6. Java线程状态转换
 
 <img src="E:\Notes\Java\Java并发编程\Java高并发.assets\image-20220128142720827.png" alt="image-20220128142720827" style="zoom:67%;" />
 
@@ -564,7 +594,7 @@ public class Park {
 * 4情况比如`park()`
 * `RUNNABLE`变为`TIMED_WAITING`使用方法比如`join(n),wait(n)，sleep(n),parkNanos(n)`
 
-### 死锁定位与解决
+### 0x7. 死锁定位与解决
 
 检测死锁可以使用jconsole或者jps来定位进程ID，再用jstack定位死锁。
 
@@ -598,7 +628,7 @@ Found 1 deadlock.
 
 以上是发现死锁的信息。
 
-### 活锁
+### 0x8. 活锁
 
 死锁是由于两个线程之间互相持有两者都想要却又不放手的资源而导致程序无法进行的情况。
 
@@ -643,7 +673,7 @@ public class LiveLock {
 
 * 可以将两者的指令执行交错开，等一个线程执行完毕再执行另一个线程。
 
-### ※可重入锁ReentrantLock
+### 0x9. ※可重入锁ReentrantLock
 
 > ReentrantLock，可重入锁
 
@@ -835,13 +865,13 @@ public class ConditionLock {
 }
 ```
 
-## JMM-共享内存模型
+## 三. JMM-共享内存模型
 
 > JMM即，Java Memory Model，主要体现在原子性、可见性、有序性。
 
 原子性是保证指令不受线程上下文切换的影响，可见性是保证指令不受CPU缓存的影响，有序性是保证指令不会受CPU指令并行优化的影响。
 
-### 可见性
+### 0x1. 可见性
 
 ```java
 static boolean run = true;
@@ -875,7 +905,7 @@ public static void main(String[] args) throws InterruptedException {
 * `volatile`并不保证指令的原子性，只是保证一个线程修改变量，其他线程也可见，不保证指令的交错。
 * `sychronized`既可以保证代码块的原子性，也可以保证代码块内变量的原子性，但缺点就是`synchronized`是重量级操作，性能更低。
 
-### 有序性
+### 0x2. 有序性
 
 > 有序性和指令重排概念需要分开。
 
@@ -970,7 +1000,7 @@ public class TestOrdering {
 }
 ```
 
-### ※volatile原理
+### 0x3. ※volatile原理
 
 > volatile底层原理是内存屏障（Memory Barrier / Fence）
 
@@ -1004,7 +1034,7 @@ public void actor1(I_Result r) {
 
 > 读写屏障同样不能解决指令的交错。
 
-### ※双重检查锁
+### 0x4. ※双重检查锁
 
 > 本质知识点还是`volatile`原理
 
@@ -1055,7 +1085,7 @@ t1 ->> t1 : 21 : invokespecial(调用构造方法)
 
 给`instance`变量进行`volatile`进行修饰，使用`volatile`修饰之后，写屏障之前的代码不会被重排到写屏障之后，即在对`instance`变量赋值之前，必然已经执行构造方法并且写入主存。在对变量进行读取之前加入读屏障，防止读取变量之后的指令重排到之前，并且将主存中的最新数据读取到线程的工作内存中，保证程序的正确性。
 
-### Happens-Before规则
+### 0x5. Happens-Before规则
 
 happens-before规则规定了对共享变量对其他线程读操作可见，是一套有序性和可见性的规则总结，抛开happens-before规则，JMM并不能保证一个线程对共享变量的写，其他线程对于共享变量的读可见。
 
@@ -2302,7 +2332,7 @@ class Monitor{
 
 🟣知识点：
 
-对于Java多线程中有两个方法`isInterrupted()`和方法`interrupted()`，两者都是用来判断当前的线程是否被打断，而前者不会清除打断标记，后者会清除打断标记。
+对于Java多线程中有两个方法`isInterrupted()`和方法`interrupted()`，两者都是用来判断当前的线程是否被打断，而前者不会清除打断标记，后者会清除打断标记，使用 `volatile` 的方式更优。
 
 🔵方式二：volatile方式
 
@@ -2341,9 +2371,70 @@ class Monitor{
 
 ### 0x2. 同步保护性暂停
 
-即guarded suspension，用在一个线程等待另一个线程的执行结果。
+即guarded suspension，用在一个线程等待另一个线程的执行结果，属于线程同步。
+
+```java
+public class GuardedObject {
+    private Object resp;
+
+    public synchronized Object getResp() throws InterruptedException {
+        // 阻塞等待
+        while (resp == null) {
+            this.wait();
+        }
+        return resp;
+    }
+
+    public synchronized void setResp(Object resp) throws InterruptedException {
+        this.resp = resp;
+        this.notifyAll();
+    }
+}
+```
 
 ### 0x3. 生产者消费者模式
+
+使用消息队列来进行实现，当 capacity 为 0 时候，消费线程阻塞，当容量满的时候生产者线程阻塞。
+
+```java
+class MessageQueue {
+    private LinkedList<Message> list = new LinkedList<>();
+    private int capacity;
+
+    public MessageQueue(int capacity) {
+        this.capacity = capacity;
+    }
+
+    public Message take() {
+        synchronized (list) {
+            while (list.isEmpty()) {
+                try {
+                    list.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            Message one = list.removeFirst();
+            list.notifyAll();
+            return one;
+        }
+    }
+
+    public void put(Message message) {
+        synchronized (list) {
+            while (list.size() == capacity) {
+                try {
+                    list.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            list.addLast(message);
+            list.notifyAll();
+        }
+    }
+}
+```
 
 ### 0x4. 哲学家进餐问题
 
@@ -2457,7 +2548,7 @@ public void print(String s, Condition cur, Condition next){
 
 🔵park/unpark版
 
-### 同步模式之犹豫模式(Balking)
+### 0x7. 同步模式之犹豫模式(Balking)
 
 这个用于检查一个线程发现另一个线程已经开始做相同的事情时候，本线程无需在做就退出。
 
