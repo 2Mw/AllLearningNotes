@@ -884,7 +884,7 @@ select ...   -- 朴素select语句
 
    1. 如果`DB_TRX_ID` < `up_limit_id`， 则表示当前事务在此记录的事务发生之后开启，`DB_TRX_ID`所在记录当然对当前事务可见，如果大于等于进入下一步；
    2. 如果`DB_TRX_ID` > `low_limit_id`，则表示当前事务还发生在此记录所提交的事务之前，`DB_TRX_ID`所在的记录在`readview`生成之后才出现的，那么对当前事务不可见，如果小于进入下一步
-   3. 判断`DB_TRX_ID`是否仍在活跃事务中，如果在，则表示还在`readview`的生成时刻，还没有commit，修改的数据当前事务是不可见的，如果事务在`readview`生成之前`commit`是可见的，生成之后不可见。
+   3. 判断`DB_TRX_ID`是否仍在活跃事务中，如果在，则表示还在`readview`的生成时刻，还没有commit，修改的数据当前事务是不可见的；如果不在，说明事务在`readview`生成之前已经`commit`，那么数据是可见的。
 
    分析：
 
@@ -1067,7 +1067,96 @@ MySQL 中变量类型分为服务器变量、状态变量和用户变量。对�
   SELECT * FROM user_variables_by_thread;
   ```
 
-  
+
+## SQL 常用语法：
+
+### 1. 时间对比类函数
+
+[MySQL 12.7 Date and Time Functions](https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html)
+
+* `TIMESTAMPDIFF(unit, begin, end)` 函数，用于返回 end 减去 begin 的结果
+
+  ```sql
+  mysql> SELECT TIMESTAMPDIFF(MONTH, '2018-01-01', '2018-06-01') result;
+  +--------+
+  | result |
+  +--------+
+  |    5 |
+  +--------+
+  1 row in set
+  ```
+
+  其中 begin 和 end 也可以是 DATETIME 的格式
+
+  ```sql
+  mysql> SELECT TIMESTAMPDIFF(MINUTE, '2018-01-01 10:00:00', '2018-01-01 10:45:00') result;
+  +--------+
+  | result |
+  +--------+
+  |   45 |
+  +--------+
+  1 row in set
+  ```
+
+* `ADDDATE(start, INTERVAL xxx unit)` 函数，和函数 `DATE_ADD()` 同义。类似函数有 `SUBDATE`
+
+  ```sql
+  mysql> SELECT DATE_ADD('2018-05-01',INTERVAL 1 DAY);
+          -> '2018-05-02'
+  mysql> SELECT DATE_SUB('2018-05-01',INTERVAL 1 YEAR);
+          -> '2017-05-01'
+  mysql> SELECT DATE_ADD('2020-12-31 23:59:59',
+      ->                 INTERVAL 1 SECOND);
+          -> '2021-01-01 00:00:00'
+  mysql> SELECT DATE_ADD('2018-12-31 23:59:59',
+      ->                 INTERVAL 1 DAY);
+          -> '2019-01-01 23:59:59'
+  mysql> SELECT DATE_ADD('2100-12-31 23:59:59',
+      ->                 INTERVAL '1:1' MINUTE_SECOND);
+          -> '2101-01-01 00:01:00'
+  mysql> SELECT DATE_SUB('2025-01-01 00:00:00',
+      ->                 INTERVAL '1 1:1:1' DAY_SECOND);
+          -> '2024-12-30 22:58:59'
+  mysql> SELECT DATE_ADD('1900-01-01 00:00:00',
+      ->                 INTERVAL '-1 10' DAY_HOUR);
+          -> '1899-12-30 14:00:00'
+  mysql> SELECT DATE_SUB('1998-01-02', INTERVAL 31 DAY);
+          -> '1997-12-02'
+  mysql> SELECT DATE_ADD('1992-12-31 23:59:59.000002',
+      ->            INTERVAL '1.999999' SECOND_MICROSECOND);
+          -> '1993-01-01 00:00:01.000001'
+  ```
+
+* 判断日志是否在某个时间段内 `BETWEEN`
+
+  ```sql
+  SELECT * FROM t WHERE aDate between bDate and cDate;
+  ```
+
+### 2. 流程控制函数
+
+这里主要是指[流程控制函数](https://dev.mysql.com/doc/refman/8.0/en/flow-control-functions.html#function_if)，非 mysql 中的[流程控制语句](https://dev.mysql.com/doc/refman/8.0/en/flow-control-statements.html).
+
+* `IF(expr1,expr2,expr3)`，如果表达式 expr1 为 true 则返回 expr2，否则返回 expr3
+* `IFNULL(expr1,expr2)`，expr1 不为空返回 expr1 否则返回 expr2 
+
+### 3. Common Table Expressions公共表达式
+
+参考：[MySQL:: 13.2.20 WITH (Common Table Expressions)](https://dev.mysql.com/doc/refman/8.0/en/with.html#common-table-expressions)
+
+对于需要重复计算但是结果相同的语句，可以使用CTE来节省计算次数，从而达到加快查询的目的。
+
+with 表达式：
+
+```sql
+WITH cte (col1, col2) AS
+(
+  SELECT 1, 2
+  UNION ALL
+  SELECT 3, 4
+)
+SELECT col1, col2 FROM cte;
+```
 
 ## MySQL 进阶
 
@@ -1301,7 +1390,7 @@ alter table SUser add index index2(email(6));	# 前缀索引
 
 解决此问题的就是需要解决长事务不提交就会一直占着 MDL 锁。可以考虑暂停 DDL 或者 kill 掉这个长事务。较为理想的机制是在 alter table 的时候设定等待的事件，如果在指定事件拿到 MDL 写锁就好，拿不到就不要阻塞后面的业务语句。之后通过重试命令重复这个操作。
 
-```
+```sql
 ALTER TABLE tbl_name NOWAIT add column ...
 ALTER TABLE tbl_name WAIT N add column ... 
 ```
