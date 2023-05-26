@@ -2,7 +2,7 @@
 
 [TOC]
 
-[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd?p=153) P153
+[BV16J411h7Rd](https://www.bilibili.com/video/BV16J411h7Rd) Over
 
 [ThreadLocal 95-100](https://www.bilibili.com/video/BV15b4y117RJ) Over
 
@@ -1195,9 +1195,9 @@ public enum Singleton {
 5. 饿汉式
 6. 加入构造方法即可。
 
-## 共享模型—无锁（乐观锁）
+## 四. 共享模型—无锁（乐观锁）
 
-### CAS
+### 0x1. CAS
 
 > CAS(Compare And Set)，在更新的时候先进行比对然后进行新值的设置。
 
@@ -1229,11 +1229,11 @@ public class Withdraw {
 
 * CAS操作需要比对之前的值，如果匹配才能够修改成功，否则就会修改失败。
 
-* 并且CAS还需要`volatile`修饰的支持，CAS中对应变量才能够读取到变量的最新值才能实现CAS操作。
+* 并且CAS还需要 `volatile` 修饰的支持，CAS中对应变量才能够读取到变量的最新值才能实现CAS操作。
 
 🔵效率分析：
 
-使用无锁的形式要比`synchronized`的效率要高，因为没有上下文切换，代价较高；而CAS不会主动让上下文进行切换，开销较小。
+使用无锁的形式要比`synchronized`的效率要高，因为没有上下文切换，代价较低；而CAS不会主动让上下文进行切换，开销较小。
 
 🔵CAS特点：
 
@@ -1242,7 +1242,7 @@ public class Withdraw {
 * `synchronized`是基于悲观锁的思想，时刻放着其他线程对共享变量的修改。
 * 但是CAS如果竞争激烈，重试必然频繁发生，反而效率收到影响。
 
-### 原子整数
+### 0x2. 原子整数
 
 JUC提供了很多原子操作包，比如`AtomicInteger`,`AtomicLong`,`AtomicBoolean`
 
@@ -1275,7 +1275,7 @@ public final int updateAndGet(IntUnaryOperator updateFunction) {
 }
 ```
 
-### 原子引用
+### 0x3. 原子引用
 
 原子引用类型比如`AtomicReference,AtomicMarkableReference,AtomicStampedReference`
 
@@ -1388,7 +1388,7 @@ public class ABAProblem2 {
 
 有时候我们不关心变量改过多少次，只关心改过没有，因此`AtomicMarkableReference`类存放的不是版本号，而是一个Boolean值。
 
-### 原子数组
+### 0x7. 原子数组
 
 有三种类型：`AtomicIntegerArray, AtomicLongArray, AtomicReferenceArray`分别处理不同的数据类型
 
@@ -1420,7 +1420,7 @@ public class AtomicArray {
 }
 ```
 
-### 字段更新器
+### 0x8. 原子 字段更新器
 
 > 原子数组保护的是数组元素，字段更新器保护的是对象中的属性。
 
@@ -1446,7 +1446,7 @@ class Dog {
 }
 ```
 
-### 原子累加器Adder
+### 0x9. 原子累加器Adder
 
 > 对于原子累加器，要比`AtomicInteger`等类性能要高。
 
@@ -1515,7 +1515,7 @@ class Cat {
 }
 ```
 
-## 不可变类
+## 五. 不可变类
 
 举例：
 
@@ -1539,7 +1539,7 @@ public class MutableDemo {
 
 `SimpleDateFormat`类并不是线程安全的类，运行这段代码会出错`java.lang.NumberFormatException`。
 
-### 不可变对象
+### 0x1. 不可变对象
 
 针对上方可能会出错的例子，可以使用不可变类来进行优化`DateTimeFormatter`
 
@@ -1559,19 +1559,21 @@ public class ImmutableDemo {
 
 🔵不可变对象的设计
 
-对于需要修改原来对象的情况下，不可变类会使用保护性拷贝来进行保护。
+对于需要修改原来对象的情况下，不可变类会使用**保护性拷贝**来防止外界对不可变对象进行修改。
 
-### final原理
+### 0x2. final原理
 
-## 并发工具
+final 变量的赋值会通过 `putfield` 指令来完成，同样在这条指令之后也会加入写屏障，保证在其他线程读其值的时候不会出现为 0 的情况。 
 
-### 自定义线程池
+## 六. 并发工具
+
+### 0x1. 自定义线程池
 
 线程池就时为了省去创建线程的开销，提前创建线程，使用的时候拿出来，不用的时候再放回去，避免过多的上下文切换的开销耗费。
 
 ![image-20220206222255958](Java高并发.assets\image-20220206222255958.png)
 
-### JDK线程池ThreadPoolExecutor
+### 0x2. JDK线程池ThreadPoolExecutor
 
 🔵线程池状态
 
@@ -1608,8 +1610,8 @@ JDK中拒绝策略的实现：
 ![image-20220210122130667](Java高并发.assets\image-20220210122130667.png)
 
 * `AbortPolicy`让调用者抛出异常（默认）
-* `CallerRunsPolicy`是让调用者运行任务
-* `DiscardOldestPolicy`是放弃队列中最早的任务，本任务取而代之。
+* `CallerRunsPolicy` 是让调用者运行任务
+* `DiscardOldestPolicy` 是放弃队列中最早的任务，本任务取而代之。
 * `DiscardPolicy`是放弃本次任务
 
 🔵线程池的工厂方法
@@ -1624,7 +1626,7 @@ JDK中拒绝策略的实现：
    }
    ```
 
-   使用的是无界队列
+   使用的是无界队列，用于任务量已知，但是执行时间未知的情况
 
 2. `newCachedThreadPool`缓冲线程池
 
@@ -1694,7 +1696,7 @@ public class JDKPool {
 
 `shutdownNow()`方法是暴力结束，停止接收任务并且将队列中的任务全部返回，状态改为`STOP`。并且返回在任务队列中的任务。
 
-### 任务调度线程池
+### 0x3. 任务调度线程池
 
 希望任务延时/定时执行，使用`newScheduledThreadPool`。
 
@@ -1725,7 +1727,7 @@ public class JDKPool {
 
 `scheduleWithFixedDelay`定时是每一次任务执行结束后之间所间隔时间的定时，从上次任务结束时间开始计算。
 
-### Fork/Join
+### 0x4. Fork/Join
 
 > Fork/Join对于的处理类必须要继承`RecursiveTask`或者`RecursiveAction`，有返回值使用前者，无返回值使用后者
 
@@ -1784,143 +1786,178 @@ class MyTask extends RecursiveTask<Integer> {
 
 可以看出执行任务确实是并行执行加和的。
 
-## JUC工具包
+##  七. JUC工具包
 
-### AQS原理
+### 0x1. AQS原理
 
-全称是AbstractQueuedSychronizer，是阻塞式锁和相关同步器工具的框架。
+全称是 `AbstractQueuedSychronizer`，是阻塞式锁和相关同步器工具的框架，其是一个抽象类，实现的类有 `ReentrantLock` , `CountDownLatch`, `ThreadPoolExecutor` 等的 `Sync` 类。
 
 特点：
 
-* 用state属性来表示资源的状态（独占模式，共享模式），子类需要定义如何维护这个状态，控制如何获得锁和维护锁。
-  * getState获取状态，setState设置状态，compareAndSetState乐观锁设置state状态。
+* 用 `state` 属性来表示资源的状态（独占模式，共享模式），子类需要定义如何维护这个状态，控制如何获得锁和维护锁。
+  * `getState` 获取状态，`setState` 设置状态，`compareAndSetState` 乐观锁设置 `state` 状态。
   * 独占模式是只有一个线程能够访问资源，共享模式允许多个
-* 提供了基于FIFO的等待队列，类似Monitor中EntryList
+* 提供了基于FIFO的等待队列，类似 Monitor 中 EntryList
 * 条件变量来实现等待、唤醒机制、支持多个条件变量，类似Monitor中WaitSet
+* aqs 中是使用 `park` 和 `unpark` 来阻塞和恢复线程
 
-🔵使用AQS实现一个自定义锁
+#### a. AQS 简单实现
+
+🔵使用AQS实现一个自定义不可重入锁
 
 即借助`AbstractQueuedSynchronizer`类来进行实现。
 
+实现的锁比较简单。
+
 ```java
-/**
- * 自定义锁（不可重入）
- */
-@Slf4j(topic = "MyLock")
-class MyLock implements Lock {
-
-    class MySync extends AbstractQueuedSynchronizer {
-        @Override
-        protected boolean tryAcquire(int arg) {
-            // 尝试获取锁
-            if (compareAndSetState(0, 1)) {
-                setExclusiveOwnerThread(Thread.currentThread());
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        protected boolean tryRelease(int arg) {
-            // 尝试释放锁
-            setExclusiveOwnerThread(null);
-            /**
-             * 因为State是Volatile修饰的，而exclusiveOwnerThread不是
-             * 因此对volatile写操作应该放在最后，将线程工作内存中的数据写入主存
-             */
-            setState(0);
+class MySync extends AbstractQueuedSynchronizer {
+    /**
+     * 加锁并且设置锁的 owner 对象
+     * @param arg the acquire argument. This value is always the one
+     *        passed to an acquire method, or is the value saved on entry
+     *        to a condition wait.  The value is otherwise uninterpreted
+     *        and can represent anything you like.
+     * @return
+     */
+    @Override
+    protected boolean tryAcquire(int arg) {
+        if (compareAndSetState(0, 1)) {
+            setExclusiveOwnerThread(Thread.currentThread());
             return true;
         }
-
-        @Override
-        protected boolean isHeldExclusively() {
-            // 是否持有独占锁
-            return getState() == 1;
-        }
-
-        public Condition newCondition() {
-            return new ConditionObject();
-        }
-    }
-
-    private MySync sync = new MySync();
-
-    @Override
-    public void lock() {
-        // 加锁
-        sync.acquire(1);
+        return false;
     }
 
     @Override
-    public void lockInterruptibly() throws InterruptedException {
-        // 可打断
-        sync.acquireInterruptibly(1);
+    protected boolean tryRelease(int arg) {
+        if (getExclusiveOwnerThread() != Thread.currentThread())
+            throw new IllegalMonitorStateException();
+        setExclusiveOwnerThread(null);
+        setState(0);
+        return true;
     }
 
     @Override
-    public boolean tryLock() {
-        // 尝试加锁
-        return sync.tryAcquire(1);
+    protected boolean isHeldExclusively() {
+        return getExclusiveOwnerThread() == Thread.currentThread();
     }
 
-    @Override
-    public boolean tryLock(long time, @NotNull TimeUnit unit) throws InterruptedException {
-        return sync.tryAcquireNanos(1, unit.toNanos(time));
-    }
-
-    @Override
-    public void unlock() {
-        sync.release(1);
-    }
-
-    @NotNull
-    @Override
     public Condition newCondition() {
-        return sync.newCondition();
+        return new ConditionObject();
     }
 }
 ```
 
-### ReentrantLock实现原理
+### 0x2. ReentrantLock实现原理
 
 ![image-20220212110733206](Java高并发.assets\image-20220212110733206-16446352623611.png)
 
-🔵加锁解锁流程
+这里主要讨论非公平锁的实现
 
-加锁成功的话会使用CAS将AQS中的state从0修改为1。
+#### a. 加锁流程
 
-加锁失败的话会调用`tryAcquire()`方法来获取锁，获取失败进入Monitor中的WaitSet中添加到队列的尾部，并且将前驱节点的waitStatus改为-1（表示前驱节点有责任唤醒后继节点），竞争失败然后进入park阻塞状态。
+```java
+final void lock() {
+    if (compareAndSetState(0, 1))
+        setExclusiveOwnerThread(Thread.currentThread());
+    else
+        acquire(1);
+}
+```
 
-如果当前正在执行的线程执行完毕之后，前驱节点调用`unparkSuccessor()`方法来唤醒后继节点。对于非公平竞争，此时恰好也有一个线程创建并且在waitSet中的线程没有竞争过，则会重新加入waitSet队列中。
+加锁成功的话会使用 CAS 将 AQS 中的 state 从0修改为1，加锁使用进入 `acquire` 函数流程。
+
+```java
+public final void acquire(int arg) {
+    if (!tryAcquire(arg) &&
+        acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+        selfInterrupt();
+}
+```
+
+`tryAcquire()` 方法会尝试再次进行 cas 操作加锁，`ReentrantLock` 会调用 `nonfairTryAcquire` 方法（jdk1.8）
+
+```java
+final boolean nonfairTryAcquire(int acquires) {
+    final Thread current = Thread.currentThread();
+    int c = getState();
+    if (c == 0) {
+        if (compareAndSetState(0, acquires)) {
+            setExclusiveOwnerThread(current);
+            return true;
+        }
+    }
+    else if (current == getExclusiveOwnerThread()) {
+        int nextc = c + acquires;
+        if (nextc < 0) // overflow
+            throw new Error("Maximum lock count exceeded");
+        setState(nextc);
+        return true;
+    }
+    return false;
+}
+```
+
+如果仍然加锁失败会尝试创建一个节点并且将该节点加入到等待队列中去(`acquireQueued`)。
+
+![image-20230526133202231](Java高并发.assets/image-20230526133202231.png)
 
 ```java
 final boolean acquireQueued(final Node node, int arg) {
-    boolean interrupted = false;
+    boolean failed = true;
     try {
+        boolean interrupted = false;
         for (;;) {
             final Node p = node.predecessor();
+            // 如果当前线程前驱节点是头节点会再次尝试 cas 加锁
             if (p == head && tryAcquire(arg)) {
                 setHead(node);
                 p.next = null; // help GC
+                failed = false;
                 return interrupted;
             }
-            if (shouldParkAfterFailedAcquire(p, node))
-                interrupted |= parkAndCheckInterrupt();
+            if (shouldParkAfterFailedAcquire(p, node) &&
+                parkAndCheckInterrupt())
+                interrupted = true;
         }
-    } catch (Throwable t) {
-        cancelAcquire(node);
-        if (interrupted)
-            selfInterrupt();
-        throw t;
+    } finally {
+        if (failed)
+            cancelAcquire(node);
     }
 }
 ```
 
-🔵可重入原理
+如果当前线程前驱节点是头节点会再次尝试 cas 加锁；如果仍然获取锁失败，进入 `shouldParkAfterFailedAcquire` 流程，将前驱节点的waitStatus改为 -1（表示前驱节点有责任唤醒后继节点），进入 `parkAndCheckInterrupt` 使用 park 进入阻塞状态。
 
-当线程进入时，如果没有线程执行则将state(0->1)，如果此时这个线程下又需要加锁，就成为了可重入锁，会将state做一个累加自增(1->2)，如果可重入锁释放的时候即将state减一。
+#### b. 解锁流程
 
-🔵可打断原理
+`ReentrantLock` 的 `unlock` 方法会调用 `sync.release` 方法：
+
+```java
+public void unlock() {
+    sync.release(1);
+}
+```
+
+如果释放成功当前执行线程的锁之后，前驱节点调用`unparkSuccessor()`方法来使用 `unpark` 唤醒后继节点。对于非公平竞争，此时恰好也有一个线程创建并且在 waitSet 中的线程没有竞争过，则会重新加入 waitSet 队列中。
+
+```java
+public final boolean release(int arg) {
+    if (tryRelease(arg)) {
+        Node h = head;
+        if (h != null && h.waitStatus != 0)
+            unparkSuccessor(h);
+        return true;
+    }
+    return false;
+}
+```
+
+#### c. 可重入原理
+
+当线程进入时，如果没有线程执行则将state(0->1)，如果此时这个线程下又需要加锁，会将state做一个累加自增(1->2)，如果可重入锁释放的时候即将state减一即可。
+
+#### d. 可打断原理
 
 一般情况下都是**不可打断模式**，即使线程调用`interrupt()`方法，其依然还会驻留在AQS队列中，当他获取到锁的时候还会继续运行，只是将打断标记设置为true。
 
@@ -1957,11 +1994,11 @@ private void doAcquireInterruptibly(int arg)
 }
 ```
 
-🔵条件变量的实现原理
+#### e. 条件变量的实现原理
 
-条件变量对应的类是`ConditionObject`.
+条件变量对应的类是`ConditionObject`，每一个条件变量关联一个对象，`await` 和 `signal` 操作的是 `ConditionObject` 对象中维护的线程链表。
 
-### 读写锁
+### 0x3. 读写锁
 
 🔵ReentrantReadWriteLock
 
@@ -2029,7 +2066,7 @@ public class RWLock {
 
 🔵StampedLock
 
-ReentrantReadWriteLock对于读读之间的锁性能还是不够优秀，底层还是走的AQS流程。StampedLock是配合一个【戳】，他支持乐观读，在乐观读之后通过验证戳是否有效，有过有效则读取成功，无效则需要手工重新加读锁。
+ReentrantReadWriteLock对于读读之间的锁性能还是不够优秀，底层还是走的 AQS 流程。StampedLock是配合一个【戳】，他支持乐观读，在乐观读之后通过验证戳是否有效，有过有效则读取成功，无效则需要手工重新加读锁。
 
 ```java
 @Slf4j(topic = "StampedLock")
@@ -2070,7 +2107,7 @@ public class StampedLockDemo {
 * 不支持条件变量
 * 不支持可重入锁
 
-### 缓存更新策略
+### 0x4. 缓存更新策略
 
 当对数据重新进行修改的时候，是先清空缓存还是先更新数据库？
 
@@ -2079,7 +2116,7 @@ public class StampedLockDemo {
 
 如果想要保证数据库和缓存之间的严格一致性，就需要对这个过程进行加读写锁。可以配合双重检查锁保证减少数据库的查询次数。
 
-### Semaphore信号量
+### 0x5. Semaphore信号量
 
 > 用于限制同时访问共享资源的上限即限制的只是线程的数量。
 >
@@ -2109,7 +2146,7 @@ public class SemaphoreDemo {
 
 有点类似于go中的`WaitGroup`，但是不能修改数量。
 
-### CountdownLatch
+### 0x6. CountdownLatch
 
 用来进行线程同步写作，等待所有线程完成倒计时。
 
@@ -2141,7 +2178,7 @@ public class CountdownLock {
 }
 ```
 
-### CyclicBarrier
+### 0x7. CyclicBarrier
 
 `CyclicBarrier`相比于`CountdownLatch`是可以重用的，当使用完数量变为0时候，会重置为初始值。
 
@@ -2182,7 +2219,7 @@ public class CyclicBarrierDemo {
 }
 ```
 
-### 线程安全集合类
+### 0x8. 线程安全集合类
 
 有三种线程安全类
 
@@ -2220,9 +2257,151 @@ obj.increment();
 
 🔵`CopyOnWriteArrayList`类
 
-不会影响读-读，读-写操作，只会在**写写**操作上加锁。适合读多写少情况，但是存在弱一致性的问题。
+使用修改时复制的方式防止并发安全问题，不会影响读-读，读-写操作，只会在**写写**操作上加锁。适合读多写少情况，但是存在弱一致性的问题。
 
-## 非共享模型——ThreadLocal
+#### a. HashMap 存在的问题
+
+JDK7 中元素插入使用的是头插法，JDK8 中使用的是尾插法。
+
+🔵JDK7 并发死链的情况
+
+发生原因：在多线程环境下 hashmap **并发扩容**时候头插法引发的问题
+
+参考文章：[JDK1.7 中 HashMap 死链原因](https://blog.csdn.net/qq_35246620/article/details/53418067)
+
+![image-20230526164807749](Java高并发.assets/image-20230526164807749.png)
+
+#### b. ConcurrentHashmap
+
+hashmap 中的容量大于 64 的时候，如果单个桶的长度大于 8 的时候就会将链表转为红黑树来加快查询速度。
+
+🔵构造器分析
+
+```java
+public ConcurrentHashMap(int initialCapacity,
+                         float loadFactor, int concurrencyLevel) {
+    if (!(loadFactor > 0.0f) || initialCapacity < 0 || concurrencyLevel <= 0)
+        throw new IllegalArgumentException();
+    if (initialCapacity < concurrencyLevel)   // Use at least as many bins
+        initialCapacity = concurrencyLevel;   // as estimated threads
+    long size = (long)(1.0 + (long)initialCapacity / loadFactor);
+    int cap = (size >= (long)MAXIMUM_CAPACITY) ?
+        MAXIMUM_CAPACITY : tableSizeFor((int)size);
+    this.sizeCtl = cap;
+}
+```
+
+只计算大小，并且使用懒惰初始化的方式。
+
+🔵Get 流程
+
+```java
+public V get(Object key) {
+    Node<K,V>[] tab; Node<K,V> e, p; int n, eh; K ek;
+    // 保证 hashcode 为正数
+    int h = spread(key.hashCode());
+    if ((tab = table) != null && (n = tab.length) > 0 &&
+        (e = tabAt(tab, (n - 1) & h)) != null) {
+        if ((eh = e.hash) == h) {
+            if ((ek = e.key) == key || (ek != null && key.equals(ek)))
+                return e.val;
+        }
+        // eh 负数表示 bin 在扩容中或者为 treebin(红黑树),使用 find 来查找
+        else if (eh < 0)
+            return (p = e.find(h, key)) != null ? p.val : null;
+       	// 正常遍历链表
+        while ((e = e.next) != null) {
+            if (e.hash == h &&
+                ((ek = e.key) == key || (ek != null && key.equals(ek))))
+                return e.val;
+        }
+    }
+    return null;
+}
+```
+
+>如果模数是2的幂次方，那么可以使用位运算操作符来计算取模运算。具体来说，对于一个数x和模数m，可以使用以下公式来计算x mod m：x & (m-1)
+
+🔵put 流程
+
+put 中不允许 key 和 value 的值为 null
+
+
+
+```java
+final V putVal(K key, V value, boolean onlyIfAbsent) {
+    if (key == null || value == null) throw new NullPointerException();
+    int hash = spread(key.hashCode());
+    int binCount = 0;
+    for (Node<K,V>[] tab = table;;) {
+        // f 为链表头节点，fh 头节点的 hash，i 是在 table 中的下表
+        Node<K,V> f; int n, i, fh;
+        if (tab == null || (n = tab.length) == 0)
+            // cas 创建哈希表
+            tab = initTable();
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
+            if (casTabAt(tab, i, null,
+                         new Node<K,V>(hash, key, value, null)))
+                break;                   // no lock when adding to empty bin
+        }
+        // 帮忙扩容
+        else if ((fh = f.hash) == MOVED)
+            tab = helpTransfer(tab, f);
+        else {
+            // 发生下表冲突的情况
+            V oldVal = null;
+            synchronized (f) {
+                // 确认头节点没有被移动
+                if (tabAt(tab, i) == f) {
+                    // 链表
+                    if (fh >= 0) {
+                        binCount = 1;
+                        for (Node<K,V> e = f;; ++binCount) {
+                            K ek;
+                            if (e.hash == hash &&
+                                ((ek = e.key) == key ||
+                                 (ek != null && key.equals(ek)))) {
+                                oldVal = e.val;
+                                if (!onlyIfAbsent)
+                                    e.val = value;
+                                break;
+                            }
+                            Node<K,V> pred = e;
+                            if ((e = e.next) == null) {
+                                pred.next = new Node<K,V>(hash, key,
+                                                          value, null);
+                                break;
+                            }
+                        }
+                    }
+                    // 红黑树
+                    else if (f instanceof TreeBin) {
+                        Node<K,V> p;
+                        binCount = 2;
+                        if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,
+                                                       value)) != null) {
+                            oldVal = p.val;
+                            if (!onlyIfAbsent)
+                                p.val = value;
+                        }
+                    }
+                }
+            }
+            if (binCount != 0) {
+                if (binCount >= TREEIFY_THRESHOLD)
+                    treeifyBin(tab, i);
+                if (oldVal != null)
+                    return oldVal;
+                break;
+            }
+        }
+    }
+    addCount(1L, binCount);
+    return null;
+}
+```
+
+## 八. 非共享模型——ThreadLocal
 
 `ThreadLocal`类可以实现资源对象的线程隔离，让每个线程各用各的对象，避免资源争用引发的线程安全问题。并且`ThreadLocal`实现了线程内的资源共享。
 
@@ -2274,7 +2453,7 @@ class Util {
   2. 设置key的时候，使用启发式扫描，清除临近的null的key
   3. remove的时候
 
-## 并发设计模式
+## 九. 并发设计模式
 
 ### 0x1. 两阶段终止模式
 
@@ -2563,7 +2742,7 @@ public void start(){
 }
 ```
 
-### 享元模式
+### 0x8. 享元模式
 
 当需要重用数量有限的同一类对象时。在很多包装类`Integer,Boolean,Byte,Character`等包装类提供了`valueOf()`方法。
 
@@ -2577,13 +2756,13 @@ public static Long valueOf(long l) {
 }
 ```
 
-### 异步模式之工作线程
+### 0x8. 异步模式之工作线程
 
 让有限数量的工作线程来轮流异步处理无限多的任务。
 
 工作线程可能会出现一种“饥饿”现象，这里的饥饿现象是由于线程数量不足造成的。举个例子假如一个线程流程是先做A请求另一个线程做B，如果只有两个核心线程同时执行，两个线程会因为没有其他线程做B导致同时卡在A的情况。
 
-解决方法：需要做好任务分工解决，不同任务交给不同的角色。
+解决方法：需要做好任务**分工**解决，不同任务交给不同的角色。
 
 🔵创建多少线程池合适？
 
@@ -2598,3 +2777,4 @@ public static Long valueOf(long l) {
 * 
 
   
+
