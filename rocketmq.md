@@ -177,7 +177,7 @@ RocketMQ 集群搭建方式：
 
    Master 配置：
 
-   ```
+   ```properties
    # cluster name
    brokerClusterName=rmq-cluster
    brokerName=broker-a
@@ -423,7 +423,7 @@ RocketMQ 将这种在正常情况下无法被消费的消息称为死信消息(D
 
 🔵消费者接收消息
 
-消费者的模式可以分为广播模式和负载均衡模式，默认为负载均衡模式。
+消费者的模式可以分为广播模式和负载均衡模式，**默认**为负载均衡模式。
 
 对于每个消息都被消费者消费一遍就是广播模式；一个消息只能被一个消费者消费就是负载均衡模式。
 
@@ -513,9 +513,11 @@ public class OrderedProducer {
 }
 ```
 
-生产者根据某些特定的符号选择对应的消息队列。
+在 `send(message, QueueSelector, selectKey)` 函數中指定選取特定的消息隊列方式，首先需要將選擇判斷依據傳給 `selectKey` (比如訂單 ID 號)，在實現的 `QueueSelector` 中會傳入三個參數，當前 topic 的消息隊列子分區 `List<MessageQueue>`，當前消息 `Message` 以及 `SelectKey`，然後實現自定義的選取方式，保證某些業務的局部有序。
 
-消费者使用 `MessageListenerOrderly` 类来进行消费，这个类会为对每个消息队列分配单独的消费线程。
+---
+
+消费者使用 `MessageListenerOrderly` 类来进行消费，这个类会为对每个消息队列子分區分配单独的消费线程。
 
 ```java
 @Slf4j
@@ -539,7 +541,7 @@ public class OrderedConsumer {
 }
 ```
 
-### 3. 定时消息
+### 3. 延时消息
 
 当生产者生产一个消息的时候，并不会被立即消费，而是等待特定时间后再去消费。在RocketMQ 中消息的级别分为18个级别。
 
@@ -743,6 +745,8 @@ public class TProducer {
 
 `checkLocalTransaction` 是用于对 broker 回查事件的回应。
 
+`executeLocalTransaction` 和 `executeLocalTransaction` 分别对应图中的第三步和第六步。
+
 ```java
 public class TransactionListenerImpl implements TransactionListener {
     private AtomicInteger tIndex = new AtomicInteger(0);
@@ -782,15 +786,15 @@ public class TransactionListenerImpl implements TransactionListener {
 
 ![img](rocketmq.assets/rocketmq_design_1.png)
 
-消息存储时 RocketMQ 中最为复杂而且最为重要的一部分。
+消息存储时 RocketMQ 中最为复杂而且最为重要的一部分，刷盘的时候采用顺序写来提高写速度。
 
 🔵消息存储的整体架构
 
 消息存储架构图主要由以下三个消息存储相关的文件构成：
 
-1. CommitLog：是消息主题以及元数据的存储主题，存储 Producer 端写入的消息内容，消息内容不是定长的。单个文件大小默认为1G，文件名长度为20位，左边补零，剩余为其实偏移量，比如00000000000000000000表示第一个文件，起始偏移量为0，文件大小为1G=1073741824；当第一个文件写满第二个文件为00000000001073741824，其实偏移量为1073741824，以此类推。消息主要是顺序写入日志文件，当文件写满后继续写入下一个文件。
-2. ConsumeQueue：消息消费队列，目的是要提高消息消费的性能。由于 RocketMQ 是基于 topic 的订阅模式，消息消费是针对 topic 进行的，如果遍历 CommitLog 文件中根据 topic 检索信息是低效的。消费者是 根据 ConsumeQueue 来查找带消费的消息。其中 ConsumeQueue 作为消费消息的索引，其保存了指定 Topic 下队列消息在 CommitLog 中的起始物理偏移量 offset、消息大小 size 和消息 tag 的 HashCode。ConsumeQueue文件可以看作是基于 topic 的 CommitLog 索引文件。因此 consumequeue 文件夹的组织目录如下，有 topic/queue/file 三层组织结构，具体的存储路径为 $HOME/store/consumequeue/{topic}/{queueid}/{fileName}。同样 consumequeue 文件采取定长设计，每一个条目共 20 字节，分别为 8 字节的 commitLog物理偏移量、4字节的消息长度、8字节的 tag hashcode，单文件由 30w 个条目组成，可以像数组一样随机访问每一个条目，每个consumequeue 文件大小约为5.72M。
-3. IndexFile：即索引文件，其提供了可以通过 key 或者时间区间来查询消息的方法。index具体的存储路径为 $HOME/store/index/{fileName}，文件名的创建是根据时间戳命名的，固定的单个 IndexFile 文件大小约为 400M，一个 IndexFile 可以保存2000W个索引，IndexFile 的底层存储设计为在文件系统中的 HashMap 结构，因此 RocketMQ 索引文件的底层实现为 hash 索引。
+1. CommitLog：是消息主题以及元数据的存储主题，存储 Producer 端写入的消息内容，消息内容不是定长的。文件名为消息偏移量。消息主要是顺序写入日志文件，当文件写满后继续写入下一个文件。
+2. ConsumeQueue：消息消费队列，目的是要提高消息消费的性能。ConsumeQueue 文件可以看作是基于 topic 的 CommitLog 索引文件。因此 consumequeue 文件夹的组织目录如下，有 topic/queue/file 三层组织结构，具体的存储路径为 `$HOME/store/consumequeue/{topic}/{queueid}/{fileName}`。
+3. IndexFile：即索引文件，其提供了可以通过 **key** 或者**时间区间**来查询消息的方法。index具体的存储路径为 `$HOME/store/index/{fileName}`，文件名的创建是根据时间戳命名的，IndexFile 的底层存储设计为在文件系统中的 HashMap 结构，因此 RocketMQ 索引文件的底层实现为 hash 索引。
 
 可以看出 RocketMQ 采用的是混合型存储结构，多个 Topic 的消息实体内容都存储于一个CommitLog中，即为 Broker 单个实例下所有的队列公用一个日志数据文件(CommitLog)来存储。这种混合存储结构针对 Producer 和 Consumer 分别采用了数据和索引部分相分离的存储结构，Producer 发送消息至 Broker，然后 Broker 通过使用同步或者异步的方式对消息进行刷盘持久化保存到 CommitLog 文件中。只要消息被刷盘持久化到磁盘文件中，Producer 发送的消息就不会消失。这样 Consumer 就能够消费消息，当无法拉取到消息的时候，可以等下一次消息拉取，同时服务端也支持长轮询模式，如果一个消息拉取请求失败之后，Broker 允许等待 30s 的时候，只要这段时间内有新的消息到达就直接返回消费端。
 
@@ -915,6 +919,36 @@ RocketMQ 支持的消息查询方式有两种：
    如果消息的properties中设置了UNIQ_KEY这个属性，就用 topic + “#” + UNIQ_KEY的value作为 key 来做写入操作。如果消息设置了KEYS属性（多个KEY以空格分隔），也会用 topic + “#” + KEY 来做索引。
 
    其中的索引数据包含了Key Hash/CommitLog Offset/Timestamp/NextIndex offset 这四个字段，一共20 Byte。NextIndex offset 即前面读出来的 slotValue，如果有 hash冲突，就可以用这个字段将所有冲突的索引用链表的方式串起来了。Timestamp记录的是消息storeTimestamp之间的差，并不是一个绝对的时间。整个Index File的结构如图，40 Byte 的Header用于保存一些总的统计信息，4\*500W的 Slot Table并不保存真正的索引数据，而是保存每个槽位对应的单向链表的头。20\*2000W 是真正的索引数据，即一个 Index File 可以保存 2000W个索引。
+
+### 6. 消息重试
+
+消息重试用于保证消息一定会被消费。
+
+* 顺序消息重试：当消息消费失败的时候，RMQ 会不断进行消息重试，此时队列会出现消息消费被阻塞的现象；
+
+* 无序消息重试：只对集群消费模式生效；对于广播模式不提供失败重试的特性
+
+  ![image-20230620203153297](rocketmq.assets/image-20230620203153297.png)
+
+如果重试失败次数过多就会进入死信队列。
+
+### 7. 死信队列
+
+特征：不会再被消费者消费；保存有效期为 3 天
+
+解决方法：排除问题原因之后，在 RocketMQ 控制台重新发送该消息进行重新消费。
+
+### 8. 消息幂等
+
+产生原因：
+
+* 发送消息时候重复
+* 投递时候重复
+* 负载均衡时候消息重复
+
+处理方式：
+
+* 尽量不使用 MessageID 而是使用 key 作为唯一标识
 
 ## 四. RocketMQ 最佳实践
 
@@ -1061,37 +1095,44 @@ RocketMQ可以令客户端找到Name Server, 然后通过Name Server再找到Bro
 
 其他详细配置：[客户端配置](https://github.com/apache/rocketmq/blob/master/docs/cn/best_practice.md#52-客户端配置)
 
-## 五. RocketMQ on Dledger
+## 五. 项目实战
 
-之前的 broker 多副本架构如果 master 挂掉的话，slave 不会自动变成 master。因此之后 RocketMQ 采用基于 dledger 构建 raft 协议来构建多副本架构，这样就拥有了自动故障处理能力。
+### 1. 业务分析
 
+用于模拟电商购物场景中的**下单**和**支付**业务场景。
 
+<h4>下单流程：</h4>
 
+![image-20230620222239336](rocketmq.assets/image-20230620222239336.png)
 
+1. 用户请求订单系统下单
+2. 订单系统通过RPC调用订单服务下单
+3. 订单服务调用优惠券服务，扣减优惠券
+4. 订单服务调用调用库存服务，校验并扣减库存
+5. 订单服务调用用户服务，扣减用户余额
+6. 订单服务完成确认订单
 
+<h4>支付流程：</h4>
 
+![image-20230620222311881](rocketmq.assets/image-20230620222311881.png)
 
+1. 用户请求支付系统
+2. 支付系统调用第三方支付平台API进行发起支付流程
+3. 用户通过第三方支付平台支付成功后，第三方支付平台回调通知支付系统
+4. 支付系统调用订单服务修改订单状态
+5. 支付系统调用积分服务添加积分
+6. 支付系统调用日志服务记录日志
 
+<h4>问题分析：</h4>
 
+* 问题1：下单流程包含用户下单、扣减库存、使用优惠券、使用余额、确认订单几个步骤，其中一个步骤失败就需要对先前步骤进行回滚操作，应该保证数据的完整性。
 
+  ![image-20230620223942398](rocketmq.assets/image-20230620223942398.png)
 
+* 问题2：在通过第三方支付平台支付成功后，第三方平台通过 API 异步通知商家。系统如何保证收到异步通知时候快速做出反应？（可能会存在消息积压的情况）
 
+  使用 MQ 进行数据分发来提高系统处理性能
 
+  ![image-20230620224209898](rocketmq.assets/image-20230620224209898.png)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
