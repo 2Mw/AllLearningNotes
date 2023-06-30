@@ -1314,6 +1314,674 @@ server{
 }
 ```
 
+## 秒杀商城
+
+参考：
+
+* [高并发情况下团购下单/回滚订单/定时取消中的优化](https://www.jianshu.com/p/a844a1592902)
+
+### 1. 需求
+
+需要实现商品下单、支付的功能，并且实现秒杀功能，保证服务的高可用能够承受高并发。
+
+### 2. 达到的技术要求
+
+要求：
+
+1. SSO单点登录，用户鉴权功能（完成）
+2. 商品下单功能、支付功能、用户能够使用优惠券购买商品
+3. 热点商品秒杀功能（使用 RocketMQ 进行流量削峰）
+4. 实现分库分表
+5. 完成单元测试，达到 90% 代码覆盖率
+6. 保证数据库和缓存的一致性
+7. 含有限流降级的功能
+
+测试问题：
+
+1. 如何设计数据表的
+2. Redis 如何给不同键值的 key 设置过期时间的，redis 如何防止穿透、击穿、崩溃的
+3. OOM 怎么办，OOM 发生后如何分析的
+4. 如何进行分库分表的
+
+### 3. 技术选型
+
+本项目采用微服务架构：
+
+* 微服务基础架构：Spring Cloud
+* 注册中心：Nacos
+* 配置中心：Nacos
+* 网关：Spring Gateway
+* 远程调用：OpenFeign
+* 限流降级：Sentinel
+* 链路追踪：???
+* 参数校验：Spring Validation
+* 缓存：Redis
+* 消息队列：RocketMQ
+* 搜索：ElasticSearch
+
+### 4. 数据表结构设计
+
+![表结构设计.drawio](Java实战.assets/表结构设计.drawio.png)
+
+### 5. 分布式事務 seata
+
+#### a. AT 模式
+
+首先需要开启 seata 服务器（部署见 seata）
+
+1. 首先引入 seata 依赖：
+
+   ```xml
+   <dependency>
+      <groupId>com.alibaba.cloud</groupId>
+      <artifactId>spring-cloud-starter-alibaba-seata</artifactId>
+   </dependency>
+   ```
+
+2. 为所有需要分布式事务数据库中创建 AT 模式的 undolog 表
+
+   ```sql
+   CREATE TABLE `undo_log` (
+     `id` bigint(20) NOT NULL AUTO_INCREMENT,
+     `branch_id` bigint(20) NOT NULL,
+     `xid` varchar(100) NOT NULL,
+     `context` varchar(128) NOT NULL,
+     `rollback_info` longblob NOT NULL,
+     `log_status` int(11) NOT NULL,
+     `log_created` datetime NOT NULL,
+     `log_modified` datetime NOT NULL,
+     PRIMARY KEY (`id`),
+     UNIQUE KEY `ux_undo_log` (`xid`,`branch_id`)
+   ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+   ```
+
+3. 在 Spring 容器中添加代理数据源
+
+   ```java
+   @Configuration
+   public class MySeataConfig {
+   
+       @Autowired
+       DataSourceProperties dataSourceProperties;
+   
+   
+       @Bean
+       public DataSource dataSource(DataSourceProperties dataSourceProperties) {
+   
+           HikariDataSource dataSource = dataSourceProperties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
+           if (StringUtils.hasText(dataSourceProperties.getName())) {
+               dataSource.setPoolName(dataSourceProperties.getName());
+           }
+   
+           return new DataSourceProxy(dataSource);
+       }
+   }
+   ```
+
+4. 在服务中的 `application.yml` 配置 seata 信息：
+
+   ```yml
+   seata:
+     tx-service-group: default_tx_group
+     service:
+       vgroup-mapping:
+         default_tx_group: default
+       grouplist:
+         default: shop.co:8091
+     registry:
+       type: nacos
+       nacos:
+         server-addr: shop.co:8848
+         namespace: fe4d41a9-5e93-4429-a8df-9b8961a0a949
+         group: dev
+     config:
+       type: nacos
+       nacos:
+         server-addr: shop.co:8848
+         namespace: fe4d41a9-5e93-4429-a8df-9b8961a0a949
+         group: dev
+         data-id: seataServer.properties
+   ```
+
+   其中 `default_tx_group: default` 对应事务分组和 seata 集群分组，在 grouplist 中指定集群分组的地址，具体详见[Seata 事务分组](https://seata.io/zh-cn/docs/user/txgroup/transaction-group.html)。
+
+#### b. 分布式事务和多线程
+
+当一个函数需要调用多个 RPC 的时候，如果全在一个线程中完成：
+
+```java
+@GlobalTransaction
+void local() {
+    rpc1();
+    rpc2();
+}
+```
+
+如果 rpc 调用比较耗时的时候会考虑使用多线程来进行执行：
+
+```java
+@GlobalTransaction
+@Transaction
+void local() {
+	a = CompletableFuture.runAsync(())-> {
+        rpc1();
+    });
+	b = CompletableFuture.runAsync(())-> {
+        rpc2();
+    });
+    try{
+        CompletableFuture.allOf(a, b).get();
+    }catch(Exception e) {
+        throw new RuntimeException(e);
+    }
+}
+```
+
+但是如果 rpc1 发送异常，rpc2 成功运行完成，由于两者不在同一个线程中，除了 rpc2 中的操作，主线程和 rpc1 线程中的事务都会进行回滚。
+
+需要使用[Seata api](https://seata.io/zh-cn/docs/user/api.html)来进行修正，比如使用 `GlobalTransactionContext` 或者 `RootContext` 来进行纠正。
+
+```java
+@GlobalTransaction
+@Transaction
+void local() {
+	// 在开始之前使用
+	String xid = RootContext.getXID();
+	a = CompletableFuture.runAsync(())-> {
+        RootContext.bind(xid);
+        rpc1();
+    });
+	b = CompletableFuture.runAsync(())-> {
+        RootContext.bind(xid);
+        rpc2();
+    });
+    try{
+        CompletableFuture.allOf(a, b).get();
+    }catch(Exception e) {
+        throw new RuntimeException(e);
+    }
+}
+```
+
+使用 `RootContext` 绑定分布式事务 ID 即可。
+
+#### c. TCC 模式
+
+> tip: TCC 二阶段提交失败无法进行处理，只会无限重试的情况，版本1.5.2 seata 无法到达状态 `PhaseTwo_CommitFailed_Unretryable`，应该在 prepare 阶段提交资源
+
+首先需要使用 `@LocalTCC` 来定义接口，然后使用 `@TwoPhaseBusinessAction` 定义 prepare，commit，rollback 所需要执行的操作。
+
+```java
+@LocalTCC
+public interface OrderTccService {
+
+    @TwoPhaseBusinessAction(name="prepare", commitMethod = "commit", rollbackMethod = "cancel")
+    R prepare(OrderEntityVo orderEntityVo);
+
+    boolean commit(BusinessActionContext context);
+
+    boolean cancel(BusinessActionContext context);
+}
+```
+
+然后再使用 Service 来实现该接口，使用 `@Transactional` 注解标记 prepare 方法，不能使用 `@GlobalTransactional` 标记：
+
+```java
+@Service("orderTccService")
+@Slf4j
+public class OrderTccServiceImpl implements OrderTccService {
+
+    @Resource
+    UserCouponRelationDao userCouponRelationDao;
+
+    @Resource
+    ObjectMapper objectMapper;
+
+    @Override
+    @Transactional
+    public R prepare(ConsumeCounponVo couponVo) {
+        // ....
+        
+        // if want to rollback, throw something
+    }
+
+    @Override
+    public boolean commit(BusinessActionContext context) {
+        return true;
+    }
+
+    @Override
+    public boolean rollback(BusinessActionContext context) {
+        return true;
+    }
+}
+```
+
+如果想要进行回滚，在 prepare 函数中抛出异常即可，<font color="red">如果在 commit 或者 rollback 时发生异常会无限重试。</font>Commit 和 rollback 函数返回 true 表示通过，false 也会进行重试。
+
+```java
+@Resource
+OrderTccService orderTccService;
+
+@GlobalTransaction
+void start() {
+    orderTccService.prepare();
+}
+```
+
+只能在外层调用函数上使用 @GlobalTransaction 注解。
+
+#### d. API 的使用
+
+在多线程环境下需要为每个线程绑定事务ID，在 5.b 小节中提到。
+
+seata 还支持使用 `TransactionalTemplate` 高级API进行更细粒度的处理。
+
+```java
+public void onMessage(OrderEntityVo message) {
+    try {
+        new TransactionalTemplate().execute(new TransactionalExecutor() {
+
+            final TransactionInfo txInfo = new TransactionInfo();
+
+            {
+                txInfo.setTimeOut(60000);
+            }
+
+            @Override
+            public Object execute() {
+                return orderTccService.createOrderAsyncTcc(message);
+            }
+
+            @Override
+            public TransactionInfo getTransactionInfo() {
+                return txInfo;
+            }
+        });
+    } catch (Throwable e) {
+        // ....
+    }
+}
+```
+
+> 注意需要指定 `TransactionInfo` 对象并且指定事务超时时间，因为默认超时时间是 0，只要是默认值开启事务就会失败。
+
+### 6. RocketMQ 消息队列
+
+导入依赖：
+
+```xml
+<dependency>
+    <groupId>org.apache.rocketmq</groupId>
+    <artifactId>rocketmq-spring-boot-starter</artifactId>
+    <version>2.2.3</version>
+</dependency>
+```
+
+配置 rocketmq 信息：
+
+```yml
+rocketmq:
+  name-server: rmq-ns1:9876;rmq-ns2:9876
+  producer:
+    group: shop-producer
+```
+
+RocketMQ Docket 部署异常解决：[rocketmq 连接异常](https://www.jianshu.com/p/ff1dbced97b9)
+
+发送消息：使用 `RocketMQTemplate` 来进行发送消息。
+
+```java
+@Resource
+RocketMQTemplate rocketMQTemplate;
+
+@Override
+public R createOrderAsync(OrderEntityVo orderEntityVo) {
+    SendResult result = rocketMQTemplate.syncSend("shop-order:create", orderEntityVo);
+}
+```
+
+监听消息：
+
+```java
+@Service
+@Slf4j
+@RocketMQMessageListener(consumerGroup = "demo-consumer-group", topic = "shop-order", selectorExpression = "create")
+public class OrderReceiver implements RocketMQListener<OrderEntityVo> {
+    @Override
+    public void onMessage(OrderEntityVo orderEntityVo) {
+        log.info("收到消息 {}", orderEntityVo);
+    }
+}
+```
+
+#### a. 消息队列与分布式事务 seata 的结合
+
+由于 RocketMQ 和 seata 执行过程中如何发生异常，前者会当作消息消费失败，后者会当作事务失败进行回滚。然而消费消息成功的情况也会存在事务失败，比如库存不足或者余额不足，不需要重复进行消费。
+
+而使用 `@GlobalTransaction` 的注解粒度太粗，因此使用 seata 高级 API 来进行细粒度控制，将对应的业务异常根据 `TransactionalExecutor.ExecutionException` 来进行处理，其他消息消费异常直接抛出。
+
+> 更快查找异常可以使用 apache common 中的 `ExceptionUtils` 来进行处理
+
+```java
+@Service
+@Slf4j
+@RocketMQMessageListener(consumerGroup = "demo-consumer-group-tcc", topic = "shop-order-tcc", selectorExpression = "create")
+public class OrderTccReceiver implements RocketMQListener<OrderEntityVo> {
+
+    @Resource
+    private OrderTccService orderTccService;
+
+    @Override
+    public void onMessage(OrderEntityVo message) {
+        try {
+            new TransactionalTemplate().execute(new TransactionalExecutor() {
+
+                final TransactionInfo txInfo = new TransactionInfo();
+
+                {
+                    txInfo.setTimeOut(60000);
+                }
+
+                @Override
+                public Object execute() {
+                    return orderTccService.createOrderAsyncTcc(message);
+                }
+
+                @Override
+                public TransactionInfo getTransactionInfo() {
+                    return txInfo;
+                }
+            });
+        } catch (Throwable e) {
+            Throwable throwable = e;
+            if (throwable instanceof TransactionalExecutor.ExecutionException) {
+                throwable = ((TransactionalExecutor.ExecutionException) throwable).getOriginalException();
+            }
+            int idx = ExceptionUtils.indexOfType(throwable, CreateOrderFailedException.class);
+            if (idx != -1) {
+                CreateOrderFailedException ex = (CreateOrderFailedException) ExceptionUtils.getThrowableList(throwable).get(idx);
+                log.error("创建订单失败： {}", ex.getMessage());
+            } else throw new RuntimeException(throwable);
+        }
+    }
+}
+```
+
+### x. 项目测试
+
+* 创建订单接口
+
+  测试基准：库存数量 1000，
+
+  无优化：(单线程，AT模式)订单服务->库存服务rpc->优惠券服务rpc->保存订单
+
+  优化1：多线程调用rpc
+
+  优化2：使用异步消息队列+AT模式（削峰）
+
+  优化3：使用异步消息队列+TCC模式（削峰）
+  
+  |  版本  | 线程数量 | 库存充QPS | 无库存QPS | 清空库存时间 |
+  | :----: | :------: | :-------: | :-------: | :----------: |
+  | 无优化 |   500    |    28     |    837    |     35s      |
+  |        |   1000   |    22     |    767    |     45s      |
+  | 优化1  |   500    |    30     |    788    |     33s      |
+  |        |   1000   |    31     |    774    |     35s      |
+  | 优化2  |   500    | 2298(25)  |   2035    |     40s      |
+  | 优化3  |   500    | 2448(142) |   1646    |      7s      |
+
+### x. 部屬項目
+
+使用 docker compose 來部屬項目：
+
+* Nacos 部署：
+
+  ```yaml
+    nacos:
+      image: nacos/nacos-server:v2.2.3
+      container_name: tiny-shop-nacos
+      ports:
+        - "8848:8848"
+        - "9848:9848"
+      environment:
+        - MODE=standalone
+        - SPRING_DATASOURCE_PLATFORM=mysql
+        - MYSQL_SERVICE_HOST=mysql
+        - MYSQL_SERVICE_DB_NAME=nacos_config
+        - MYSQL_SERVICE_PORT=3306
+        - MYSQL_SERVICE_USER=nacos
+        - MYSQL_SERVICE_PASSWORD=nacos
+        - MYSQL_SERVICE_DB_PARAM=characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
+        - NACOS_AUTH_IDENTITY_KEY=2222
+        - NACOS_AUTH_IDENTITY_VALUE=2xxx
+        - NACOS_AUTH_TOKEN=SecretKey012345678901234567890123456789012345678901234567890123456789
+      restart: always
+      depends_on:
+        mysql:
+          condition: service_healthy
+      networks:
+        - shop_backend
+  ```
+
+* MySQL：
+
+  ```yml
+    mysql:
+      build: ./env/mysql
+      container_name: tiny-shop-mysql
+      ports:
+        - "3306:3306"
+      environment:
+        - MYSQL_ROOT_PASSWORD=root
+      networks:
+        - shop_backend
+      healthcheck:
+        test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+        interval: 5s
+        timeout: 10s
+        retries: 10
+  ```
+
+  由於 nacos 的配置需要在 MySQL 中進行存儲，需要建立 nacos 和項目的表信息，對應的 Dockfile 如下：
+
+  ```dockerfile
+  FROM mysql
+  COPY ./*.sql /docker-entrypoint-initdb.d/
+  RUN chown -R mysql:mysql /docker-entrypoint-initdb.d/*.sql
+  EXPOSE 3306
+  CMD ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+  ```
+
+  將 sql 文件存放在 `/docker-entrypoint-initdb.d/` 目錄下在生成鏡像的時候會自動加載到數據庫中。
+
+  nacos 的 sql 文件[下載鏈接](https://raw.githubusercontent.com/alibaba/nacos/develop/distribution/conf/mysql-schema.sql)。
+
+* Redis: 
+
+  ```yml
+    redis:
+      image: redis
+      container_name: tiny-shop-redis
+      ports:
+        - "6379:6379"
+      networks:
+        - shop_backend
+  ```
+
+* 分布式組件 seata:
+
+  參考：[使用 Docker compose 快速部署 Seata Server](https://seata.io/zh-cn/docs/ops/deploy-by-docker-compose.html)
+
+  先創建一个临时镜像将容器中的资源 `/seata-server/resources` 拷贝到宿主机中。如果需要将 seata 的注册中心和配置中心改成 nacos 则需要修改其 `application.yml`
+
+  此处使用 nacos 作为配置和注册中心，使用文件存储不使用 db，对应的 `application.yml` 文件如下，需要实现在 nacos 配置中心中创建对应的命名空间和配置文件 `seataServer.properties`。（因此 seata 可能需要在第二次启动才能够使用）
+
+  ```yml
+  server:
+    port: 7091
+  
+  spring:
+    application:
+      name: seata-server
+  
+  logging:
+    config: classpath:logback-spring.xml
+    file:
+      path: ${user.home}/logs/seata
+    extend:
+      logstash-appender:
+        destination: 127.0.0.1:4560
+      kafka-appender:
+        bootstrap-servers: 127.0.0.1:9092
+        topic: logback_to_logstash
+  
+  console:
+    user:
+      username: admin
+      password: admin
+  
+  seata:
+    config:
+      # support: nacos, consul, apollo, zk, etcd3
+      type: nacos
+      nacos:
+        server-addr: nacos:8848
+        namespace: 548c8b4b-f377-4b9e-8704-192e4f597b95
+        group: dev
+        username: nacos
+        password: nacos
+        data-id: seataServer.properties
+    registry:
+      # support: nacos, eureka, redis, zk, consul, etcd3, sofa
+      type: nacos
+      nacos:
+        server-addr: nacos:8848
+        namespace: 548c8b4b-f377-4b9e-8704-192e4f597b95
+        group: dev
+        username: nacos
+        password: nacos
+        data-id: seataServer.properties
+    store:
+      # support: file 、 db 、 redis
+      mode: file
+  #  server:
+  #    service-port: 8091 #If not configured, the default is '${server.port} + 1000'
+    security:
+      secretKey: SeataSecretKey0c382ef121d778043159209298fd40bf3850a017
+      tokenValidityInMilliseconds: 1800000
+      ignore:
+        urls: /,/**/*.css,/**/*.js,/**/*.html,/**/*.map,/**/*.svg,/**/*.png,/**/*.ico,/console-fe/public/**,/api/v1/auth/login
+  ```
+
+  nacos 中的 `seataServer.properties` 配置如下：
+
+  ```properties
+  store.mode=file
+  store.lock.mode=file
+  store.session.mode=file
+  #Used for password encryption
+  store.publicKey=
+  
+  #If `store.mode,store.lock.mode,store.session.mode` are not equal to `file`, you can remove the configuration block.
+  store.file.dir=file_store/data
+  store.file.maxBranchSessionSize=16384
+  store.file.maxGlobalSessionSize=512
+  store.file.fileWriteBufferCacheSize=16384
+  store.file.flushDiskMode=async
+  store.file.sessionReloadReadSize=100
+  ```
+
+  对应的 compose 文件：
+
+  ```yml
+    seata:
+      image: seataio/seata-server:1.6.1
+      container_name: tiny-shop-seata
+      ports:
+        - "7091:7091"
+        - "8091:8091"
+      environment:
+        - SEATA_IP=shop.co
+      depends_on:
+        nacos:
+          condition: service_started
+        mysql:
+          condition: service_healthy
+      volumes:
+        - "./env/seata/resources:/seata-server/resources"
+      networks:
+        - shop_backend
+  ```
+
+  需要注意这里的 `SEATA_IP=shop.co` ，如果为开发环境的话不指定改 IP 就会解析 seata IP 为 docker 内部 IP 会导致无法访问，需要指定一个开发环境可以访问的IP。
+
+  ![image-20230627225403689](Java实战.assets/image-20230627225403689.png)
+
+* RocketMQ:
+
+  由于 RocketMQ 官方不提供优质镜像，需要自己打包，Dockerfile如下，需要解压后的 rocketmq 文件夹名为 `rocketmq`，并且需要调整 `runbroker.sh` 和 `runserver.sh` 中的 Java 参数，否则会造成耗费内存过大。
+
+  ```dockerfile
+  FROM amazoncorretto:8u372
+  COPY rocketmq-4.9.7 /rocketmq
+  ENV ROCKETMQ_VERSION=4.9.7
+  ENV ROCKETMQ_HOME=/rocketmq
+  EXPOSE 9876
+  EXPOSE 10909 10911 10912
+  WORKDIR ${ROCKETMQ_HOME}/bin
+  ```
+
+  Compose 文件如下：
+
+  ```yml
+    namesrv:
+      build: ./env/rmq/image
+      container_name: tiny-shop-rmq-namesrv
+      ports:
+        - 9876:9876
+      volumes:
+        - ./env/rmq/data/namesrv/logs:/home/rocketmq/logs
+      command: sh mqnamesrv
+      networks:
+        - shop_backend
+  
+    # rocketmq broker
+    broker:
+      build: ./env/rmq/image
+      container_name: tiny-shop-rmq-broker
+      ports:
+        - 10909:10909
+        - 10911:10911
+        - 10912:10912
+      volumes:
+        - ./env/rmq/data/broker/logs:/home/rocketmq/logs
+        - ./env/rmq/data/broker/store:/home/rocketmq/store
+      command: sh mqbroker -n namesrv:9876 -c ../conf/broker.conf
+      depends_on:
+        - namesrv
+      networks:
+        - shop_backend
+  ```
+
+  Dashboard 的信息：
+
+  ```yml
+    rmq-dashboard:
+      image: apacherocketmq/rocketmq-dashboard
+      container_name: tiny-shop-rmq-dashboard
+      ports:
+        - 9999:8080
+      environment:
+        - "JAVA_OPTS=-Xms512m -Xmx512m -Xmn128m -Drocketmq.namesrv.addr=namesrv:9876"
+      networks:
+        - shop_backend
+  ```
+
+  
+
+* 
+
 ## 谷粒商城
 
 [BV1np4y1C7Yf](https://www.bilibili.com/video/BV1np4y1C7Yf?p=22) P28
@@ -3013,15 +3681,31 @@ location / {
 
 redis 有更专业的分布式锁处理工具 redission。
 
+Redisson 的 Springboot starter 不是那么好用，直接引入依赖包。
+
 引入 redission 依赖：
 
 ```xml
-<!-- https://mvnrepository.com/artifact/org.redisson/redisson-spring-boot-starter -->
 <dependency>
     <groupId>org.redisson</groupId>
-    <artifactId>redisson-spring-boot-starter</artifactId>
+    <artifactId>redisson</artifactId>
     <version>3.20.1</version>
 </dependency>
+```
+
+在配置中添加 Bean：
+
+```java
+@Bean(destroyMethod = "shutdown")
+public RedissonClient redissonClient() {
+    //1、创建配置
+    Config config = new Config();
+    config.useSingleServer().setAddress("redis://" + redisHost + ":6379");
+
+    //2、根据Config创建出RedissonClient实例
+    //Redis url should start with redis:// or rediss://
+    return Redisson.create(config);
+}
 ```
 
 redisson 普通锁实现了 JUC 包中的 Lock 接口，并且是一个**可重入锁**，可以根调用本地接口一样进行分布式上锁。并且为了解决加锁异常的情况，redisson 会自动进行锁的续期，如果业务中断就不会续期知道锁到期，这种自动续期的工作模式是看门狗的定时任务。
@@ -3317,6 +4001,8 @@ SpringSession 执行流程：
 
 总的来说，单点登录利用了统一认证机制，把所有子系统都集中到同一个认证中心上，每个系统只对这个中心负责认证，同时也能够共享认证信息。这样，用户只需输入一次用户名和密码，就能在多个应用系统中无缝浏览和操作。
 
+![SSO单点登录.drawio](Java实战.assets/SSO单点登录.drawio.png)
+
 #### d. ThreadLocal进行用户身份鉴别
 
 因为在 Spring 中拦截器、controller、service和dao都是在同一个线程内执行，因此可以使用 ThreadLocal 来存储数据。
@@ -3466,11 +4152,11 @@ seata 支持 2PC。
    * 在 `conf/registry.conf` 将注册中心和配置中心改为 nacos，默认配置文件是在 `file.conf`
    * 如果想将分布式事务日志存储到 mysql 中可以配置存储的数据库和表结构，在 `db_store.sql` 文件中
 
-3. 使用 `@GlobalTransactional` 替换 `@Transactional`
+3. 使用 `@GlobalTransactional` 替换 `@Transactional`，對於事務入口使用 `@GlobalTransactional` 進行標記，對於子事務使用 `@Transactional` 進行標記。
 
 4. Seata 由于需要在部分事务失败时候进行回滚，对于单个已提交事务的回滚不方便，因此需要为每个数据库添加额外的 `UNDO_LOG` 表来记录原有的状态并且进行还原。具体表信息见[官网](https://seata.io/zh-cn/docs/overview/what-is-seata.html)
 
-5. 使用 Seata 代理数据源：
+5. 所有想要使用分布式事务的都需要使用 Seata 代理数据源：
 
    ```java
    @Configuration
