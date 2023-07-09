@@ -1708,6 +1708,142 @@ public class OrderTccReceiver implements RocketMQListener<OrderEntityVo> {
 }
 ```
 
+#### b. 防止消息重复消费
+
+RocketMQ 中 `MessageExt` 类中有 `getReconsumeTimes()` 函数，为 0 表示消费次数，可以从 redis 中获取消费状态来查看是否进行再次消费。
+
+### 7. 限流熔断降级
+
+使用 sentinel 来完成限流熔断降级。
+
+首先需要引入 Sentinel：
+
+```xml
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+</dependency>
+
+<!-- 将 sentinel 规则保存到 nacos 中-->
+<dependency>
+    <groupId>com.alibaba.csp</groupId>
+    <artifactId>sentinel-datasource-nacos</artifactId>
+</dependency>
+```
+
+然后安装 Sentinel 控制台 Dashborad：见项目部署部分。
+
+定义资源：使用注解 `SentinelResource` 定义需要限流的资源
+
+```java
+@PostMapping("/createAsyncTcc")
+@SentinelResource("createOrderAsyncTcc")
+public R createOrderAsyncTcc(@RequestBody OrderEntityVo orderEntityVo) {
+    return orderService.createOrderAsyncTcc(orderEntityVo);
+}
+```
+
+为项目添加 sentinel 服务器：
+
+```yml
+spring:
+  cloud:
+    sentinel:
+      transport:
+        dashboard: shop.co:9797
+        port: 8719
+```
+
+然后进入 sentinel 界面对服务进行限流：
+
+![image-20230709144559751](Java实战.assets/image-20230709144559751.png)
+
+限流后会抛出 `FlowException` 错误：
+
+```java
+@ExceptionHandler({FlowException.class})
+public R handleFlowException(FlowException e) {
+    log.warn(e.getMessage());
+    return R.error(BizCodeEnum.RATE_LIMIT_ERROR);
+}
+```
+
+#### a. 持久化限流规则
+
+当应用重启之后就会规则不会进行保存。解决方法是将 sentinel 和 nacos 进行绑定。
+
+首先加入依赖：
+
+```xml
+<dependency>
+    <groupId>com.alibaba.csp</groupId>
+    <artifactId>sentinel-datasource-nacos</artifactId>
+</dependency>
+```
+
+增加 sentinel 和 nacos 的 yaml 配置：
+
+```yml
+spring:
+  cloud:
+    sentinel:
+      datasource:
+        nacos:
+          nacos:
+            server-addr: shop.co:8848
+            data-id: sentinel
+            rule-type: flow	# flow 为限流，degrade 为熔断
+            namespace: fe4d41a9-5e93-4429-a8df-9b8961a0a949
+            group-id: dev
+```
+
+然后在 nacos 配置中创建对应的 json 文件定义限流规则：
+
+```json
+[
+    {
+        "resource": "createOrderAsyncTcc",
+        "limitApp": "default",
+        "grade": 1,
+        "count": 5,
+        "strategy": 0,
+        "controlBehavior": 0,
+        "clusterMode": false
+    }
+]
+```
+
+#### b. 流控效果
+
+* 快速失败：超过特定 QPS 直接返回限流信息
+* warm up 模式：会指定预热时间，将在预热时间内逐渐达到设定的阈值。
+* 排队等待：当流量超过阈值时，新请求会进行排队等待，超过指定排队等待时间返回限流信息。
+
+#### c. 流控模式
+
+* 直接：独立的流控模式
+* 关联：适用于多个服务之间有关联的场景，比如下单和支付环节，如果下单被限流那么支付也会被限流。
+* 链路：针对不同入口进行限流。
+
+#### d. 熔断
+
+当 A 服务调用 B 服务的时候，B 服务器出现问题返回大量错误或者响应时间过长，就需要 A 服务主动降级 B 服务，可用返回默认的一个值。
+
+首先需要开启 sentinel 监控 feign：
+
+```yml
+feign:
+  sentinel:
+    enabled: true
+    
+```
+
+#### e. 令牌大闸
+
+分布式锁和限流都不能解决机器人刷票的问题。
+
+比如库存有 200个，可用发放 400 个令牌，没有令牌的时候告诉用户没有库存了。
+
 ### x. 项目测试
 
 * 创建订单接口
@@ -1722,6 +1858,10 @@ public class OrderTccReceiver implements RocketMQListener<OrderEntityVo> {
 
   优化3：使用异步消息队列+TCC模式（削峰）
   
+  优化4：使用异步消息队列+TCC模式+缓存（削峰），在提交和回滚的时候考虑对于商品库存的修改，使用分布式锁来获取信息，相比于第三种性能有所下降。
+  
+  优化5：使用异步消息队列+TCC模式+缓存（先更新DB再删除缓存）
+  
   |  版本  | 线程数量 | 库存充QPS | 无库存QPS | 清空库存时间 |
   | :----: | :------: | :-------: | :-------: | :----------: |
   | 无优化 |   500    |    28     |    837    |     35s      |
@@ -1730,6 +1870,10 @@ public class OrderTccReceiver implements RocketMQListener<OrderEntityVo> {
   |        |   1000   |    31     |    774    |     35s      |
   | 优化2  |   500    | 2298(25)  |   2035    |     40s      |
   | 优化3  |   500    | 2448(142) |   1646    |      7s      |
+  | 优化4  |   500    | 1821(90)  |   2837    |     12s      |
+  | 优化5  |   500    | 2322(112) |   2219    |      9s      |
+
+优化 4、5 中加缓存的效果比 3 差的原因可能是由于 MySQL 也含有执行缓存的情况。
 
 ### x. 部屬項目
 
@@ -1978,9 +2122,35 @@ public class OrderTccReceiver implements RocketMQListener<OrderEntityVo> {
         - shop_backend
   ```
 
+* 限流组件 sentinel
+
+  Sentinel 没有官方镜像，需要手工自己创建docker镜像，将sentinel 的 jar 包存放至 Dockerfile 同一级目录下：
+
+  ```dockerfile
+  FROM amazoncorretto:8u372
+  ADD sentinel-dashboard-1.8.6.jar /sentinel/sentinel-dashboard.jar
+  ENV SENTINEL_HOME=/sentinel
+  EXPOSE 8080 8719
+  WORKDIR ${SENTINEL_HOME}/
+  CMD ["java", "-Dserver.port=8080", "-Dcsp.sentinel.dashboard.server=localhost:8080", "-Dproject.name=sentinel-dashboard", "-Xmx512m", "-jar", "sentinel-dashboard.jar"]
+  ```
+
+  docker compose 文件：
+
+  ```yml
+    sentinel-dashboard:
+      build: ./env/sentinel
+      container_name: tiny-shop-sentinel
+      ports:
+        - 9797:8080
+        - 8719:8719
+      networks:
+        - shop_backend
+  ```
+
   
 
-* 
+
 
 ## 谷粒商城
 
