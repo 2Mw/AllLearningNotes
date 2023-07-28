@@ -287,7 +287,7 @@ golang 中使用屏障机制来进行实现。
 
   强三色不等式：白色对象不能被黑色对象直接引用
 
-  若三色不等式：白色对象可以被黑色对象引用，但是要从某个灰对象触发仍然可达该白对象。
+  弱三色不等式：白色对象可以被黑色对象引用，但是要从某个灰对象触发仍然可达该白对象。
 
 * 插入写屏障
 
@@ -456,20 +456,271 @@ type myalias = int32	// alias
 
 ## 0x5 Context
 
-主要用于实现并发协调以及对 goroutine 的生命周期控制。
+概念：context 从字面意思上说就是上下文的概念，用于保存并发时候调用链路上下文信息，以一种优雅的形式实现并发协调和 goroutine 的生命周期控制，可以用来防止协程泄漏的情况。
 
-context 如何做到关闭父 context 也会关闭子 context 的？
+怎么实现生命周期控制的：使用一种树形结构来管理协程之间的父子关系，通过生命周期终止事件单向传递来管理父子协程的生命周期。（当父节点生命周期终止后，其所有子节点也都会收到生命周期终止的信号）
 
-* 首先在为父亲注册子 context 的时候就会将子 context 的 cancel 结构体传给父亲 set 中
-* 当父亲关闭的时候，遍历这个 set 就会一起关闭。
+### 1. 数据结构
 
-ValueContext:
+![图片](GoAdvance.assets/640.png)
 
-![image-20230310163054252](GoAdvance.assets/image-20230310163054252.png)
+```go
+type Context interface {
+    Deadline() (deadline time.Time, ok bool)
+    Done() <-chan struct{}
+    Err() error
+    Value(key any) any
+}
+```
 
-- 一个 valueCtx 实例只能存一个 kv 对，因此 n 个 kv 对会嵌套 n 个 valueCtx，造成空间浪费；
-- 基于 k 寻找 v 的过程是线性的，时间复杂度 O(N)；
-- 不支持基于 k 的去重，相同 k 可能重复存在，并基于起点的不同，返回不同的 v. 由此得知，valueContext 的定位类似于请求头，只适合存放少量作用域较大的全局 meta 数据.
+* `Deadline()` 方法用于返回 context 上下文的过期信息
+* `Done()` 方法返回的是一个只读的承载空结构体的 channel，表示只发送信号，不做数据存储
+* `Err()` 方法用来返回错误，通常只有两种错误，一种是手动取消，一种是过期错误
+* `Value()` 方法用于根据 key 来找到对应的 value
+
+---
+
+### 2. Context 类型
+
+* emptyCtx
+
+  context 包中提供了两种最顶级的 context，`Background()` 和 `TODO()`：
+
+  ```go
+  var (
+  	background = new(emptyCtx)
+  	todo       = new(emptyCtx)
+  )
+  
+  // Background returns a non-nil, empty Context. It is never canceled, has no
+  // values, and has no deadline. It is typically used by the main function,
+  // initialization, and tests, and as the top-level Context for incoming
+  // requests.
+  func Background() Context {
+  	return background
+  }
+  
+  // TODO returns a non-nil, empty Context. Code should use context.TODO when
+  // it's unclear which Context to use or it is not yet available (because the
+  // surrounding function has not yet been extended to accept a Context
+  // parameter).
+  func TODO() Context {
+  	return todo
+  }
+  ```
+
+  这两个 context 都是 `emptyCtx`，其用于不能被取消、没有任何值并且没有过期时间，目的是**用来创建其他 `context`**，如果尝试从 emptyCtx 中的 `Done()` channel 中读取信号的话会永远被阻塞。
+
+* cancelCtx：
+
+  cancelCtx 的数据结构：
+
+  ```go
+  type cancelCtx struct {
+  	Context
+  
+  	mu       sync.Mutex            // protects following fields
+  	done     atomic.Value          // of chan struct{}, created lazily, closed by first cancel call
+  	children map[canceler]struct{} // set to nil by the first cancel call
+  	err      error                 // set to non-nil by the first cancel call
+  }
+  ```
+
+  ![图片](GoAdvance.assets/640-16905286420043.png)
+
+  * context 表示父 context
+  * mu 表示访问互斥锁
+  * done 的话表示一个 channel
+  * children 的话是一个 `Canceler` 的 set，对于子 context 只需要关注其 cancel 方法和 Done
+
+* timerContext
+
+  其数据结构为：
+
+  ```go
+  type timerCtx struct {
+  	cancelCtx
+  	timer *time.Timer // Under cancelCtx.mu.
+  
+  	deadline time.Time
+  }
+  ```
+
+  其包含 `cancelCtx`，在创建 timerCtx 会同时创建一个 cancelContext，表明其是一个 cancelContext
+
+  其创建流程如下：
+
+  1. 如果其过期时间要晚于父 context 的过期时间，那么就只创建 cancelContext
+  2. 如果过期时间相对于当前时间已经过期，那么就直接调用 cancel 方法并且返回。
+  3. 如果在当前时间之后，就开启一个定时器，到达过期时间自动调用 cancel 方法，返回过期错误。
+
+  ```go
+  func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
+  	if parent == nil {
+  		panic("cannot create context from nil parent")
+  	}
+  	if cur, ok := parent.Deadline(); ok && cur.Before(d) {
+  		// The current deadline is already sooner than the new one.
+  		return WithCancel(parent)
+  	}
+  	c := &timerCtx{
+  		cancelCtx: newCancelCtx(parent),
+  		deadline:  d,
+  	}
+  	propagateCancel(parent, c)
+  	dur := time.Until(d)
+  	if dur <= 0 {
+  		c.cancel(true, DeadlineExceeded) // deadline has already passed
+  		return c, func() { c.cancel(false, Canceled) }
+  	}
+  	c.mu.Lock()
+  	defer c.mu.Unlock()
+  	if c.err == nil {
+  		c.timer = time.AfterFunc(dur, func() {
+  			c.cancel(true, DeadlineExceeded)
+  		})
+  	}
+  	return c, func() { c.cancel(true, Canceled) }
+  }
+  ```
+
+* valueContext
+
+  其数据结构为：
+
+  ```go
+  type valueCtx struct {
+  	Context
+  	key, val any
+  }
+  ```
+
+  查找 value 是一个有底向上查找的流程，在查找 key 对应的 value 时候，首先查看当前节点是否匹配，如果不匹配则从直接父节点中查找，一直找到根节点为止，找不到则返回 nil。
+
+  如果这个链表里由多个相同的 key 的时候，则会找到和当前节点最近的节点。
+
+### 3. context cancel流程
+
+在创建一个 CancelContext 的时候，cancel 是以闭包函数的形式传给使用者：
+
+```go
+func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
+	if parent == nil {
+		panic("cannot create context from nil parent")
+	}
+	c := newCancelCtx(parent)
+	propagateCancel(parent, &c)
+	return &c, func() { c.cancel(true, Canceled) }
+}
+```
+
+---
+
+`propagateCancel()` 函数是用于构建父子 context 之间的终止事件的传播关系：
+
+1. 在创建 context 的时候如果父 context 是 emptyCtx 则不需要建立 cancel 传播关系；如果父 context 已经关闭，则直接调用该 context 的 cancel 方法
+
+   ```go
+   done := parent.Done()
+   if done == nil {
+       return // parent is never canceled
+   }
+   
+   select {
+       case <-done:
+           // parent is already canceled
+           child.cancel(false, parent.Err())
+           return
+       default:
+   }
+   ```
+
+2. 如果父 contex 是 cancelContext 则将自身添加到父 context 的 children 中
+
+   ```go
+   if p, ok := parentCancelCtx(parent); ok {
+       p.mu.Lock()
+       if p.err != nil {
+           // parent has already been canceled
+           child.cancel(false, p.err)
+       } else {
+           if p.children == nil {
+               p.children = make(map[canceler]struct{})
+           }
+           p.children[child] = struct{}{}
+       }
+       p.mu.Unlock()
+   }
+   ```
+
+3. 如果不是，则开启一个协程使用 select 来监听父子 context 的终止事件，如果父 context 关闭则关闭子 context
+
+   ```go
+   atomic.AddInt32(&goroutines, +1)
+   go func() {
+       select {
+           case <-parent.Done():
+           child.cancel(false, parent.Err())
+           case <-child.Done():
+           }
+   }()
+   ```
+
+---
+
+* `CancelContext` 的 cancel 流程：
+
+  逐个遍历 children 并且调用子 context 的 cancel 方法，然后解除自己和父 context 的关系
+
+  ```go
+  func (c *cancelCtx) cancel(removeFromParent bool, err error) {
+  	if err == nil {
+  		panic("context: internal error: missing cancel error")
+  	}
+  	c.mu.Lock()
+  	if c.err != nil {
+  		c.mu.Unlock()
+  		return // already canceled
+  	}
+  	c.err = err
+  	d, _ := c.done.Load().(chan struct{})
+  	if d == nil {
+  		c.done.Store(closedchan)
+  	} else {
+  		close(d)
+  	}
+  	for child := range c.children {
+  		// NOTE: acquiring the child's lock while holding parent's lock.
+  		child.cancel(false, err)
+  	}
+  	c.children = nil
+  	c.mu.Unlock()
+  
+  	if removeFromParent {
+  		removeChild(c.Context, c)
+  	}
+  }
+  ```
+
+* `TimerContext` 的 cancel 流程：
+
+  其创建的时候会创建一个父 context 为 cancelContext 的上下文，因此其首先会调用父 cancelContext 的cancel 方法，然后再解除自己和父 context 的关系并且暂停定时器
+
+  ```go
+  func (c *timerCtx) cancel(removeFromParent bool, err error) {
+  	c.cancelCtx.cancel(false, err)
+  	if removeFromParent {
+  		// Remove this timerCtx from its parent cancelCtx's children.
+  		removeChild(c.cancelCtx.Context, c)
+  	}
+  	c.mu.Lock()
+  	if c.timer != nil {
+  		c.timer.Stop()
+  		c.timer = nil
+  	}
+  	c.mu.Unlock()
+  }
+  ```
 
 ## 0x6 Channel
 
@@ -477,11 +728,29 @@ ValueContext:
 
 通过通信来实现共享数据结构而不是通过共享数据来完成通信，后者的话对于可以看到各个线程内的数据，线程之间的隔离性不好。
 
+### 1. 数据结构
+
 核心数据结构：是环形数组
 
-![图片](GoAdvance.assets/640.png)
+![图片](GoAdvance.assets/640-16905517375436.png)
 
-创建 channel：
+* qcount，dataqsiz：元素数量和容量大小
+* buf：环形数组
+* sendx, recvx：环形数据的首位指针
+* sendq, recvq：当数据填满后的阻塞读和阻塞写队列
+* lock：锁
+
+### 2. 创建 channel
+
+![图片](GoAdvance.assets/640-16905526490439.png)
+
+创建 channel 时候会根据三种情况分别进行处理：
+
+* 无缓冲类型：
+* 有缓冲空结构体类型：
+* 有缓冲指针类型：
+
+创建 channel 的函数：
 
 ```go
 func makechan(t *chantype, size int) *hchan {
@@ -534,11 +803,57 @@ func makechan(t *chantype, size int) *hchan {
 }
 ```
 
-创建 channel 时候会根据三种情况分别进行处理：
+### 3. 写channel流程
 
-* 无缓冲类型：
-* 有缓冲空结构体类型：
-* 有缓冲指针类型：
+写流程中可能会遇到**两种**异常：
+
+* 向没有初始化的 channel 中写数据
+* 向已经 close 的 channel 中写数据
+
+写流程：
+
+1. 检查 channel 是否为 nil 或者是否被关闭，空/被关闭就会抛出异常
+
+2. （加锁保证线程安全）如果存在正在阻塞的读 goroutine 的话，直接将数据传给该读 goroutine，并且唤醒该 goroutine
+
+   ```go
+   if sg := c.recvq.dequeue(); sg != nil {
+       // Found a waiting receiver. We pass the value we want to send
+       // directly to the receiver, bypassing the channel buffer (if any).
+       send(c, sg, ep, func() { unlock(&c.lock) }, 3)
+       return true
+   }
+   ```
+
+3. 如果没有阻塞读并且缓冲区仍有空间，则将数据写到缓冲区然后返回
+
+4. 如果没有阻塞读并且缓冲区没有空间了，则将该 goroutine 加入到阻塞写协程队列中，然后 gopark 当前线程等待被唤醒
+
+### 4. 读 channel 流程
+
+读流程：
+
+1. 检查 channel 是否初始化，如果未初始化则会报错
+
+2. 检查 channel 是否已经关闭，如果已经关闭并且缓冲区没有数据则会返回对应数据类型的零值
+
+   ```go
+   data, ok := <- ch
+   ```
+
+   可以通过第二个返回值查看 channel 是否关闭，如果关闭 ok 为 false。
+
+3. （加锁）读的时候有阻塞写 goroutine，读取队列中第一个数据，将写协程的数据填充到环形队列中然后唤醒这个 goroutine
+
+4. 如果没有阻塞的写 goroutine 并且缓存区含有数据，读取队列中的元素并且调整队列指针
+
+5. 如果没有阻塞写 goroutine 并且缓冲区为空，那么就会加入该 channel 的阻塞读协程队列尾部中
+
+### 5. 阻塞和非阻塞模式
+
+channel 在读和写都分有阻塞模式和非阻塞模式，当处于非阻塞模式的情况下，原先读和写阻塞操作就会直接返回 `false` 防止进行阻塞。
+
+> 非阻塞模式即使用 `select` 进行处理 channel 数据。
 
 channel 和 多路 io 复用 select，如何在 select 分支中选择其中一个 channel 不会真正阻塞其他的 channel？
 
@@ -576,9 +891,48 @@ channel 和 多路 io 复用 select，如何在 select 分支中选择其中一�
 
   如果是在多路复用模式下，读取数据会直接返回，不会阻塞和报错。
 
-从已关闭有缓冲区的 channel 读取数据：如果还有剩余数据会读取完毕。
+### 6. 关闭 channel
 
-在关闭 channel 的时候会唤醒此时所有读写channel的线程，如果写会panic，读不会。
+使用内置函数 `close(ch)` 进行关闭，一个 channel 只能被关闭一次。
+
+关闭流程：
+
+1. 如果 channel 为 nil 或者已经关闭，则会 panic
+2. 唤醒所有阻塞的读写 goroutine
+
+在关闭 channel 的时候会唤醒此时所有读写channel的协程，写协程会panic，读不会。
+
+防止二次关闭 channel 的方法：
+
+1. 方式一：使用多路复用的方式，如果发送读取阻塞就会走 default 分支，然后关闭 channel；如果 channel 已经关闭那么从 channel 中读取不会进行阻塞。
+
+   > 局限性就是需要保证调用当前函数只能由一个协程是发送 channel 的一方，否则会导致程序错误
+
+   ```go
+   select {
+       case <- ch:
+       	return
+       default:
+       	close(ch)
+   }
+   ```
+
+2. 方式二：使用 `sync.Once` 来保证只能被关闭一次
+
+   ```go
+   type MyChan struct {
+       sync.Once
+       ch chan struct{}
+   }
+   
+   func (m *MyChan) Close() {
+       m.Do(func() {
+           close(ch)
+       })
+   }
+   ```
+
+   
 
 ## 0x7 GMP
 
