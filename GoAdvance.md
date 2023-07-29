@@ -932,7 +932,6 @@ channel 和 多路 io 复用 select，如何在 select 分支中选择其中一�
    }
    ```
 
-   
 
 ## 0x7 GMP
 
@@ -945,25 +944,111 @@ channel 和 多路 io 复用 select，如何在 select 分支中选择其中一�
 
 又称为用户级线程，和内核级线程为 M：1的映射关系，创建销毁调度都是在用户态完成，如果一个协程阻塞就会导致同一个线程下所有协程无法执行，并且无法并行。
 
-![图片](GoAdvance.assets/640.png)
-
 goroutine 是优化后的特殊协程，和内核级线程的映射关系为 M:N，多个 goroutine 可以实现并行，由于调度器的存在可以实现和线程之间的动态绑定和灵活调度，栈的空间可以动态扩展。
 
 ### 2. GMP 模型
 
 ![图片](GoAdvance.assets/640-16781005184154.png)
 
-gmp = goroutine + machine + processor，其中 p 相当于调度器，用于协调 g 和 m 之间的关系。
+gmp = goroutine + machine + processor
 
-对于每个 P 来说都有一个本地队列，可以实现一个轻量级锁的情况，因此在执行每个 goroutine 效率较高，当 p 的本地队列执行完的时候，会从全局队列中拿取 goroutine 来进行执行，由于多个 p 拿取因此需要进行加锁互斥访问，也有可能从别的 p 队列中偷一些 goroutine 来执行，不过情况发生较少。
+* g：指的是 goroutine，一个 golang 协程
+* m：指的是内核级线程
+* p：指的是调度器，用于将 p 调度到 m 上进行执行，每个 p 都有一个本地队列，可以实现 g 和 m 的动态绑定
 
-go 语言中协程对应的数据结构是 `runtime.g`，工作线程对应的数据结构是 `runtime.m`。其中全局变量 `g0` 对应的就是主协程，他的协程栈式再主线程栈上分配的，全局变量 `m0` 就是主线程对应的 `m`，`g0` 和 `m0` 互相持有对方的指针，`allg` 对应所有的 `g`， `allm` 对应所有的 `m`。
+> P的数量由 `GOMAXPROCS` 决定
+
+调度流程：
+
+1. 首先 p 会首先从私有本地队列中取出 g 来进行调度执行，
+2. 如果私有本地队列无任务，会从全局队列中获取任务
+3. 如果本地队列和全局队列都没有，会从其他 p 的本地队列中窃取任务(Work Stealing)。
+
+> 新创建的 g 会优先投递到当前 p 的本地队列中，满了就会加入全局队列。
 
 goroutine 生命周期：
 
 ![图片](GoAdvance.assets/640-16781015954757.png)
 
-### 3. g
+### 3. 核心数据结构
+
+go 语言中协程对应的数据结构是 `runtime.g`，工作线程对应的数据结构是 `runtime.m`。其中全局变量 `g0` 对应的就是主协程，他的协程栈式再主线程栈上分配的，全局变量 `m0` 就是主线程对应的 `m`，`g0` 和 `m0` 互相持有对方的指针，`allg` 对应所有的 `g`， `allm` 对应所有的 `m`。
+
+* g
+
+  对应数据结构为：
+
+  ```go
+  type g struct {
+      m 		*m
+      sched 	gobuf
+      // ...
+  }
+  
+  type gobuf struct {
+  	// The offsets of sp, pc, and g are known to (hard-coded in) libmach.
+  	//
+  	// ctxt is unusual with respect to GC: it may be a
+  	// heap-allocated funcval, so GC needs to track it, but it
+  	// needs to be set and cleared from assembly, where it's
+  	// difficult to have write barriers. However, ctxt is really a
+  	// saved, live register, and we only ever exchange it between
+  	// the real register and the gobuf. Hence, we treat it as a
+  	// root during stack scanning, which means assembly that saves
+  	// and restores it doesn't need write barriers. It's still
+  	// typed as a pointer so that any other writes from Go get
+  	// write barriers.
+  	sp   uintptr
+  	pc   uintptr
+  	g    guintptr
+  	ctxt unsafe.Pointer
+  	ret  uintptr
+  	lr   uintptr
+  	bp   uintptr // for framepointer-enabled architectures
+  }
+  ```
+
+  每个 g 会绑定一个 m，sched 表示的是寄存器状态
+
+* m
+
+  ```go
+  type m struct {
+      g0 *g
+      tls	[tlsSlots]unitptr // thread-local storage
+  }
+  ```
+
+  g0 是特殊的调度协程，不执行用户函数，负责执行 g 之间的切换调度，和 m 的关系是 1：1
+
+  
+
+* p
+
+  ```go
+  type p struct {
+      runq 		[256]guintptr
+      runqhead 	uint32
+      runqtail	uint32
+      
+      runnext		guintptr
+  }
+  ```
+
+  runq 表示本地 goroutine 任务队列
+
+* schedt 为全局队列
+
+  ```go
+  type schedt struct {
+      // ...
+      lock mutex
+      runq gQueue
+      runqsize int32
+  }
+  ```
+
+### 4. 调度流程
 
 g 分为两种：g0 和普通的 g，g0是一类特殊的调度协程，不用于执行用户函数，负责执行 g 之间的切换调度，和 m 的关系是 1:1；另一种就是普通的 g。
 
@@ -1004,7 +1089,7 @@ g 分为两种：g0 和普通的 g，g0是一类特殊的调度协程，不用�
 
 * 正常调度：该 goroutine 正常执行完毕，进入销毁流程。
 
-* 抢占调度：发起**系统调用**。
+* 抢占调度：由全局 monitor g 监控，普通 g 发起**系统调用**并且达到一定时长。
 
 调度流程：
 
@@ -1048,3 +1133,220 @@ func schedule() {
 * 执行系统调用超过 10ms
 * p 本地队列中由待执行的 g
 * 当前没有空闲的 p 和 m
+
+## 0x8 锁 Mutex
+
+### 1. 锁升级
+
+当 goroutine 发现锁已被抢占会有两种策略：
+
+* （多核）自旋+cas，cas 失败达到一定程度之后转为阻塞和挂起模式
+* 阻塞/唤醒
+
+### 2. 饥饿模式
+
+用于解决非公平锁导致饥饿现象 golang 中 mutex 采取的优化模式。
+
+饥饿模式：当 mutex 阻塞队列中存在饥饿态的 goroutine 的时候，将抢锁流程从非公平转为公平竞争模式。
+
+两模式转换条件：
+
+* 正常模式->饥饿模式：当阻塞队列中的 goroutine 等待时间 > 1ms
+* 饥饿模式->正常模式：阻塞队列中所有 goroutine 等待时间都 < 1ms / 阻塞队列已清空
+
+### 3. 数据结构
+
+```go
+type Mutex struct {
+	state int32
+	sema  uint32
+}
+var (
+	mutexLocked = 1 << iota // mutex is locked
+	mutexWoken	// 2
+	mutexStarving	// 4
+	mutexWaiterShift = iota	// 3
+	starvationThresholdNs = 1e6	// 饥饿模式的阈值
+)
+```
+
+* state 表示锁的状态
+* sema 用于阻塞和唤醒的信号量
+
+![图片](GoAdvance.assets/640.png)
+
+### 4. 加锁流程
+
+加锁流程如下：
+
+1. 首先会尝试一次 cas 操作，只有在无阻塞队列、无竞争线程、正常模式下才会加锁成功，否则进入 `lockSlow` 流程
+
+   ```go
+   func (m *Mutex) Lock() {
+   	// Fast path: grab unlocked mutex.
+   	if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
+   		return
+   	}
+   	// Slow path (outlined so that the fast path can be inlined)
+   	m.lockSlow()
+   }
+   ```
+
+2. lockSlow 中的局部变量
+
+   ```go
+   func (m *Mutex) lockSlow() {
+       // 表示抢锁的等待时间
+       var waitStartTime int64
+       // 是否处于饥饿模式
+       starving := false
+       // 是否已有协程在等待锁
+       awoke := false
+       // 自旋次数
+       iter := 0
+       // 临时存储锁的 state
+       old := m.state
+       // ...
+   ```
+
+3. 自旋空转流程
+
+   ```go
+   if old&(mutexLocked|mutexStarving) == mutexLocked && runtime_canSpin(iter) {
+       // Active spinning makes sense.
+       // Try to set mutexWoken flag to inform Unlock
+       // to not wake other blocked goroutines.
+       if !awoke && old&mutexWoken == 0 && old>>mutexWaiterShift != 0 &&
+       atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
+           awoke = true
+       }
+       runtime_doSpin()
+       iter++
+       old = m.state
+       continue
+   }
+   ```
+
+4. 使用 cas 操作进行加锁
+
+   ```go
+   if atomic.CompareAndSwapInt32(&m.state, old, new) {
+       // 如果之前不存在锁并且不处于饥饿模式，条件成功就表示加锁成功
+       if old&(mutexLocked|mutexStarving) == 0 {
+           break // locked the mutex with CAS
+       }
+       // If we were already waiting before, queue at the front of the queue.
+       queueLifo := waitStartTime != 0
+       if waitStartTime == 0 {
+           waitStartTime = runtime_nanotime()
+       }
+       // 将当前 goroutine 添加到阻塞队列中
+       runtime_SemacquireMutex(&m.sema, queueLifo, 1)
+       // 被唤醒
+       starving = starving || runtime_nanotime()-waitStartTime > starvationThresholdNs
+       old = m.state
+       if old&mutexStarving != 0 {
+           // If this goroutine was woken and mutex is in starvation mode,
+           // ownership was handed off to us but mutex is in somewhat
+           // inconsistent state: mutexLocked is not set and we are still
+           // accounted as waiter. Fix that.
+           if old&(mutexLocked|mutexWoken) != 0 || old>>mutexWaiterShift == 0 {
+               throw("sync: inconsistent mutex state")
+           }
+           delta := int32(mutexLocked - 1<<mutexWaiterShift)
+           if !starving || old>>mutexWaiterShift == 1 {
+               // Exit starvation mode.
+               // Critical to do it here and consider wait time.
+               // Starvation mode is so inefficient, that two goroutines
+               // can go lock-step infinitely once they switch mutex
+               // to starvation mode.
+               delta -= mutexStarving
+           }
+           atomic.AddInt32(&m.state, delta)
+           break
+       }
+       awoke = true
+       iter = 0
+   } else {
+       old = m.state
+   }
+   ```
+
+### 5. 解锁流程
+
+1. 首先直接对 state -1
+2. 如果 state 为 0 表示没有其他线程正在争抢则直接返回
+3. 如果不为 0，检查是否正在解锁已经解锁的锁，如果是则报错
+4. 然后唤醒一个正在阻塞的线程
+
+### 6. 读写锁
+
+数据结构：
+
+```go
+type RWMutex struct {
+	w           Mutex  // held if there are pending writers
+	writerSem   uint32 // semaphore for writers to wait for completing readers
+	readerSem   uint32 // semaphore for readers to wait for completing writers
+	readerCount int32  // number of pending readers
+	readerWait  int32  // number of departing readers
+}
+```
+
+![image-20230729165124804](GoAdvance.assets/image-20230729165124804.png)
+
+## 0x9 sync.Map
+
+### 1. 核心数据结构
+
+![image-20230729213630771](GoAdvance.assets/image-20230729213630771.png)
+
+```go
+type Map struct {
+	mu Mutex
+	read atomic.Value // readOnly
+	dirty map[any]*entry
+	misses int
+}
+```
+
+sync.Map 的特点是冗余了两份 map：read map 和 dirty map，有两个特点：
+
+1. 首先基于无锁操作访问 read map；倘若 read map 不存在该 key，则加锁并使用 dirty map 兜底；
+
+2. read map 和 dirty map 之间会交替轮换更新.
+
+value 使用 entry 来进行包装，entry.p 的指向分为三种情况：
+
+* 存活态：正常指向元素；
+* 软删除态：指向 nil；readmap 和 dirtymap 中仍存在对应的 kv 对，但是其已经被删除了
+* 硬删除态：指向固定的全局变量 expunged.
+
+### 2. 读写流程
+
+读流程：
+
+![image-20230729214831828](GoAdvance.assets/image-20230729214831828.png)
+
+1. 先查看 readmap 中是否存在对应的 key，如果存在则直接读取然后返回
+2. 如果 readmap 中不存在，检查 readmap 是否缺失数据，如果不缺失则返回零值
+3. 如果缺失数据，加锁二次从 readmap 中检查键值对存在以及是否缺失数据
+4. 如果仍然缺失数据，从 dirtymap 中获取数据，并且让 miss 加一，然后返回结果
+
+写流程：
+
+![image-20230729223808884](GoAdvance.assets/image-20230729223808884.png)
+
+> 需要注意的是，map 中 value 的类型为 `*entry` 指针，如果在 readmap 中更新，那么对应的值在 dirty 中也会进行更新。
+
+1. 检查 key 是否在 readmap 中存在，如果存在并且不是硬删除，则使用 cas 操作来更新值
+2. 如果不存在或者是硬删除，加锁并且进行 double check 双重检测 readmap
+3. readmap 或者 dirtymap 中存在对应的 key，则直接设置新的 value 即可。
+4. 如果 dirty map 中都不存在，添加新 kv 对，并且设置 readmap 的缺失数据标志位为 true
+
+读写流程中的两次复制：
+
+* 第一次在 `missLocked()` 函数中，当 miss 的次数达到 dirtymap 的长度时候，就会将 dirtymap 整体复制到 readmap 中，并且将 dirtymap 置为 nil，时间复杂度为 `O(1)`
+* 第二次在 `dirtyLocked()` 函数中，由于 `missLocked` 中将 dirtymap 置为 nil，需要从 readmap 中复制到 dirtymap 中，但是在复制过程中，要将 readmap 中软删除标记转为硬删除，**只有未被删除的 kv 对才会被复制**，保证 dirty 中一定不存在硬删除的状态，时间复杂度为 `O(n)`。
+
+> 因此，尽量避免在 sync.Map 使用在写多读少的情况，否则会存在性能瓶颈的问题。
