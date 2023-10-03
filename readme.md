@@ -50,7 +50,11 @@
 
 ## 0x9. Web3
 
-## 0xA. 其他
+## 0xA. Reverse Engineer
+
+* [安卓逆向.md](安卓逆向.md)
+
+## 0xB. 其他
 
 * [Rust 基础知识笔记](rust.md)
 * [nginx 基础使用笔记](nginx.md)
