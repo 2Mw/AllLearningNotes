@@ -60,5 +60,5 @@
 * [nginx 基础使用笔记](nginx.md)
 * [Docker 笔记](DockerNotes.md)
 * [K8S 笔记](kubernetes.md)
-* [Vue 2 笔记](vue.md)
+* [Vue 2 笔记](vue.md) / [Vue3 笔记](vue3.md)
 * Archived [面试笔记 - 1](exp.md) / [面试笔记 - 2](GoJobs.md)
