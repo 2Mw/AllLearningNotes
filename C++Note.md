@@ -605,6 +605,93 @@ BOOL APIENTRY DllMain( HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReser
 
 用于提供给外界调用的函数，外界在使用 DLL 文件的时候，只会各取所需，不会将所有的 DLL 函数都加载进其进程内存空间中。
 
+创建函数定义：
+
+```c++
+// Demo.h
+#define EXPORT extern "C" __declspec(dllexport)
+EXPORT void demoMsgBox(WCHAR* s);
+```
+
+* `extern "C"`：由于 C++ 支持重载，所以在编译后可能会修改函数名称；使用该选项防止修改函数名称。
+* `__declspec(dllexport)`：声明导出函数，将本函数开放给其他函数进行使用。
+
+创建函数实现：
+
+```c++
+// Demo.cpp
+void demoMsgBox(WCHAR* s) 
+{
+	MessageBox(NULL, s, L"demoTitle", 0);
+}
+```
+
+在 `dllMain` 函数所在文件引入 `Demo.h` 文件并且编译：
+
+```c++
+1>   Creating library code\MyDLL\x64\Debug\MyDLL.lib and object code\MyDLL\x64\Debug\MyDLL.exp
+1>MyDLL.vcxproj -> code\MyDLL\x64\Debug\MyDLL.dll
+```
+
+编译的时候会生成 `lib` 文件，该文件是静态库文件，`dll` 是动态库文件。
+
+### 2. DLL的静态调用
+
+> 将 DLL 的导出函数写入可执行文件。
+
+* 首先需要将对应的 `lib` 文件放到工程目录下
+* 使用 `#pragma comment(lib, "MyDLL")` 声明链接库文件名称
+* 使用 `extern "C" void demoMsgBox(char *s);` 声明函数
+* 编译文件即可，在进行文件迁移的时候需要将 DLL 文件和 exe 文件放在同一目录下才可以运行
+
+```c++
+#include <iostream>
+#include "Windows.h"
+
+#pragma comment(lib, "MyDLL")
+
+extern "C" void demoMsgBox(char *s);
+
+int main()
+{
+    //char* s = "123";
+    char* s = "Hello, world!";
+    demoMsgBox(s);
+    std::cout << "Hello World!!\n";
+}
+```
+
+### 3. DLL的动态调用
+
+使用到两个重要的函数：
+
+* `LoadLibrary(dllPath)` 获取DLL文件的句柄
+* `GetProcAddress(h, funcName)`：根据句柄和函数名称获取指针函数，然后强转一下就可以使用
+
+```c++
+#include <iostream>
+#include "Windows.h"
+// 定义函数指针类型
+typedef void (*pDemoMsgBox)(char* s);
+
+int main()
+{
+    HMODULE h = LoadLibrary("MyDLL.dll");
+    if (h == NULL) std::cout << "加载DLL失败" << std::endl;
+    else {
+        pDemoMsgBox func = (pDemoMsgBox)GetProcAddress(h, "demoMsgBox");
+        func("Dynamic");
+    }
+    return 0;
+}
+```
+
+### 4. 查看 DLL 文件内部的函数
+
+可以使用 DetectItEasy 或者其他查看PE文件，查看PE导出信息：
+
+![image-20231204154325562](C++Note.assets/image-20231204154325562.png)
+
 ## 0x??. CMake
 
 来源：[CMake-Bilibili](https://www.bilibili.com/video/BV14s4y1g7Zj)
